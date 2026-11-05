@@ -8,6 +8,31 @@
 
 > Uygulamanın her sayfasında üstteki şeritte ve alt bilgide **"Resmî Çorum FK uygulaması değildir."** yazar.
 
+## 0. 013 mobil tasarımla gelen değişiklikler (5 Kasım 2026)
+
+- **Etiket:** ana sayfa akışında kartın ilk öğesi gerçek metin **"Sponsor"** (`p.reklam-etiket` > `span.nokta[aria-hidden]` +
+  `.reklam-etiket-metin`; CSS `content` ile metin yok). Haber sonu "Reklam", maça özel "Maçın sponsoru" + alt satır
+  `MAC_SPONSORU_NOTU` = "Uygulama sponsoru · Çorum FK'nın sponsoru değildir", genel maç sponsoru "Sponsor".
+- **Erişilebilir ad:** kartın tamamı bağlantı değil; yalnız düğme (`a.reklam-eylem.reklam-baglanti`). Adı
+  "Sponsor: <firma> – <düğme yazısı> (yeni sekmede açılır)" (WhatsApp'ta "(WhatsApp açılır)"); isteğe bağlı ikinci düğme `a.reklam-ara`
+  (`tel:`). Görsel `alt` = panelde girilen **görseldeki yazı** (`gorsel_metni`), yoksa `alt=""`.
+- **Akış:** `aktif_reklamlar(p_alan, p_adet)` FARKLI firmaları (adı `lower(btrim)` ile) öncelik sırasıyla döndürür; `ana.js` ilk
+  yuvayı 3. haberden sonra, sonrakileri 8 haberde bir açar (en çok 3; `data-reklam-sira`); o sırada firma yoksa yuva **silinir**.
+  Geç gelen kart (yuva açıldıktan 150 ms sonra), yuva görünür alanda ya da üstündeyse veya odak yuvanın altındaysa eklenmez.
+  `reklamOnYukle('ana_akis')` sorguyu haber sorgusuyla paralel başlatır. `aktif_reklamlar` yoksa (eski veritabanı) `aktif_reklam`'a düşer.
+- **Yönetici sayılmaz:** `reklam_olay_kaydet` yönetici çağırırsa doğrulamadan sonra kaydetmeden `'yonetici'` döner; istemci de
+  `is_admin()` doğruysa sayımı hiç başlatmaz (`data-sayim="yonetici"`). Panel raporunda "Yöneticilerin bakışları sayılmaz".
+- **Rapor:** **Firma** seçimi (`#ry-rapor-firma`); CSV yalnız bir firma seçiliyken iner (`reklam-raporu_<firma>_<aralık>.csv`),
+  sütunlar `Firma;Alan;Maç;Dönem;Gösterim;Tıklama;Tıklama oranı (%);Sınıra takılan dakika` (genel maç sponsorunda Maç = "Tüm maçlar").
+  Telefonda toplam satırı hücre başlıklarıyla etiketli (`data-baslik`).
+- **Form:** metin 160'ı aşınca sessizce kesilmez: sayaç "N/160 · X karakter fazla" (kırmızı) ve kaydetmez; 120 altı önerilir.
+  Yeni alanlar: düğme yazısı (2-24, boşsa "Ayrıntılar"), "Ara" telefonu (`+90…` saklanır), görseldeki yazı (≤ 200), küçük görsel
+  (`gorsel_kucuk_url`, panel `-k.webp` üretir: yatay 480, kare 192). **Yasaklı sektör kontrolü** (bahis, alkol, tütün/nargile, kulüp
+  adı/amblemi) işaretlenmeden "Yayına al" çalışmaz (`sektor_onayi` saklanır; kontrol panelde). WhatsApp sonucu 390 px'te taşmaz.
+- **CSS:** kart stilleri artık `assets/stil.css` 17. bölümde; `assets/reklam/reklam.css` boş bir yer tutucudur (eski bağlantılar kırılmasın).
+  Akış kartı kompakt (solda 112 px görsel, ≤ 200 px yükseklik).
+- **Örnek reklam (Narçil Cafe):** varsayılan **bağlantı yok** (menü sitesinde nargile görünüyor; `docs/ilk-reklam/NASIL.md`).
+
 ## 1. Dosyalar
 
 | Dosya | Ne işe yarar | Uygulamaya kopyalanır mı |
@@ -15,7 +40,7 @@
 | `supabase/migrations/010_reklamlar.sql` | Tablolar, RLS, doğrulama tetikleyicisi, RPC'ler, depo (bucket) | Evet → `supabase/migrations/` |
 | `assets/reklam/reklam.js` | Ziyaretçi bileşeni: `reklamYerlestir`, `reklamYuvalariniDoldur`, `akisaReklamEkle` | Evet → `assets/reklam/` |
 | `assets/reklam/reklam-mantik.js` | Saf mantık: seçim kuralı, durum, İstanbul saati, bağlantı/WhatsApp, CSV | Evet |
-| `assets/reklam/reklam.css` | Kart stili (açık/koyu, telefon öncelikli) | Evet |
+| `assets/reklam/reklam.css` | (013'ten beri boş; kart stili `assets/stil.css` 17. bölüm) | Evet |
 | `assets/reklam/yonetim-reklamlar.js` | Yönetim paneli: `kur(el, { supabase })` (entegrasyon) ve `reklamYonetimiBaslat(bolum, supabase)` | Evet |
 | `assets/reklam/yonetim-reklamlar.css` | Panel stili | Evet |
 | `yonetim-reklamlar.html`, `ornek-*.html`, `ornek/`, modülün kendi sahte istemcisi ve sunucusu | Modülün tek başına denendiği örnekler | **Hayır** (entegrasyon: gerçek uygulama sayfaları kullanılıyor) |
@@ -51,8 +76,8 @@ Not: Dosyada `revoke truncate ... from anon, authenticated` ve `revoke execute .
 
 ## 3. Yerleşimleri bağlama
 
-**(entegrasyon) Uygulamada nasıl bağlı:** `index.html`, `haber.html`, `mac.html` sayfalarında `assets/reklam/reklam.css`
-`assets/stil.css`'ten ÖNCE yüklenir (renkler sitenin belirteçlerine `stil.css` sonunda bağlanır). Sayfa modülleri yuvayı
+**(entegrasyon) Uygulamada nasıl bağlı:** `index.html`, `haber.html`, `mac.html` sayfalarında yalnız `assets/stil.css` yüklenir
+(kart stilleri onun içinde, 013). Sayfa modülleri yuvayı
 DOM'a koyup `assets/reklam-yukle.js` → `reklamYuvalariniDoldur()` çağırır; yükleyici `reklam.js`'i yükler,
 **`reklamIstemciAyarla(supabase)`** ile uygulamanın TEK istemcisini (`assets/istemci.js`) verir ve her yuva için
 `reklamYerlestir(el, { alan, macId })` çağırır. Reklam hata verirse yuva boşaltılır, sayfa bozulmaz.
@@ -96,7 +121,7 @@ reklamYerlestir(el, { alan: 'mac_sponsoru', macId: el.dataset.macId });
 // ya da sayfadaki tüm yuvalar için: reklamYuvalariniDoldur(document)
 ```
 
-Önce bu maça özel sponsor, yoksa genel ("Tüm maçlar") sponsor gelir. Etiket: maça özelse "Maçın sponsoru", genelse "Sponsor", diğer alanlarda "Reklam".
+Önce bu maça özel sponsor, yoksa genel ("Tüm maçlar") sponsor gelir. Etiket: maça özelse "Maçın sponsoru", genelse "Sponsor"; ana sayfa akışında "Sponsor", haber sonunda "Reklam" (013).
 
 Tek sayfa uygulamada sayfa değişirken `reklamKaldir(el)` çağırabilirsiniz (gözlemci ve dinleyiciler temizlenir).
 
@@ -108,16 +133,16 @@ Sayfa ziyareti kimliği `crypto.randomUUID()` ile her sayfa yüklemesinde üreti
 
 Renkleri temaya bağlamak için `--reklam-zemin`, `--reklam-yazi`, `--reklam-vurgu` vb. değişkenleri ezin;
 koyu tema `prefers-color-scheme` ile ya da `<html data-theme="dark">` / `data-tema="koyu"` ile açılır. Kart üstü/altı boşluk: `--reklam-bosluk` (16px).
-**(entegrasyon)** Bu eşleme `assets/stil.css` sonundaki "Reklam modülü teması" bölümündedir: kart tasarım rehberindeki
+**(entegrasyon)** Bu eşleme `assets/stil.css` 17. bölümündedir: kart tasarım rehberindeki
 (docs/TASARIM.md) altın reklam kartıdır (açık sarı / koyu kahve zemin, kesikli altın kenar, her zaman görünen
 "● REKLAM" / "● SPONSOR" / "● MAÇIN SPONSORU" etiketi, nötr siyah-beyaz düğme; kulüp kırmızısı ve Oswald kullanılmaz).
 
 ## 4. Yönetim paneli
 
-`yonetim.html` içinde (ikisi de `stil.css`'ten önce):
+`yonetim.html` içinde (`stil.css`'ten sonra; 013):
 
 ```html
-<link rel="stylesheet" href="assets/reklam/reklam.css">
+<link rel="stylesheet" href="assets/stil.css">
 <link rel="stylesheet" href="assets/reklam/yonetim-reklamlar.css">
 <section id="reklamlar-sekmesi" data-modul="reklamlar"></section>
 ```
@@ -241,5 +266,5 @@ tarayıcı testi bu adresi sahte depodan sunar (elle `?sahte=1` ile açılan bir
 9. Hazırsa **Yayına al**'a basın; sonra yayınlamak için saklamak istiyorsanız **Taslak kaydet**'e basın. Kırmızı uyarı çıkarsa yazanı düzeltin, tekrar basın.
 10. Listede rozetler: **Yayında** (ve "Şu an gösteriliyor"), **Taslak**, **Duraklatıldı**, **Başlamadı** (başlangıç saati gelmedi), **Süresi doldu**.
     Reklamı geçici durdurmak için **Duraklat**, geri açmak için **Yayına al**.
-11. **Rapor** sekmesinde tarih aralığı seçip **Göster**'e basın (varsayılan: bu ay). Gösterim, tıklama ve tıklama oranını görürsünüz;
-    **CSV indir (Excel)** ile dosyayı Excel'de açabilir, reklam verene gönderebilirsiniz.
+11. **Rapor** sekmesinde tarih aralığı ve **Firma** seçip **Göster**'e basın (varsayılan: bu ay). Gösterim, tıklama ve tıklama oranını görürsünüz;
+    **CSV indir (Excel)** yalnız bir firma seçiliyken açılır; dosyayı Excel'de açabilir, reklam verene gönderebilirsiniz. Yöneticilerin bakışları sayılmaz.

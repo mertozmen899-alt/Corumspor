@@ -2,7 +2,8 @@ AMBLEM (LOGO) KLASÖRÜ
 =====================
 
 Bu klasörde şimdilik yalnızca "amblem-yedek.svg" var. Bu, uygulama için çizilmiş
-ÖZGÜN bir işarettir (kalkan içinde "ÇFK" ve şimşek). Çorum FK'nın resmî amblemi DEĞİLDİR.
+ÖZGÜN bir işarettir (kırmızı-siyah yuvarlak içinde "ÇT" = Çorumspor Taraftar ve altın şimşek).
+Çorum FK'nın resmî amblemi DEĞİLDİR; kulübün kısaltması "ÇFK" de kullanılmaz.
 Sitenin üst kısmında varsayılan olarak bu yedek işaret görünür.
 
 Kulübün resmî amblemini kullanmak isterseniz:
@@ -24,7 +25,7 @@ Kulübün resmî amblemini kullanmak isterseniz:
      export const AMBLEM_DOSYASI = 'assets/logo/amblem.png';
 
 4. Siteyi yeniden yayınlayın. Dosya bulunamazsa site bozulmaz: önce yedek işarete,
-   o da yoksa "ÇFK" yazısına döner.
+   o da yoksa "ÇT" yazısına döner.
 
 "amblem-yedek.svg" dosyasını silmeyin; her zaman yedek olarak kullanılır
 (tarayıcı sekmesindeki küçük simge de odur).

@@ -17,7 +17,8 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 // Sahte verideki örnek Narçil reklamının görselleri (reklam-gorselleri/ornek/...) docs/ilk-reklam/'daki gerçek dosyalardır.
 // Testlerde sahte depo adresi (https://sahte.supabase.co/storage/...) localStorage'da yoksa bu dosyadan sunulur.
 // Örnek reklam görselleri WebP (PNG kopyaları docs/ilk-reklam/'da durur).
-const ORNEK_GORSELLER = { 'reklam-gorselleri/ornek/narcil-1200x628.webp': 'narcil-1200x628.webp', 'reklam-gorselleri/ornek/narcil-600x600.webp': 'narcil-600x600.webp' };
+const ORNEK_GORSELLER = { 'reklam-gorselleri/ornek/narcil-1200x628.webp': 'narcil-1200x628.webp', 'reklam-gorselleri/ornek/narcil-600x600.webp': 'narcil-600x600.webp',
+  'reklam-gorselleri/ornek/narcil-480x251.webp': 'narcil-480x251.webp', 'reklam-gorselleri/ornek/narcil-192x192.webp': 'narcil-192x192.webp' };
 function ornekReklamGorseli(yol) {
   const ad = ORNEK_GORSELLER[yol];
   return ad ? fs.readFileSync(path.join(KOK, 'docs', 'ilk-reklam', ad)) : null;
@@ -75,6 +76,14 @@ async function tarayiciTestleri() {
     return { ctx, p, hatalar };
   }
   const git = async (p, s) => { await p.goto(ADRES + '/' + s); await p.waitForLoadState('networkidle').catch(() => {}); };
+  // Çıkış artık Profil'de ve onay penceresiyle (taraftarın değerlendirmesi: yanlışlıkla çıkış)
+  const cikis = async (p) => {
+    await git(p, 'profil.html');
+    await p.click('#cikis');
+    await p.waitForSelector('#cikis-onay[open]');
+    await Promise.all([p.waitForURL(/index\.html/), p.click('#cikis-evet')]);
+  };
+  const AKIS = '#akis[data-durum="tamam"] .haber-satir';
   const metin = async (p, s) => ((await p.textContent(s).catch(() => '')) || '').replace(/\s+/g, ' ').trim();
   const tasmaYok = async (p, cihaz, ad) => {
     const [g, e] = await p.evaluate(() => [document.documentElement.scrollWidth, innerWidth]);
@@ -96,43 +105,49 @@ async function tarayiciTestleri() {
 
     // ------------------------------------------------ ana sayfa
     await git(p, 'index.html?sahte=1');
-    await p.waitForSelector('#akis .haber-karti');
-    const kartlar = await p.$$eval('#akis .haber-karti h3', (l) => l.map((x) => x.textContent));
+    await p.waitForSelector(AKIS);
+    const kartlar = await p.$$eval('#akis .haber-satir h3', (l) => l.map((x) => x.textContent));
     kontrol(c('ana: ilk sayfada 6 haber'), kartlar.length === 6, kartlar.length);
-    kontrol(c('ana: en yeni haber en üstte'), kartlar[0] === 'Test haberi 1: Sahada üç puan', kartlar[0]);
+    kontrol(c('ana: en yeni haber en üstte (manşet hero\'da, akışta tekrar yok)'), kartlar[0] === 'Test haberi 1: Sahada üç puan' && !kartlar.includes('Test haberi 2: Deplasmanda bir puan'), JSON.stringify(kartlar));
     kontrol(c('ana: taslak haber görünmüyor'), !kartlar.some((k) => /Taslak/.test(k)));
+    const hero = await p.evaluate(() => ({ etiket: document.querySelector('#hero-etiket').textContent, baslik: document.querySelector('#hero-baslik').textContent, href: document.querySelector('#hero-baslik a')?.getAttribute('href'), atif: document.querySelector('#hero-atif').textContent }));
+    kontrol(c('ana (013): hero = manşet işaretli haber (Manşet etiketi, habere bağlantı, fotoğraf atfı)'),
+      hero.etiket === 'Manşet' && hero.baslik === 'Test haberi 2: Deplasmanda bir puan' && /haber\.html\?id=33333333-0000-4000-8000-000000000002/.test(hero.href) && /Alienatedplus, CC BY-SA 4\.0/.test(hero.atif), JSON.stringify(hero));
+    // 013: reklam yokken akıştaki sponsor yuvası TAMAMEN kaldırılır (boş li, boşluk, "Sponsor" yazısı kalmaz)
+    await p.waitForSelector('#akis[data-sponsor-durum="tamam"]');
     const yuva = await p.evaluate(() => {
-      const l = document.querySelectorAll('#akis .reklam-yuvasi[data-reklam-alan="ana_akis"]');
-      const y = l[0];
-      if (!y) return { adet: 0 };
-      let once = 0; let x = y.previousElementSibling;
-      while (x) { if (x.classList.contains('haber-karti')) once++; x = x.previousElementSibling; }
-      const st = getComputedStyle(y);
-      return { adet: l.length, once, yukseklik: y.getBoundingClientRect().height, cocuk: y.childNodes.length, durum: y.dataset.reklamDurum, dolgu: st.paddingTop + st.borderTopWidth };
+      const l = document.querySelector('#akis');
+      const satirlar = [...l.querySelectorAll(':scope > li > .haber-satir')].map((a) => a.getBoundingClientRect());
+      return { yuva: l.querySelectorAll('[data-reklam-alan], .akis-sponsor, .reklam-kart').length, li: l.children.length, haber: satirlar.length, sponsor: /Sponsor/.test(l.textContent),
+        aralik: Math.round(satirlar[3].top - satirlar[2].bottom), normal: Math.round(satirlar[1].top - satirlar[0].bottom) };
     });
-    kontrol(c('ana: tek bir ana_akis reklam yuvası var'), yuva.adet === 1, JSON.stringify(yuva));
-    kontrol(c('ana: reklam yuvası 3. haberden sonra'), yuva.once === 3, JSON.stringify(yuva));
-    kontrol(c('ana: yayında reklam yokken yuva boş ve yüksekliği 0'), yuva.yukseklik === 0 && yuva.cocuk === 0, JSON.stringify(yuva));
-    kontrol(c('ana: reklam modülü yüklendi, reklam yok diye sessiz kaldı'), yuva.durum === 'tamam', yuva.durum);
+    kontrol(c('ana (013): reklam yokken akışta yuva hiç kalmadı (modül yüklendi, sessiz kaldı)'), yuva.yuva === 0 && !yuva.sponsor, JSON.stringify(yuva));
+    kontrol(c('ana (013): liste öğesi sayısı = haber sayısı; 3. ve 4. haber arası boşluk diğerleriyle aynı'), yuva.li === yuva.haber && yuva.aralik === yuva.normal, JSON.stringify(yuva));
     const sonraki = await metin(p, '#sonraki-mac');
     kontrol(c('ana: sıradaki maç kartı (Deneme FK)'), /Deneme FK/.test(sonraki) && /Çorum FK/.test(sonraki), sonraki);
     kontrol(c('ana: maç saati Türkiye saatiyle (19:00, tarayıcı New York)'), /19:00/.test(sonraki), sonraki);
-    kontrol(c('ana: altbilgide "Resmî Çorum FK uygulaması değildir"'), /Resmî Çorum FK uygulaması değildir/.test(await metin(p, 'footer')));
-    kontrol(c('ana: oturum yokken "Giriş yap" görünüyor'), /Giriş yap/.test(await metin(p, '#oturum-alani')));
+    kontrol(c('ana: altbilgide "Çorum FK\'nın resmî uygulaması değildir", şeritte "Bağımsız taraftar uygulaması"'), /Çorum FK'nın resmî uygulaması değildir/.test(await metin(p, 'footer')) && (await metin(p, '.resmi-degil')) === 'Bağımsız taraftar uygulaması');
+    kontrol(c('ana: oturum yokken üst barda Profil bağlantısı (giriş Profil\'de)'), (await p.getAttribute('#oturum-alani a', 'href')) === 'profil.html' && (await metin(p, '#oturum-alani')) === 'Profil');
     await tasmaYok(p, cihaz, 'ana');
     await foto('ana');
     kontrol(c('ana: "Daha fazla" düğmesi görünüyor'), await p.isVisible('#daha-fazla'));
-    await p.click('#daha-fazla');
-    await p.waitForFunction(() => document.querySelectorAll('#akis .haber-karti').length > 6);
-    kontrol(c('ana: "Daha fazla" sonrası 7 haber'), (await p.$$('#akis .haber-karti')).length === 7);
+    await p.focus('#daha-fazla');
+    await p.keyboard.press('Enter');
+    await p.waitForFunction(() => document.querySelectorAll('#akis .haber-satir').length > 6);
+    kontrol(c('ana: "Daha fazla" sonrası 7 haber'), (await p.$$('#akis .haber-satir')).length === 7);
     kontrol(c('ana: son sayfada "Daha fazla" gizlendi'), !(await p.isVisible('#daha-fazla')));
-    kontrol(c('ana: sayfalamadan sonra da tek reklam yuvası'), (await p.$$('.reklam-yuvasi[data-reklam-alan="ana_akis"]')).length === 1);
+    const odak = await p.evaluate(() => ({ body: document.activeElement === document.body, id: document.activeElement.dataset && document.activeElement.dataset.haberId, durum: document.querySelector('#durum').textContent }));
+    kontrol(c('ana (013): "Daha fazla"dan sonra odak body\'ye düşmez, ilk yeni habere gider (B-01)'), !odak.body && odak.id === '33333333-0000-4000-8000-000000000009', JSON.stringify(odak));
+    await p.waitForFunction(() => /haber daha yüklendi/.test(document.querySelector('#durum').textContent));
+    kontrol(c('ana (013): "1 haber daha yüklendi" #durum bölgesinden duyuruldu'), /1 haber daha yüklendi/.test(await metin(p, '#durum')));
+    kontrol(c('ana: sayfalamadan sonra da akışta boş reklam yuvası yok'), (await p.$$('#akis [data-reklam-alan], #akis .akis-sponsor')).length === 0);
 
     // ------------------------------------------------ haber ayrıntısı
     await git(p, 'haber.html?id=' + H1);
     await p.waitForSelector('#makale h1');
     kontrol(c('haber: başlık'), (await metin(p, '#makale h1')) === 'Test haberi 1: Sahada üç puan');
-    kontrol(c('haber: kapak görseli'), (await p.getAttribute('#makale img.kapak', 'src')) === 'assets/img/ornek-kapak-1.svg');
+    const kapak = await p.evaluate(() => { const i = document.querySelector('#makale img.kapak-buyuk'); return i && { src: i.getAttribute('src'), srcset: i.getAttribute('srcset'), atif: document.querySelector('#makale .foto-atif')?.textContent }; });
+    kontrol(c('haber: kapak görseli (srcset 480/800/1600) ve fotoğraf atfı'), kapak && kapak.src === 'assets/img/corum-ulu-camii-800.webp' && /corum-ulu-camii-480\.webp 480w/.test(kapak.srcset) && /Acar54, CC BY-SA 4\.0, Wikimedia Commons/.test(kapak.atif), JSON.stringify(kapak));
     const govde = await p.evaluate(() => { const m = document.querySelector('#haber-metni'); return { p: m.querySelectorAll('p').length, br: m.querySelectorAll('br').length, script: m.querySelectorAll('script').length, metin: m.textContent }; });
     kontrol(c('haber: gövde paragraflara bölündü'), govde.p === 3 && govde.br === 1, JSON.stringify(govde));
     kontrol(c('haber: gövdedeki <script> düz metin, çalışmıyor'), govde.script === 0 && /<script>alert/.test(govde.metin), JSON.stringify(govde));
@@ -162,9 +177,11 @@ async function tarayiciTestleri() {
 
     // ------------------------------------------------ maçlar
     await git(p, 'maclar.html');
-    await p.waitForSelector('#gelecek .mac-satiri');
-    const gelecek = await p.$$eval('#gelecek .mac-satiri .eslesme', (l) => l.map((x) => x.textContent));
-    const sonuclar = await p.$$eval('#sonuclar .mac-satiri', (l) => l.map((x) => x.textContent));
+    await p.waitForURL(/takim\.html#fikstur/);
+    kontrol(c('maçlar (013): eski maclar.html Takım › Fikstür\'e yönlendiriyor'), p.url().endsWith('takim.html#fikstur'));
+    await p.waitForSelector('#gelecek[data-durum="tamam"] .fikstur-satir');
+    const gelecek = await p.$$eval('#gelecek .fikstur-satir .eslesme', (l) => l.map((x) => x.textContent));
+    const sonuclar = await p.$$eval('#sonuclar .fikstur-satir', (l) => l.map((x) => x.textContent));
     kontrol(c('maçlar: fikstür yakından uzağa'), gelecek.length === 2 && /Deneme FK/.test(gelecek[0]) && /Hayal/.test(gelecek[1]), JSON.stringify(gelecek));
     kontrol(c('maçlar: sonuçlar yeniden eskiye'), sonuclar.length === 3 && /Kurgu Gençlik/.test(sonuclar[0]) && /Eski Rakip/.test(sonuclar[2]), JSON.stringify(sonuclar));
     kontrol(c('maçlar: deplasmanda ev sahibi önce yazılır'), /Kurgu Gençlik – Çorum FK/.test(sonuclar[0]) && /1 - 1/.test(sonuclar[0]), sonuclar[0]);
@@ -187,7 +204,8 @@ async function tarayiciTestleri() {
     await p.waitForSelector('#gol-listesi .gol');
     const goller = await p.$$eval('#gol-listesi .gol', (l) => l.map((x) => x.textContent.replace(/\s+/g, ' ')));
     kontrol(c('maç: goller dakika sırasıyla'), goller.length === 2 && /23'/.test(goller[0]) && /Ali Örnek/.test(goller[0]) && /90\+2'/.test(goller[1]) && /Penaltı/.test(goller[1]), JSON.stringify(goller));
-    kontrol(c('maç: YouTube videosu nocookie ile gömülü'), (await p.getAttribute('#gol-listesi iframe', 'src')) === 'https://www.youtube-nocookie.com/embed/aqz-KE-bpKQ');
+    kontrol(c('maç (013): goller gol sayfasına bağlantı; maç sayfasında video (iframe/video) yüklenmez'),
+      (await p.getAttribute('#gol-listesi .gol a', 'href')) === 'gol.html?id=22222222-0000-4000-8000-000000000001' && (await p.$$('#gol-listesi iframe, #gol-listesi video')).length === 0);
     await p.waitForSelector('#yorum-listesi .yorum');
     kontrol(c('maç: yorumlar görünüyor'), /Tribünler muhteşemdi/.test(await metin(p, '#yorum-listesi')));
     await tasmaYok(p, cihaz, 'maç');
@@ -195,11 +213,22 @@ async function tarayiciTestleri() {
 
     // ------------------------------------------------ gol arşivi
     await git(p, 'goller.html');
-    await p.waitForSelector('#arsiv .arsiv-mac');
+    await p.waitForSelector('#arsiv[data-durum="tamam"] .arsiv-mac');
     const arsiv = await p.$$eval('#arsiv .arsiv-mac', (l) => l.map((x) => ({ id: x.dataset.macId, gol: x.querySelectorAll('.gol').length })));
     kontrol(c('goller: sadece golü olan maçlar, yeniden eskiye'), arsiv.length === 2 && arsiv[0].id.endsWith('2') && arsiv[1].id === M1 && arsiv[1].gol === 2, JSON.stringify(arsiv));
-    kontrol(c('goller: YouTube gömme (youtube-nocookie)'), /^https:\/\/www\.youtube-nocookie\.com\/embed\/aqz-KE-bpKQ$/.test(await p.getAttribute('#arsiv iframe', 'src') || ''));
-    kontrol(c('goller: mp4 video oynatıcı'), (await p.getAttribute('#arsiv video', 'src')) === 'https://ornek.test/videolar/gol-3.mp4');
+    const kapaklar = await p.$$eval('#arsiv a.video-kart', (l) => l.map((a) => ({ href: a.getAttribute('href'), img: a.querySelector('img')?.getAttribute('src') })));
+    kontrol(c('goller (013): videolu gol kapak kartı (sitenin kendi kapağı) ve gol.html bağlantısı; arşivde oynatıcı yok'),
+      kapaklar.length === 2 && kapaklar.every((k) => /^gol\.html\?id=/.test(k.href) && /^assets\/img\//.test(k.img)) && (await p.$$('#arsiv iframe, #arsiv video')).length === 0, JSON.stringify(kapaklar));
+    // gol sayfası: dokununca YouTube (nocookie) / mp4 yüklenir
+    await git(p, 'gol.html?id=22222222-0000-4000-8000-000000000001');
+    await p.waitForSelector('#gol[data-durum="tamam"] .video-baslat');
+    kontrol(c('gol (013): sayfa açılınca iframe yok (facade)'), (await p.$$('iframe')).length === 0);
+    await p.click('.video-baslat');
+    kontrol(c('gol (013): oynat → YouTube videosu nocookie ile gömülü'), /^https:\/\/www\.youtube-nocookie\.com\/embed\/aqz-KE-bpKQ\?/.test(await p.getAttribute('.video iframe', 'src') || ''));
+    await git(p, 'gol.html?id=22222222-0000-4000-8000-000000000003');
+    await p.waitForSelector('#gol[data-durum="tamam"] .video-baslat');
+    await p.click('.video-baslat');
+    kontrol(c('gol (013): mp4 video oynatıcı (dokununca, preload none)'), (await p.getAttribute('.video video', 'src')) === 'https://ornek.test/videolar/gol-3.mp4' && (await p.getAttribute('.video video', 'preload')) === 'none');
     await tasmaYok(p, cihaz, 'goller');
     await foto('goller');
 
@@ -213,14 +242,14 @@ async function tarayiciTestleri() {
     await p.fill('#g-eposta', 'taraftar@ornek.test');
     await p.fill('#g-sifre', 'yanlis-sifre');
     await p.click('#g-gonder');
-    await p.waitForSelector('#giris-mesaj:not([hidden])');
-    kontrol(c('giriş: yanlış şifrede Türkçe hata'), (await metin(p, '#giris-mesaj')) === 'E-posta ya da şifre hatalı.', await metin(p, '#giris-mesaj'));
+    await p.waitForFunction(() => document.querySelector('#giris-mesaj').textContent.trim() !== '');
+    kontrol(c('giriş: yanlış şifrede Türkçe hata ("sen" diliyle, sıfırlamayı öneriyor)'), (await metin(p, '#giris-mesaj')) === 'E-posta ya da şifre tutmadı. Tekrar dene ya da şifreni sıfırla.', await metin(p, '#giris-mesaj'));
     await p.fill('#g-sifre', 'sifre1234');
     await Promise.all([p.waitForURL(/haber\.html/), p.click('#g-gonder')]);
     await p.waitForSelector('#yorum-formu');
     kontrol(c('giriş: başarılı giriş dönüş sayfasına götürür'), p.url().includes('haber.html?id=' + H2));
     const ustAlan = await metin(p, '#oturum-alani');
-    kontrol(c('giriş: üstte kullanıcı adı, "Yönetim" yok'), /ayse_19/.test(ustAlan) && !/Yönetim/.test(ustAlan), ustAlan);
+    kontrol(c('giriş: üstte (profil simgesinde) kullanıcı adı, "Yönetim" yok'), /ayse_19/.test(ustAlan) && !/Yönetim/.test(ustAlan) && (await metin(p, '#oturum-alani .avatar')) === 'A', ustAlan);
 
     // ------------------------------------------------ yorum: yaz, düzenle, sil, oran sınırı
     await p.fill('#yorum-metni', 'Testten <i>selam</i>');
@@ -240,7 +269,7 @@ async function tarayiciTestleri() {
     for (let i = 1; i <= 6; i++) {
       await p.fill('#yorum-metni', 'Seri yorum ' + i);
       await p.click('#yorum-formu button[type=submit]');
-      await p.waitForFunction(() => !document.querySelector('#yorum-formu button[type=submit]').disabled);
+      await p.waitForFunction(() => document.querySelector('#yorum-formu button[type=submit]').getAttribute('aria-disabled') !== 'true');
       await p.waitForTimeout(30);
     }
     const oranMesaj = await metin(p, '#yorum-mesaj');
@@ -248,7 +277,9 @@ async function tarayiciTestleri() {
 
     await git(p, 'mac.html?id=' + M1);
     await p.waitForSelector('#yorum-listesi .yorum');
-    kontrol(c('yorum: başkasının yorumunda düzenle/sil düğmesi yok'), (await p.locator('#yorum-listesi .yorum', { hasText: 'Tribünler' }).locator('button').count()) === 0);
+    const baska = p.locator('#yorum-listesi .yorum', { hasText: 'Tribünler' });
+    kontrol(c('yorum: başkasının yorumunda düzenle/sil düğmesi yok, yalnız "Şikâyet et" (013)'),
+      (await baska.getByRole('button', { name: /Düzenle|Sil/ }).count()) === 0 && (await baska.getByRole('button', { name: 'Şikâyet et' }).count()) === 1);
 
     // ------------------------------------------------ yönetim: taraftar engelli
     await git(p, 'yonetim.html');
@@ -256,16 +287,15 @@ async function tarayiciTestleri() {
     kontrol(c('yönetim: taraftar engelleniyor'), !(await p.isVisible('#panel')) && /sadece yöneticiler/.test(await metin(p, '#yetki-mesaj')));
 
     // ------------------------------------------------ yönetici
-    await p.click('#oturum-alani button');
-    await p.waitForURL(/index\.html/);
+    await cikis(p);
     await git(p, 'giris.html?donus=yonetim.html');
     await p.fill('#g-eposta', 'yonetici@ornek.test');
     await p.fill('#g-sifre', 'sifre1234');
     await Promise.all([p.waitForURL(/yonetim\.html/), p.click('#g-gonder')]);
     await p.waitForSelector('#panel:not([hidden])');
-    kontrol(c('yönetim: yönetici paneli görüyor, menüde "Yönetim"'), await p.isVisible('#yonetim-baglanti'));
+    kontrol(c('yönetim: yönetici paneli görüyor, üstte yönetici adı'), await p.isVisible('#panel') && /kirmizi_simsek/.test(await metin(p, '#oturum-alani')));
     const sekmeler = await p.$$eval('[role=tab][data-sekme]', (l) => l.map((x) => x.textContent));
-    kontrol(c('yönetim: 5 sekme (Reklamlar dahil)'), JSON.stringify(sekmeler) === JSON.stringify(['Haberler', 'Maçlar', 'Goller', 'Yorumlar', 'Reklamlar']), JSON.stringify(sekmeler));
+    kontrol(c('yönetim (013): 7 sekme (Kadro, Sakatlıklar ve Reklamlar dahil)'), JSON.stringify(sekmeler) === JSON.stringify(['Haberler', 'Maçlar', 'Goller', 'Kadro', 'Sakatlıklar', 'Yorumlar', 'Reklamlar']), JSON.stringify(sekmeler));
     await p.waitForSelector('#haber-listesi li');
     kontrol(c('yönetim: taslak haber listede'), /Taslak test haberi/.test(await metin(p, '#haber-listesi')));
 
@@ -337,23 +367,25 @@ async function tarayiciTestleri() {
 
     // yeni haber ana sayfada, maç saati Türkiye saatiyle, gizlenen yorum ziyaretçiye kapalı
     await git(p, 'index.html');
-    await p.waitForSelector('#akis .haber-karti');
-    const ilk = p.locator('#akis .haber-karti').first();
+    await p.waitForSelector(AKIS);
+    const ilk = p.locator('#akis .haber-satir').first();
     kontrol(c('ana: yöneticinin eklediği haber en üstte'), (await ilk.locator('h3').textContent()) === 'Yönetici test haberi ' + cihaz);
-    // Kapak, gerçekteki gibi projenin deposundan (haber-gorselleri) gelir ve gerçekten açılır (012: başka adres kabul edilmez)
-    await p.waitForFunction(() => { const i = document.querySelector('#akis .haber-karti img'); return i && i.complete && i.naturalWidth > 0; }).catch(() => {});
-    const yuklenen = await ilk.locator('img').evaluate((i) => ({ src: i.getAttribute('src'), w: i.naturalWidth }));
-    kontrol(c('ana: yüklenen kapak görseli gösteriliyor (proje deposundan, açılıyor)'),
-      /^https:\/\/sahte\.supabase\.co\/storage\/v1\/object\/public\/haber-gorselleri\/[0-9a-f-]{36}\.(webp|jpg)$/.test(yuklenen.src || '') && yuklenen.w > 0, JSON.stringify(yuklenen));
-    await git(p, 'maclar.html');
-    await p.waitForSelector('#sonuclar .mac-satiri');
-    const panelMaci = await metin(p, '#sonuclar .mac-satiri:first-child');
+    // Kapak, gerçekteki gibi projenin deposundan (haber-gorselleri) gelir ve gerçekten açılır (012: başka adres kabul edilmez);
+    // 013: panel 1600/800/480 WebP kopyası yükler, akış 480'liği ister
+    await ilk.locator('img').scrollIntoViewIfNeeded();
+    await p.waitForFunction(() => { const i = document.querySelector('#akis .haber-satir img'); return i && i.complete; }).catch(() => {});
+    // srcset'li görselde naturalWidth yoğunluğa bölünür (1×1 test PNG'si 96 px yuvada 0'a yuvarlanır): "açılıyor" decode() ile denenir
+    const yuklenen = await ilk.locator('img').evaluate(async (i) => ({ src: i.getAttribute('src'), cur: i.currentSrc, acildi: await i.decode().then(() => true, () => false) }));
+    kontrol(c('ana: yüklenen kapak görseli gösteriliyor (proje deposundan, 480 px kopyası, açılıyor)'),
+      /^https:\/\/sahte\.supabase\.co\/storage\/v1\/object\/public\/haber-gorselleri\/[0-9a-f-]{36}-480\.webp$/.test(yuklenen.src || '') && yuklenen.cur === yuklenen.src && yuklenen.acildi, JSON.stringify(yuklenen));
+    await git(p, 'takim.html#fikstur');
+    await p.waitForSelector('#sonuclar .fikstur-satir');
+    const panelMaci = await metin(p, '#sonuclar .fikstur-satir');
     kontrol(c('maçlar: panelden eklenen maç Türkiye saatiyle 19:30'), /Panel Rakibi/.test(panelMaci) && /1 - 3/.test(panelMaci) && /19:30/.test(panelMaci), panelMaci);
     await git(p, 'goller.html');
-    await p.waitForSelector('#arsiv .arsiv-mac');
+    await p.waitForSelector('#arsiv[data-durum="tamam"] .arsiv-mac');
     kontrol(c('goller: panelden eklenen gol arşivde'), /Panel Golcü/.test(await metin(p, '#arsiv')));
-    await p.click('#oturum-alani button');
-    await p.waitForURL(/index\.html/);
+    await cikis(p);
     await git(p, 'haber.html?id=' + H1);
     await p.waitForSelector('#yorum-listesi li');
     kontrol(c('haber: gizlenen yorum ziyaretçiye görünmüyor'), !/Harika maçtı/.test(await metin(p, '#yorum-listesi')) && (await metin(p, '#yorum-baslik')) === 'Yorumlar (0)', await metin(p, '#yorum-listesi'));
@@ -370,9 +402,13 @@ async function tarayiciTestleri() {
     await p.fill('#k-eposta', 'yeni@ornek.test');
     await p.fill('#k-sifre', 'kisa');
     await p.click('#k-gonder');
-    kontrol('kayıt: kısa şifre reddedildi', /en az 8/.test(await metin(p, '#giris-mesaj')));
+    const ksh = await p.evaluate(() => ({ hata: document.querySelector('#k-sifre-hata').textContent, gecersiz: document.querySelector('#k-sifre').getAttribute('aria-invalid'), odak: document.activeElement.id, bagli: document.querySelector('#k-sifre').getAttribute('aria-describedby') }));
+    kontrol('kayıt (013): kısa şifre alanın altında reddedildi (aria-invalid, aria-describedby, odak alanda)', /en az 8/.test(ksh.hata) && ksh.gecersiz === 'true' && ksh.odak === 'k-sifre' && /k-sifre-hata/.test(ksh.bagli), JSON.stringify(ksh));
     await p.fill('#k-sifre', 'uzunsifre123');
-    await Promise.all([p.waitForURL(/index\.html/), p.click('#k-gonder')]);
+    await p.click('#k-gonder');
+    await p.waitForSelector('#hosgeldin:not([hidden])');
+    kontrol('kayıt (013): "Hoş geldin yeni_taraftar!" karşılaması, odak karşılamada', (await metin(p, '#hosgeldin-baslik')) === 'Hoş geldin yeni_taraftar!' && (await p.evaluate(() => document.activeElement.id)) === 'hosgeldin');
+    await Promise.all([p.waitForURL(/index\.html/), p.click('#hosgeldin-devam')]);
     await p.waitForSelector('#oturum-alani .kullanici');
     kontrol('kayıt: yeni hesap açıldı, kullanıcı adı üstte', (await metin(p, '#oturum-alani .kullanici')) === 'yeni_taraftar');
     await git(p, 'yonetim.html');
@@ -392,6 +428,8 @@ async function tarayiciTestleri() {
     await git(p, 'index.html?sahte=1');
     await p.waitForSelector('.reklam-yuvasi .test-reklam');
     kontrol('reklam: modül varsa ana_akis yuvasına reklamYerlestir çağrılıyor', (await metin(p, '.reklam-yuvasi[data-reklam-alan="ana_akis"]')) === 'REKLAM ana_akis');
+    const sira = await p.evaluate(() => { const li = document.querySelector('#akis > li.akis-sponsor'); let once = 0; let x = li && li.previousElementSibling; while (x) { if (x.querySelector('.haber-satir')) once++; x = x.previousElementSibling; } return { once, adet: document.querySelectorAll('#akis .reklam-yuvasi[data-reklam-alan="ana_akis"]').length, sira: li && li.firstElementChild.dataset.reklamSira }; });
+    kontrol('reklam: akışta sponsor yuvası 3. haberden sonra, ilk sayfada tek (sira 0)', sira.once === 3 && sira.adet === 1 && sira.sira === '0', JSON.stringify(sira));
     kontrol('reklam: dolu yuva yer kaplıyor', (await p.$eval('.reklam-yuvasi', (y) => y.getBoundingClientRect().height)) === 50);
     await git(p, 'haber.html?id=' + H1);
     await p.waitForSelector('.reklam-yuvasi .test-reklam');
@@ -451,33 +489,73 @@ async function tarayiciTestleri() {
         s.includes(`<meta property="og:image" content="${OG}">`) && s.includes('<meta property="og:image:width" content="1200">') && s.includes('<meta property="og:image:height" content="630">') && /<meta property="og:image:alt" content="[^"]{10,}">/.test(s), ad);
       kontrol(`statik: ${ad} CSP object-src 'none', base-uri, form-action`, yonerge('object-src')[0] === "'none'" && yonerge('base-uri').length && yonerge('form-action').length, csp);
       const alt = (/<footer class="alt">([\s\S]*?)<\/footer>/.exec(s) || [])[1] || '';
-      kontrol(`statik: ${ad} alt bilgide "Resmî Çorum FK uygulaması değildir" ve gizlilik bağlantısı`, /Resmî Çorum FK uygulaması değildir/.test(alt) && /<a href="gizlilik\.html"/.test(alt), alt.slice(0, 120));
+      kontrol(`statik: ${ad} alt bilgide "Çorum FK'nın resmî uygulaması değildir" (künye), gizlilik, kurallar ve fotoğraf kaynakları bağlantısı`,
+        /Çorum FK'nın resmî uygulaması değildir/.test(alt) && /<a href="gizlilik\.html"/.test(alt) && /<a href="kurallar\.html"/.test(alt) && /<a href="kaynaklar\.html"/.test(alt) && /data-ayar="ILETISIM_EPOSTA"/.test(alt) && /kaldırma/i.test(alt), alt.slice(0, 120));
+      kontrol(`statik: ${ad} şerit "Bağımsız taraftar uygulaması", "Biz Anadoluyuz" / "Kırmızı Şimşekler" / "ÇFK" yok`, s.includes('Bağımsız taraftar uygulaması</p>') && !/Biz Anadoluyuz|Kırmızı Şimşekler|ÇFK/.test(s), ad);
+      kontrol(`statik: ${ad} viewport-fit=cover, CSP worker-src 'self', alt gezinme (4 bağlantı) main'den sonra`,
+        /<meta name="viewport" content="[^"]*viewport-fit=cover/.test(s) && yonerge('worker-src')[0] === "'self'" && (/<nav class="alt-nav" id="alt-nav" aria-label="Ana gezinme">[\s\S]*?<\/nav>/.exec(s) || [''])[0].match(/<a href=/g)?.length === 4 && s.indexOf('</main>') < s.indexOf('class="alt-nav"'), ad);
+      const modul = (/<script type="module" src="([^"]+)"><\/script>/.exec(s) || [])[1];
+      if (modul) kontrol(`statik: ${ad} sayfa modülü ve ortak modüller modulepreload ile (zincir derinliği ≤ 2)`, s.includes(`<link rel="modulepreload" href="${modul}">`) && s.includes('<link rel="modulepreload" href="assets/ortak.js">') && s.includes('<link rel="modulepreload" href="assets/istemci.js">'), ad);
       kontrol(`statik: ${ad} lang="tr", başlık, açıklama, simge, Open Graph`, /<html lang="tr">/.test(s) && /<title>[^<]+ · Çorumspor Taraftar<\/title>/.test(s) && /<meta name="description" content="[^"]{10,}">/.test(s)
         && /<link rel="icon"/.test(s) && /property="og:title"/.test(s) && /property="og:locale" content="tr_TR"/.test(s), ad);
     }
     kontrol('statik: bütün sayfalarda CSP aynı', cspler.size === 1, [...cspler].join(' || '));
+    // UI kodunda da kulüp sloganı / taraftar grubu adı yok
+    const ui = ['assets/ortak.js', 'assets/yorumlar.js', ...fs.readdirSync(path.join(KOK, 'assets/sayfa')).map((d) => 'assets/sayfa/' + d)].map((f) => fs.readFileSync(path.join(KOK, f), 'utf8')).join('\n');
+    kontrol('statik (013): arayüz kodunda "Biz Anadoluyuz" / "Kırmızı Şimşekler" / "ÇFK" yok', !/Biz Anadoluyuz|Kırmızı Şimşekler|'ÇFK'/.test(ui));
+    // Fotoğraf atfı: assets/img'deki her fotoğrafın kaydı (assets/foto-kaynaklari.js) var ve kaynaklar.html'de listeli
+    const FK = await import(require('url').pathToFileURL(path.join(KOK, 'assets/foto-kaynaklari.js')).href);
+    const fotolar = fs.readdirSync(path.join(KOK, 'assets/img')).filter((d) => /\.(webp|jpe?g|png)$/.test(d) && d !== 'og-1200x630.png');
+    const kaynaklar = fs.readFileSync(path.join(KOK, 'kaynaklar.html'), 'utf8');
+    const eksik = fotolar.filter((d) => { const k = FK.fotoKaynagi('assets/img/' + d); return !k || !k.yazar || !k.lisans || !/^https:\/\/commons\.wikimedia\.org\//.test(k.kaynak) || !kaynaklar.includes(k.kaynak) || !kaynaklar.includes(k.lisans_url); });
+    kontrol(`statik (013): assets/img'deki ${fotolar.length} fotoğrafın hepsinin atfı var (yazar, lisans, kaynak; kaynaklar.html'de)`, fotolar.length >= 20 && !eksik.length, eksik.join(', '));
+    kontrol('statik (013): stadyum inşaat fotoğrafı sitede yok (hero olarak kullanılmaz)', !fotolar.some((d) => /insaat/.test(d)));
+    const kira = fs.readFileSync(path.join(KOK, 'assets/img/KAYNAKLAR.txt'), 'utf8');
+    kontrol('statik (013): assets/img/KAYNAKLAR.txt CC BY-SA türetilmiş eser notu', /(AYNI|aynı) lisansla/.test(kira) && /CC BY-SA/.test(kira));
     // Ana sayfa: ilk başlık h1 (gizli "Sıradaki maç" h2'si h1'den önce gelmesin)
     const anaHtml = fs.readFileSync(path.join(KOK, 'index.html'), 'utf8');
     const ilkBaslik = (/<main[\s\S]*?<(h[1-6])\b/.exec(anaHtml) || [])[1];
+    const hero = (/<img class="hero-gorsel"[^>]*>/.exec(anaHtml) || [''])[0];
+    kontrol('statik (013): hero görseli HTML\'de (önyükleme tarayıcısı bulur), fetchpriority=high, srcset/sizes, width/height, alt="", tek "high"',
+      /fetchpriority="high"/.test(hero) && /srcset="/.test(hero) && /sizes="100vw"/.test(hero) && /width="1280" height="720"/.test(hero) && / alt=""/.test(hero) && (anaHtml.match(/fetchpriority="high"/g) || []).length === 1, hero);
+    const heroDosyalari = [...new Set([...anaHtml.matchAll(/assets\/img\/(corum-saat-kulesi[^ "]+\.webp)/g)].map((m) => m[1]))];
+    const enBuyuk = Math.max(...heroDosyalari.map((d) => fs.statSync(path.join(KOK, 'assets/img', d)).size));
+    kontrol('statik (013): hero kopyalarının her biri ≤ 60 KB WebP', heroDosyalari.length >= 6 && enBuyuk <= 60 * 1024, `${heroDosyalari.length} dosya, en büyük ${enBuyuk} B`);
     kontrol('statik: index.html ana içerikte ilk başlık h1', ilkBaslik === 'h1', ilkBaslik);
     const giris = fs.readFileSync(path.join(KOK, 'giris.html'), 'utf8');
     kontrol('statik: kayıt formunda aydınlatma metnine bağlantı (e-posta toplanırken)', /<form id="kayit-formu"[\s\S]*href="gizlilik\.html"[\s\S]*<\/form>/.test(giris));
+    kontrol('statik (013): sekme paneli <form> değil, div (role=tabpanel); "Şifremi unuttum" ve "Göster" düğmesi var',
+      !/<form[^>]*role="tabpanel"/.test(giris) && /<div id="giris-paneli" role="tabpanel"/.test(giris) && /Şifremi unuttum/.test(giris) && (giris.match(/class="hayalet sifre-goster"/g) || []).length === 2);
     const bas = fs.existsSync(path.join(KOK, '_headers')) ? fs.readFileSync(path.join(KOK, '_headers'), 'utf8') : '';
     const hepsi = (/^\/\*\n((?:[ \t]+.+\n?)+)/m.exec(bas) || [])[1] || '';
     kontrol('statik: _headers (Cloudflare Pages) frame-ancestors none + X-Frame-Options DENY + nosniff + Referrer-Policy',
       /Content-Security-Policy:.*frame-ancestors 'none'/.test(hepsi) && /X-Frame-Options: DENY/.test(hepsi) && /X-Content-Type-Options: nosniff/.test(hepsi) && /Referrer-Policy: strict-origin-when-cross-origin/.test(hepsi), hepsi || '(dosya yok)');
+    // 013 (performans): önbellek kuralları; aynı başlık çakışan iki kurala düşmesin (Cloudflare değerleri virgülle birleştirir)
+    const kurallar = [...bas.matchAll(/^(\/\S*)\n((?:[ \t]+.+\n?)+)/gm)].map((m) => ({ yol: m[1], cc: (/Cache-Control: (.+)/.exec(m[2]) || [])[1] })).filter((k) => k.cc);
+    const cc = (yol) => kurallar.filter((k) => new RegExp('^' + k.yol.replace(/[.]/g, '\\.').replace(/:\w+/g, '[^/]+').replace(/\*/g, '.*') + '$').test(yol)).map((k) => k.cc);
+    const ornekler = { '/assets/fonts/oswald-700-tr.woff2': /immutable/, '/assets/vendor/supabase-js-2.45.4/supabase.js': /immutable/, '/assets/img/corum-ulu-camii-480.webp': /immutable/, '/assets/stil.css': /max-age=300/, '/assets/sayfa/ana.js': /max-age=300/, '/assets/reklam/reklam.js': /max-age=300/, '/sw.js': /no-cache/ };
+    const yanlis = Object.entries(ornekler).filter(([y, d]) => { const l = cc(y); return l.length !== 1 || !d.test(l[0]); }).map(([y]) => `${y}: ${JSON.stringify(cc(y))}`);
+    kontrol('statik (013): _headers önbellek kuralları (sürümlü dosya immutable, kod 5 dk, sw.js no-cache) her yola TEK kural', !yanlis.length && !cc('/index.html').length, yanlis.join(' | '));
   });
 
   // ------------------------------------------------ gizlilik sayfası: taslak notu, koddaki depolama anahtarları birebir yazılı
   await guvenli('gizlilik', async () => {
     const { ctx, p, hatalar } = await baglam({ width: 390, height: 844 });
     await git(p, 'gizlilik.html?sahte=1');
-    await p.waitForSelector('#oturum-alani a');
-    kontrol('gizlilik: "Taslak — hukukçuya gösterilmeli" görünür', (await p.isVisible('#taslak-notu')) && /Taslak — hukukçuya gösterilmeli/.test(await metin(p, '#taslak-notu')));
+    await p.waitForSelector('#profil-baglanti');
+    const ayarMetni = fs.readFileSync(path.join(KOK, 'assets/ayar.js'), 'utf8');
+    const eposta = (/ILETISIM_EPOSTA = '([^']+)'/.exec(ayarMetni) || [])[1], sahip = (/SAHIP_ADI = '([^']+)'/.exec(ayarMetni) || [])[1];
+    await p.waitForFunction((e) => document.querySelector('#gizlilik [data-ayar="ILETISIM_EPOSTA"]').textContent === e, eposta);
+    const gz = await p.evaluate(() => ({ metin: document.querySelector('#gizlilik').textContent, taslak: !!document.querySelector('#taslak-notu'), href: document.querySelector('#gizlilik a[data-ayar="ILETISIM_EPOSTA"]').getAttribute('href'),
+      sahip: document.querySelector('#gizlilik [data-ayar="SAHIP_ADI"]').textContent, guncelleme: document.querySelector('#son-guncelleme')?.textContent }));
+    kontrol('gizlilik (013): "Taslak" kutusu ve köşeli parantezli yer tutucular yok; küçük "Son güncelleme" satırı var',
+      !gz.taslak && !/Taslak|hukukçu|avukat/i.test(gz.metin) && !/\[(Ad Soyad|adres|iletişim|Cloudflare|Central|bağlanan|Yurt|KVKK)/.test(gz.metin) && /^Son güncelleme: \d+ \S+ \d{4}$/.test(gz.guncelleme || ''), JSON.stringify({ taslak: gz.taslak, guncelleme: gz.guncelleme }));
+    kontrol('gizlilik (013): veri sorumlusu ve iletişim assets/ayar.js\'ten (SAHIP_ADI, ILETISIM_EPOSTA, mailto)', gz.sahip === sahip && gz.href === 'mailto:' + eposta, JSON.stringify(gz).slice(0, 200));
+    kontrol('gizlilik (013): "Çorum FK\'nın resmî uygulaması değildir" sayfada', /Çorum FK'nın resmî uygulaması değildir/.test(gz.metin));
     const govde = await metin(p, '#gizlilik');
-    const kod = ['assets/tema.js', 'assets/reklam/reklam-mantik.js'].map((f) => fs.readFileSync(path.join(KOK, f), 'utf8')).join('\n');
+    const kod = ['assets/tema.js', 'assets/reklam/reklam-mantik.js', 'assets/onbellek.js'].map((f) => fs.readFileSync(path.join(KOK, f), 'utf8')).join('\n');
     const anahtarlar = [/localStorage\.(?:get|set)Item\('([^']+)'/g, /SEKME_ANAHTARI = '([^']+)'/g].flatMap((d) => [...kod.matchAll(d)].map((m) => m[1]));
-    kontrol('gizlilik: koddaki tarayıcı depolama anahtarlarının hepsi sayfada (tema, reklam-sekme-kimligi)', anahtarlar.length >= 2 && anahtarlar.every((a) => govde.includes(a)), JSON.stringify([...new Set(anahtarlar)]));
+    kontrol('gizlilik: koddaki tarayıcı depolama anahtarlarının hepsi sayfada (tema, son-veri-v1, reklam-sekme-kimligi) + service worker önbelleği', anahtarlar.length >= 3 && /Cache Storage/.test(govde) && anahtarlar.every((a) => govde.includes(a)), JSON.stringify([...new Set(anahtarlar)]));
     kontrol('gizlilik: Supabase oturumu (localStorage sb-…-auth-token), çerez yok, üçüncü taraflar (jsDelivr, YouTube) yazılı',
       /sb-\[proje\]-auth-token/.test(govde) && /çerez kullanmaz/.test(govde) && /jsDelivr/.test(govde) && /YouTube/.test(govde) && /KVKK 11\. madde/.test(govde), govde.slice(0, 200));
     const alicilar = await p.$$eval('#gizlilik li > strong:first-child', (l) => l.map((e) => e.textContent));
@@ -498,10 +576,10 @@ async function tarayiciTestleri() {
     kontrol('ayar: ayar.js doldurulmamışsa Türkçe uyarı gösteriliyor', /assets\/ayar\.js/.test(await metin(p, '.uyari')));
     kontrol('ayar: uyarı sayfasında JavaScript hatası yok', !hatalar.length, hatalar.join(' | '));
     // Supabase yoksa (ayar eksik / CDN açılmadı) hiçbir sayfada "yükleniyor…" yazısı takılı kalmamalı
-    for (const s of ['haber.html?id=' + H1, 'mac.html?id=' + M1, 'maclar.html', 'goller.html']) {
+    for (const s of ['haber.html?id=' + H1, 'mac.html?id=' + M1, 'takim.html', 'goller.html', 'gol.html?id=22222222-0000-4000-8000-000000000001', 'profil.html']) {
       await git(p, s);
       await p.waitForSelector('.uyari');
-      const takili = await p.$$eval('.yukleniyor', (l) => l.filter((e) => e.getClientRects().length).map((e) => e.textContent));
+      const takili = await p.$$eval('.yukleniyor, main .iskelet', (l) => l.filter((e) => e.getClientRects().length && !e.closest('[hidden]')).map((e) => e.className));
       kontrol(`ayar: ${s.split('?')[0]} uyarı veriyor, "yükleniyor" yazısı takılı kalmıyor`, !takili.length, takili.join(' | '));
     }
     await ctx.close();
@@ -537,7 +615,7 @@ async function tarayiciTestleri() {
   await guvenli('çok veri', async () => {
     const { ctx, p, hatalar } = await baglam({ width: 390, height: 844 });
     await git(p, 'index.html?sahte=1');
-    await p.waitForSelector('#akis .haber-karti');
+    await p.waitForSelector(AKIS);
     await p.evaluate((M1) => {
       const db = JSON.parse(localStorage.getItem('sahte-db-v1'));
       const t0 = Date.now() - 3 * 864e5;
@@ -557,10 +635,10 @@ async function tarayiciTestleri() {
     kontrol('çok yorum: en yeni yorum (231.) listede, eskiden yeniye sıralı', y[y.length - 1] === 'Toplu yorum 230' && y.length <= 200 && y.indexOf('Toplu yorum 229') === y.length - 2, `${y.length} yorum, son: ${y[y.length - 1]}`);
     kontrol('çok yorum: "son 200 yorum" notu görünüyor', /son 200 yorum/i.test(await metin(p, '.yorumlar')), await metin(p, '.yorumlar'));
     kontrol('maç başlığı: ekran okuyucu için takım adları ve skor boşlukla ayrılıyor', (await metin(p, '#mac-basi h1')) === 'Çorum FK 2 - 1 Örnekköy Spor', await metin(p, '#mac-basi h1'));
-    await git(p, 'maclar.html');
-    await p.waitForSelector('#sonuclar .mac-satiri');
-    const ilk = await metin(p, '#sonuclar .mac-satiri:first-child');
-    const fik = await p.$$eval('#gelecek .mac-satiri', (l) => l.length);
+    await git(p, 'takim.html#fikstur');
+    await p.waitForSelector('#sonuclar .fikstur-satir');
+    const ilk = await metin(p, '#sonuclar .fikstur-satir');
+    const fik = await p.$$eval('#gelecek .fikstur-satir', (l) => l.length);
     kontrol('çok maç (315): en yeni sonuç en üstte, fikstür kaybolmuyor', /Kurgu Gençlik/.test(ilk) && fik === 2, `${ilk} | fikstür ${fik}`);
     kontrol('çok veri sayfalarında JavaScript hatası yok', !hatalar.length, hatalar.join(' | '));
     await ctx.close();
@@ -575,7 +653,7 @@ async function tarayiciTestleri() {
   const yorumGonder = async (p, metinDegeri) => {
     await p.fill('#yorum-metni', metinDegeri);
     await p.click('#yorum-formu button[type=submit]');
-    await p.waitForFunction(() => !document.querySelector('#yorum-formu button[type=submit]').disabled);
+    await p.waitForFunction(() => document.querySelector('#yorum-formu button[type=submit]').getAttribute('aria-disabled') !== 'true');
     await p.waitForTimeout(30);
     return metin(p, '#yorum-mesaj');
   };
@@ -586,20 +664,19 @@ async function tarayiciTestleri() {
     // e-postasını onaylamamış hesap (ör. "Confirm email" açılmadan önce açılmış ya da anonim oturum): form yerine not
     await girisYap(p, 'onaysiz@ornek.test', 'haber.html?id=' + H1);
     await p.waitForSelector('#yorum-onay-notu');
-    kontrol('yorum (012): onaysız hesapta form yok, "e-posta adresinizi onaylayın" notu var',
-      !(await p.$('#yorum-formu')) && /e-posta adresinizi onaylayın/.test(await metin(p, '#yorum-onay-notu')), await metin(p, '.yorumlar'));
+    kontrol('yorum (012): onaysız hesapta form yok, "e-posta adresini onayla" notu var',
+      !(await p.$('#yorum-formu')) && /e-posta adresini onayla/.test(await metin(p, '#yorum-onay-notu')), await metin(p, '.yorumlar'));
     const dogrudan = await p.evaluate(async (H1) => {
       const { supabase } = await import('/assets/istemci.js');
       const r = await supabase.from('yorumlar').insert({ haber_id: H1, metin: 'formu atlayan yorum' });
       return r.error && r.error.message;
     }, H1);
     kontrol('yorum (012): onaysız hesap formu atlasa da sunucu (sahte) reddeder, Türkçe', /e-posta adresinizi onaylayın/.test(dogrudan || ''), dogrudan);
-    await p.click('#oturum-alani button');
-    await p.waitForURL(/index\.html/);
+    await cikis(p);
 
     await girisYap(p, 'taraftar@ornek.test', 'haber.html?id=' + H2);
     await p.waitForSelector('#yorum-formu');
-    kontrol('yorum (012): ilk yorum gönderildi', /eklendi/.test(await yorumGonder(p, 'Kırmızı Şimşekler sahada!')));
+    kontrol('yorum (012): ilk yorum gönderildi ("Yorumun tribüne düştü")', /tribüne düştü/.test(await yorumGonder(p, 'Kırmızı Şimşekler sahada!')));
     const tekrar = await yorumGonder(p, '  kırmızı şimşekler   sahada!  ');
     kontrol('yorum (012): aynı metin 10 dakika içinde tekrar gönderilemez, Türkçe mesaj', /Aynı metni 10 dakika/.test(tekrar), tekrar);
     // son 24 saatte 50 yorum (eski tarihli, farklı metinler)
@@ -662,9 +739,9 @@ async function tarayiciTestleri() {
       await p.fill('#k-eposta', 'sinsi@ornek.test');
       await p.fill('#k-sifre', 'uzunsifre123');
       await p.click('#k-gonder');
-      await p.waitForSelector('#giris-mesaj:not([hidden])');
-      const m = await metin(p, '#giris-mesaj');
-      kontrol(`kayıt (012): "${ad}" ayrılmış ad, Türkçe hata, hesap açılmadı`, /kullanılamaz/.test(m) && p.url().includes('giris.html'), m);
+      await p.waitForFunction(() => document.querySelector('#k-ad-hata').textContent !== '');
+      const m = await metin(p, '#k-ad-hata');
+      kontrol(`kayıt (012): "${ad}" ayrılmış ad, alanın altında Türkçe hata, hesap açılmadı`, /kullanılamaz/.test(m) && p.url().includes('giris.html') && (await p.getAttribute('#k-ad', 'aria-invalid')) === 'true', m);
     }
     // "Confirm email" açık (önerilen): kayıttan sonra oturum yok, onay e-postası mesajı; onaylamadan giriş Türkçe hata
     await p.evaluate(() => localStorage.setItem('sahte_eposta_onayi', 'gerekli'));
@@ -672,14 +749,16 @@ async function tarayiciTestleri() {
     await p.fill('#k-eposta', 'onay@ornek.test');
     await p.fill('#k-sifre', 'uzunsifre123');
     await p.click('#k-gonder');
-    await p.waitForFunction(() => /onay/.test(document.querySelector('#giris-mesaj').textContent));
-    const km = await metin(p, '#giris-mesaj');
-    kontrol('kayıt (012): onay e-postası mesajı, yorum için onay gerektiği yazıyor', /onay bağlantısına tıklayın/.test(km) && /yorum/.test(km), km);
+    await p.waitForSelector('#hosgeldin:not([hidden])');
+    const km = await metin(p, '#hosgeldin');
+    kontrol('kayıt (012/013): "Hoş geldin" + onay e-postası açıklaması, yorum için onay gerektiği yazıyor', /Hoş geldin onay_bekleyen!/.test(km) && /onay bağlantısı gönderdik/.test(km) && /Yorum yazmak için e-posta onayı gerekir/.test(km), km);
+    await Promise.all([p.waitForURL(/giris\.html/), p.click('#hosgeldin-devam')]);
+    await p.waitForSelector('#g-eposta');
     await p.fill('#g-eposta', 'onay@ornek.test');
     await p.fill('#g-sifre', 'uzunsifre123');
     await p.click('#g-gonder');
-    await p.waitForFunction(() => /onaylamadınız/.test(document.querySelector('#giris-mesaj').textContent));
-    kontrol('giriş (012): onaylanmamış e-postayla giriş Türkçe hata', /henüz onaylamadınız/.test(await metin(p, '#giris-mesaj')));
+    await p.waitForFunction(() => /onaylamadın/.test(document.querySelector('#giris-mesaj').textContent));
+    kontrol('giriş (012): onaylanmamış e-postayla giriş Türkçe hata', /henüz onaylamadın/.test(await metin(p, '#giris-mesaj')));
     kontrol('kayıt (012) sayfasında JavaScript hatası yok', !hatalar.length, hatalar.join(' | '));
     await ctx.close();
   });
@@ -688,7 +767,7 @@ async function tarayiciTestleri() {
   await guvenli('profil gizliliği', async () => {
     const { ctx, p, hatalar } = await baglam({ width: 1280, height: 860 });
     await git(p, 'index.html?sahte=1');
-    await p.waitForSelector('#akis .haber-karti');
+    await p.waitForSelector(AKIS);
     const anon = await p.evaluate(async () => {
       const { supabase } = await import('/assets/istemci.js');
       const rol = await supabase.from('profiles').select('id, role');
@@ -704,7 +783,12 @@ async function tarayiciTestleri() {
     kontrol('profil (012): oturumsuz benim_profilim() boş', Array.isArray(anon.benim) && anon.benim.length === 0, JSON.stringify(anon.benim));
     await girisYap(p, 'yonetici@ornek.test', 'yonetim.html');
     await p.waitForSelector('#panel:not([hidden])');
-    kontrol('profil (012): yönetici rolünü benim_profilim() ile alıyor, panel ve menüde "Yönetim" çalışıyor', await p.isVisible('#yonetim-baglanti'));
+    kontrol('profil (012): yönetici rolünü benim_profilim() ile alıyor, panel açılıyor', await p.isVisible('#panel'));
+    await git(p, 'profil.html');
+    await p.waitForSelector('#profil[data-durum="tamam"]');
+    kontrol('profil (013): yöneticiye Profil\'de "Yönetim paneli" bağlantısı', await p.isVisible('#yonetim-baglanti') && (await p.getAttribute('#yonetim-baglanti', 'href')) === 'yonetim.html');
+    await git(p, 'yonetim.html');
+    await p.waitForSelector('#panel:not([hidden])');
     const yon = await p.evaluate(async () => {
       const { supabase } = await import('/assets/istemci.js');
       const b = await supabase.rpc('benim_profilim').maybeSingle();
@@ -770,8 +854,8 @@ async function tarayiciTestleri() {
     const disIstek = [];
     p.on('request', (r) => { if (/baska-site\.com/.test(r.url())) disIstek.push(r.url()); });
     await git(p, 'index.html');
-    await p.waitForSelector('#akis .haber-karti');
-    const eskiKart = p.locator('#akis .haber-karti', { hasText: 'Eski dış kapaklı haber' });
+    await p.waitForSelector(AKIS);
+    const eskiKart = p.locator('#akis .haber-satir', { hasText: 'Eski dış kapaklı haber' });
     kontrol('kapak (012): eski kayıttaki dış kapak gösterilmez (istek de gitmez)', (await eskiKart.locator('img').count()) === 0 && !disIstek.length, JSON.stringify(disIstek));
     // Reklam görseli: 2400×1256 → en fazla 1200 px genişlik, WebP
     await git(p, 'yonetim.html#reklamlar');
@@ -795,7 +879,7 @@ async function tarayiciTestleri() {
   await guvenli('erişilebilirlik (012)', async () => {
     const { ctx, p, hatalar } = await baglam({ width: 1280, height: 860 });
     await git(p, 'index.html?sahte=1');
-    await p.waitForSelector('#akis .haber-karti');
+    await p.waitForSelector(AKIS);
     const basliklar = await p.$$eval('main h1, main h2, main h3', (l) => l.map((e) => e.tagName));
     kontrol('ana (012): sayfadaki ilk başlık h1, tek h1', basliklar[0] === 'H1' && basliklar.filter((x) => x === 'H1').length === 1, basliklar.join(','));
     const sekmeDurumu = (kok) => p.evaluate((kok) => [...document.querySelectorAll(kok + ' [role=tab]')].map((t) => ({
@@ -831,6 +915,9 @@ async function tarayiciTestleri() {
     await git(p, 'giris.html');
     await p.waitForSelector('#sekme-giris');
     await sekmeDeseni('giriş sekmeleri (012)', '#formlar .sekme-dugmeleri', 'sekme-giris');
+    await git(p, 'takim.html');
+    await p.waitForSelector('#kadro-icerik[data-durum="tamam"]');
+    await sekmeDeseni('Takım sekmeleri (013)', '.sekme-iz', 'sekme-kadro');
     await girisYap(p, 'yonetici@ornek.test', 'yonetim.html');
     await p.waitForSelector('#panel:not([hidden])');
     await sekmeDeseni('yönetim sekmeleri (012)', '#panel .yonetim-sekmeler', 'sekme-haberler');
@@ -845,14 +932,15 @@ async function tarayiciTestleri() {
   await guvenli('performans (012)', async () => {
     const { ctx, p, hatalar } = await baglam({ width: 390, height: 844 });
     await git(p, 'index.html?sahte=1');
-    await p.waitForSelector('#akis .haber-karti img');
-    const resimler = await p.$$eval('#akis .haber-karti img.kapak', (l) => l.map((i) => ({ yukleme: i.getAttribute('loading'), oncelik: i.getAttribute('fetchpriority'), w: i.getAttribute('width'), h: i.getAttribute('height') })));
-    kontrol('performans (012): ilk haber kapağı hemen (loading=eager, fetchpriority=high)', resimler[0] && resimler[0].yukleme === 'eager' && resimler[0].oncelik === 'high', JSON.stringify(resimler));
-    kontrol('performans (012): sonraki kapaklar tembel (lazy), öncelik yok', resimler.length >= 2 && resimler.slice(1).every((r) => r.yukleme === 'lazy' && !r.oncelik), JSON.stringify(resimler));
-    kontrol('performans (012): kapaklarda width/height (16:9) var: kayma olmaz', resimler.every((r) => Number(r.w) > 0 && Number(r.h) > 0 && Math.abs(r.w / r.h - 16 / 9) < 0.01), JSON.stringify(resimler));
+    await p.waitForSelector('#akis[data-durum="tamam"] .haber-satir img');
+    const resimler = await p.$$eval('#akis .haber-satir img.kucuk-kapak', (l) => l.map((i) => ({ yukleme: i.getAttribute('loading'), oncelik: i.getAttribute('fetchpriority'), w: i.getAttribute('width'), h: i.getAttribute('height'), srcset: i.getAttribute('srcset') })));
+    const yuksek = await p.$$eval('img[fetchpriority="high"]', (l) => l.map((i) => i.id));
+    kontrol('performans (013): sayfada TEK fetchpriority=high görsel: hero (HTML\'de, LCP)', JSON.stringify(yuksek) === '["hero-gorsel"]', JSON.stringify(yuksek));
+    kontrol('performans (012/013): akış küçük kapakları tembel (lazy), öncelik yok, srcset ile 480 px', resimler.length >= 2 && resimler.every((r) => r.yukleme === 'lazy' && !r.oncelik && /-480\.webp 480w/.test(r.srcset || '')), JSON.stringify(resimler));
+    kontrol('performans (012/013): küçük kapaklarda width/height (96×72) var: kayma olmaz', resimler.every((r) => r.w === '96' && r.h === '72'), JSON.stringify(resimler));
     await git(p, 'haber.html?id=' + H1);
-    await p.waitForSelector('#makale img.kapak');
-    const hk = await p.$eval('#makale img.kapak', (i) => ({ w: i.getAttribute('width'), h: i.getAttribute('height'), o: i.getAttribute('fetchpriority') }));
+    await p.waitForSelector('#makale img.kapak-buyuk');
+    const hk = await p.$eval('#makale img.kapak-buyuk', (i) => ({ w: i.getAttribute('width'), h: i.getAttribute('height'), o: i.getAttribute('fetchpriority') }));
     kontrol('performans (012): haber sayfası kapağı width/height + fetchpriority=high', Number(hk.w) > 0 && Number(hk.h) > 0 && hk.o === 'high', JSON.stringify(hk));
     for (const ad of ['narcil-1200x628', 'narcil-600x600']) {
       const d = await p.evaluate(async (ad) => {

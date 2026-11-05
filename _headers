@@ -9,6 +9,28 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
 
+# Önbellek (performans incelemesi §5.8). Bir yola birden çok kural uyarsa Cloudflare aynı başlığı VİRGÜLLE BİRLEŞTİRİR:
+# Cache-Control kuralları çakışmasın diye her klasör ayrı, /assets/:dosya yalnız tek düzeyi (assets/stil.css, ortak.js…) tutar.
+# HTML için Cloudflare varsayılanı (yeniden doğrula + ETag) kalır. Değişmeyenler: dosya adı değişirse yeni ad verilir
+# (ör. hero-2026-11.webp; supabase-js sürüm klasörüyle). Kod: 5 dk taze + arka planda yenileme (karışık sürüm en çok 5 dk).
+/assets/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+/assets/vendor/*
+  Cache-Control: public, max-age=31536000, immutable
+/assets/img/*
+  Cache-Control: public, max-age=31536000, immutable
+/assets/logo/*
+  Cache-Control: public, max-age=604800
+/assets/:dosya
+  Cache-Control: public, max-age=300, stale-while-revalidate=604800
+/assets/sayfa/*
+  Cache-Control: public, max-age=300, stale-while-revalidate=604800
+/assets/reklam/*
+  Cache-Control: public, max-age=300, stale-while-revalidate=604800
+# Service worker her zaman doğrulansın (yeni sürüm hemen yakalansın)
+/sw.js
+  Cache-Control: no-cache
+
 # Geliştirici dosyaları yayına zaten çıkmaz (Cloudflare yapı komutu: node araclar/yayin-hazirla.js → yalnız site dosyaları).
 # Biri yapı komutu olmadan bütün klasörü yayınlarsa diye ikinci emniyet: arama motorlarında çıkmasınlar.
 /testler/*

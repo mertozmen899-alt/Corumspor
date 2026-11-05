@@ -10,11 +10,12 @@
 // (assets/istemci.js'in dışa aktardığı `supabase`; ?sahte=1 test modunda sahte istemci). Burada YENİ istemci açılmaz.
 //
 // Kurallar: reklam yoksa kapsayıcı boş ve gizli kalır (boş kutu yok). Açılır pencere, kaplama, sabit konum yok.
+// Yalnız kartın düğmesi bağlantıdır; yöneticinin bakışları sayılmaz (istemcide is_admin, sunucuda reklam_olay_kaydet).
 // Gösterim: kartın en az %50'si en az 1 sn görünür kalınca, sayfa ziyareti başına reklam başına bir kez.
 // Tıklama: bağlantı normal açılır (yeni sekme), kayıt arka planda gider, gezinmeyi bekletmez.
 // Tıklama tekrarı (30 dk) sekme kimliğiyle bakılır: aynı sekmede başka sayfaya geçilse de aynı reklama tekrar tıklama sayılmaz.
 
-import { baglantiGecerli, eylemYazisi, reklamEtiketi, sekmeKimligi, yeniZiyaretKimligi } from './reklam-mantik.js';
+import { baglantiGecerli, eylemYazisi, gorselAdresiGecerli, MAC_SPONSORU_NOTU, reklamEtiketi, sekmeKimligi, telAdresi, whatsappBaglantisiMi, yeniZiyaretKimligi } from './reklam-mantik.js';
 
 /** Bu sayfa yüklemesinin ziyaret kimliği. Sadece bellekte (localStorage/çerez YOK), sayfa yenilenince değişir. */
 export const SAYFA_ZIYARET_ID = yeniZiyaretKimligi();
@@ -51,7 +52,10 @@ function el(etiket, sinif, metin) {
 /**
  * Reklam kartının HTML öğesini oluşturur (yönetim önizlemesi de bunu kullanır).
  * Veriler textContent ile yazılır (HTML enjeksiyonu yok); bağlantı geçersizse bağlantısız kart çıkar.
- * @param {object} reklam aktif_reklam satırı (firma_adi, gorsel_url, kisa_metin, baglanti_url, alan, mac_id)
+ * Erişilebilirlik: etiket ("Sponsor"/"Reklam"/"Maçın sponsoru") kartın İLK öğesi ve gerçek metin (süs nokta aria-hidden);
+ * kart aside, adı "Etiket: Firma"; YALNIZ düğme(ler) bağlantıdır (kartın tamamı değil: kaydırırken yanlış dokunuş açmaz);
+ * bağlantı adı "Sponsor: Firma – Ayrıntılar (yeni sekmede açılır)"; görsel alt'ı = görseldeki yazı (yoksa süs, alt="").
+ * @param {object} reklam aktif_reklam satırı
  * @param {{onizleme?: boolean}} ops onizleme: tıklama gezinmez, hiçbir sayım yapılmaz
  */
 export function reklamKartiOlustur(reklam, { onizleme = false } = {}) {
@@ -61,34 +65,57 @@ export function reklamKartiOlustur(reklam, { onizleme = false } = {}) {
   kart.dataset.reklamId = reklam.id || '';
   if (onizleme) kart.dataset.onizleme = '1';
 
-  kart.append(el('span', 'reklam-etiket', etiket));
+  const et = el('p', 'reklam-etiket');
+  const nokta = el('span', 'nokta', '●');
+  nokta.setAttribute('aria-hidden', 'true');
+  et.append(nokta, el('span', 'reklam-etiket-metin', etiket));
+  kart.append(et);
+  if (reklam.alan === 'mac_sponsoru') kart.append(el('p', 'reklam-alt-etiket', MAC_SPONSORU_NOTU));
 
   const url = reklam.baglanti_url && baglantiGecerli(reklam.baglanti_url) ? reklam.baglanti_url : null;
-  const govde = url ? el('a', 'reklam-govde reklam-baglanti') : el('div', 'reklam-govde');
-  if (url) {
-    govde.href = url;
-    govde.target = '_blank';
-    govde.rel = 'sponsored noopener';
-    if (onizleme) govde.addEventListener('click', (e) => e.preventDefault());
-  }
+  const tel = telAdresi(reklam.telefon);
+  const govde = el('div', 'reklam-govde');
 
   const resimKutu = el('div', 'reklam-gorsel-kutu');
   if (reklam.gorsel_url) {
     const img = el('img', 'reklam-gorsel');
+    const kare = reklam.alan === 'mac_sponsoru';
     img.src = reklam.gorsel_url;
-    img.alt = `${reklam.firma_adi} reklam görseli`;
+    if (reklam.gorsel_kucuk_url && gorselAdresiGecerli(reklam.gorsel_kucuk_url)) {
+      // Yuvasına göre boy: akışta ~112 px, maçta 64 px, haber sonunda tam genişlik
+      img.srcset = `${reklam.gorsel_kucuk_url} ${kare ? 192 : 480}w, ${reklam.gorsel_url} ${kare ? 600 : 1200}w`;
+      img.sizes = kare ? '64px' : reklam.alan === 'ana_akis' ? '112px' : '(max-width: 600px) 100vw, 44vw';
+    }
+    img.alt = (reklam.gorsel_metni || '').trim();
     img.loading = 'lazy';
     img.decoding = 'async';
-    img.width = reklam.alan === 'mac_sponsoru' ? 160 : 1200;
-    img.height = reklam.alan === 'mac_sponsoru' ? 160 : 628;
+    img.width = kare ? 160 : 1200;
+    img.height = kare ? 160 : 628;
+    // Görsel açılmazsa kutu tamamen kalkar (boş gri kutu ya da kırık görsel yazısı kalmaz), metin tam genişliğe yayılır
+    img.addEventListener('error', () => resimKutu.remove(), { once: true });
     resimKutu.append(img);
+    govde.append(resimKutu);
   }
 
   const yazi = el('div', 'reklam-yazi');
   yazi.append(el('strong', 'reklam-firma', reklam.firma_adi), el('p', 'reklam-metin', reklam.kisa_metin));
-  if (url) yazi.append(el('span', 'reklam-eylem', eylemYazisi(url)));
-
-  govde.append(resimKutu, yazi);
+  const eylemler = el('div', 'reklam-eylemler');
+  const dugme = (href, metin, ek, sinif, yeniSekme) => {
+    const a = el('a', 'reklam-eylem ' + sinif);
+    a.href = href;
+    if (yeniSekme) { a.target = '_blank'; a.rel = 'sponsored noopener'; } else a.rel = 'sponsored';
+    a.append(el('span', 'gorunmez', `${etiket}: ${reklam.firma_adi} – `), metin, el('span', 'gorunmez', ek));
+    if (onizleme) a.addEventListener('click', (e) => e.preventDefault());
+    return a;
+  };
+  if (url) {
+    const wa = whatsappBaglantisiMi(url);
+    const metin = (reklam.dugme_metni || '').trim() || eylemYazisi(url);
+    eylemler.append(dugme(url, metin, wa ? ' (WhatsApp açılır)' : ' (yeni sekmede açılır)', 'reklam-baglanti', true));
+  }
+  if (tel) eylemler.append(dugme(tel, 'Ara', ' (telefonla arar)', 'reklam-ara', false));
+  if (eylemler.children.length) yazi.append(eylemler);
+  govde.append(yazi);
   kart.append(govde);
   return kart;
 }
@@ -138,15 +165,55 @@ function gosterimiIzle(kart, sayGosterim) {
   return temizle;
 }
 
+// Yönetici (önizleme, kontrol amaçlı bakışlar) hiçbir gösterim/tıklama SAYDIRMAZ: sunucu da saymaz ('yonetici' döner, 013).
+const yoneticiSozleri = new WeakMap();
+function yoneticiMi(istemci) {
+  if (!yoneticiSozleri.has(istemci)) {
+    yoneticiSozleri.set(istemci, Promise.resolve().then(() => istemci.rpc('is_admin')).then((r) => !!(r && r.data === true)).catch(() => false));
+  }
+  return yoneticiSozleri.get(istemci);
+}
+
+// Akış: farklı firmalardan en fazla 5 reklam tek sorguda (aktif_reklamlar); sayfa ziyareti boyunca bir kez istenir
+const akisSozleri = new Map();
+function akisReklamlari(istemci, alan) {
+  const anahtar = alan;
+  if (!akisSozleri.has(anahtar)) {
+    akisSozleri.set(anahtar, (async () => {
+      try {
+        const { data, error } = await istemci.rpc('aktif_reklamlar', { p_alan: alan, p_adet: 5 });
+        if (!error && Array.isArray(data)) return data;
+      } catch { /* aşağıda tek reklama düş */ }
+      try {
+        const { data, error } = await istemci.rpc('aktif_reklam', { p_alan: alan, p_mac_id: null });
+        if (error) return [];
+        return Array.isArray(data) ? data : data ? [data] : [];
+      } catch { return []; }
+    })());
+  }
+  return akisSozleri.get(anahtar);
+}
+
+/** Akış reklamlarının sorgusunu (haber sorgusuyla paralel) önceden başlatır. */
+export async function reklamOnYukle(alan = 'ana_akis', ops = {}) {
+  const istemci = await istemciBul(ops);
+  if (istemci) { akisReklamlari(istemci, alan); yoneticiMi(istemci); }
+}
+
 /**
  * Bir yerleşime o an yayındaki reklamı koyar. Reklam yoksa kapsayıcı boş ve gizli kalır.
  * @param {HTMLElement} kapsayici
- * @param {{alan: 'ana_akis'|'haber_sonu'|'mac_sponsoru', macId?: string|number|null, istemci?: object, onizleme?: boolean}} ops
+ * @param {{alan: 'ana_akis'|'haber_sonu'|'mac_sponsoru', macId?: string|number|null, istemci?: object, onizleme?: boolean,
+ *          sira?: number|null, gecGelirseAtla?: boolean}} ops
+ *   sira: akışta kaçıncı sponsor (0 = ilk). Her sıra FARKLI bir firmadır; o sırada firma yoksa yuva boş kalır.
+ *   gecGelirseAtla: kart, yuva açıldıktan 150 ms sonra geldiyse ve yuva o an görünür alanda ya da üstündeyse EKLENMEZ
+ *   (okunan yer kaymasın; odak kartın altındaki bir öğedeyken de).
  * @returns {Promise<object|null>} gösterilen reklam ya da null
  */
 export async function reklamYerlestir(kapsayici, ops = {}) {
-  const { alan, macId = null, onizleme = false } = ops;
+  const { alan, macId = null, onizleme = false, sira = null, gecGelirseAtla = false } = ops;
   if (!kapsayici) return null;
+  const acilis = kapsayici._acilis || performance.now();
   kapsayiciyiBosalt(kapsayici);
   const tur = kapsayici._reklamTur;
   const istemci = await istemciBul(ops);
@@ -154,18 +221,31 @@ export async function reklamYerlestir(kapsayici, ops = {}) {
   const mac = macId == null || macId === '' ? null : String(macId);
 
   let reklam = null;
-  try {
-    const { data, error } = await istemci.rpc('aktif_reklam', { p_alan: alan, p_mac_id: mac });
-    if (error) return null;
-    reklam = Array.isArray(data) ? data[0] : data;
-  } catch { return null; }
+  if (sira != null && alan !== 'mac_sponsoru') {
+    const liste = await akisReklamlari(istemci, alan);
+    reklam = liste[Number(sira) || 0] || null;
+  } else {
+    try {
+      const { data, error } = await istemci.rpc('aktif_reklam', { p_alan: alan, p_mac_id: mac });
+      if (error) return null;
+      reklam = Array.isArray(data) ? data[0] : data;
+    } catch { return null; }
+  }
   if (!reklam || !reklam.id || kapsayici._reklamTur !== tur) return null; // bu arada yeniden çağrıldı ya da kaldırıldı
+  if (gecGelirseAtla && !onizleme && performance.now() - acilis > 150 && kapsayici.isConnected) {
+    const ust = kapsayici.getBoundingClientRect().top;
+    const odak = document.activeElement;
+    const odakAltta = odak && odak !== document.body && !!(kapsayici.compareDocumentPosition(odak) & Node.DOCUMENT_POSITION_FOLLOWING);
+    if (ust < window.innerHeight || (odakAltta && ust < window.innerHeight * 2)) return null;
+  }
 
   const kart = reklamKartiOlustur(reklam, { onizleme });
   kapsayici.append(kart);
   kapsayici.hidden = false;
   kapsayici.classList.add('reklam-yuva--dolu');
   if (onizleme) return reklam;
+  if (await yoneticiMi(istemci)) { kart.dataset.sayim = 'yonetici'; return reklam; }
+  if (kapsayici._reklamTur !== tur) return reklam;
 
   const temizleyiciler = [];
   if (!sayilanGosterimler.has(reklam.id)) {
@@ -175,8 +255,7 @@ export async function reklamYerlestir(kapsayici, ops = {}) {
       olayGonder(istemci, reklam, 'gosterim', alan, mac);
     }));
   }
-  const baglanti = kart.querySelector('a.reklam-baglanti');
-  if (baglanti) {
+  for (const baglanti of kart.querySelectorAll('a.reklam-eylem')) {
     const tikla = (e) => { if (e.type === 'auxclick' && e.button !== 1) return; olayGonder(istemci, reklam, 'tiklama', alan, mac); };
     baglanti.addEventListener('click', tikla);
     baglanti.addEventListener('auxclick', tikla);
@@ -192,7 +271,7 @@ export async function reklamYerlestir(kapsayici, ops = {}) {
  */
 export function reklamYuvalariniDoldur(kok = document, ops = {}) {
   const yuvalar = [...kok.querySelectorAll('.reklam-yuvasi[data-reklam-alan]')];
-  return Promise.all(yuvalar.map((y) => reklamYerlestir(y, { ...ops, alan: y.dataset.reklamAlan, macId: y.dataset.macId || null })));
+  return Promise.all(yuvalar.map((y) => reklamYerlestir(y, { ...ops, alan: y.dataset.reklamAlan, macId: y.dataset.macId || null, sira: y.dataset.reklamSira != null ? Number(y.dataset.reklamSira) : null })));
 }
 
 /** Yerleşimi kaldırır (SPA'da sayfa değişirken). */

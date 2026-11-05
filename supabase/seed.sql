@@ -56,6 +56,36 @@ insert into public.haberler (id, baslik, ozet, govde, kapak_url, yayinda, yayin_
    null, false, null)
 on conflict (id) do nothing;
 
+-- 013: manşet (ana sayfanın açılış görseli), gol kapakları ve süreleri
+update public.haberler set manset = true where id = '33333333-0000-4000-8000-000000000003' and not manset;
+update public.goller set kapak_url = 'assets/img/gol-kapak-ornek.svg', sure_sn = 42
+  where id = '22222222-0000-4000-8000-000000000001' and kapak_url is null;
+update public.goller set kapak_url = 'assets/img/gol-kapak-ornek.svg', sure_sn = 38
+  where id = '22222222-0000-4000-8000-000000000003' and kapak_url is null;
+
+-- 013: kadro (uydurma oyuncular; gerçek kadro kulübün açıkladığı listeden panelle girilir, fotoğraf yalnız izinle)
+insert into public.oyuncular (id, ad, forma_no, mevki, sira) values
+  ('55555555-0000-4000-8000-000000000001', 'Kemal Kaleci', 1, 'kaleci', 1),
+  ('55555555-0000-4000-8000-000000000002', 'Yedek Eldiven', 12, 'kaleci', 2),
+  ('55555555-0000-4000-8000-000000000003', 'Deniz Defans', 4, 'defans', 1),
+  ('55555555-0000-4000-8000-000000000004', 'Barış Bek', 2, 'defans', 2),
+  ('55555555-0000-4000-8000-000000000005', 'Orhan Ortasaha', 8, 'orta_saha', 1),
+  ('55555555-0000-4000-8000-000000000006', 'Mehmet Deneme', 10, 'orta_saha', 2),
+  ('55555555-0000-4000-8000-000000000007', 'Ali Örnek', 9, 'forvet', 1),
+  ('55555555-0000-4000-8000-000000000008', 'Fikret Forvet', 11, 'forvet', 2)
+on conflict (id) do nothing;
+
+-- 013: sakatlık güncellemeleri. YALNIZ kulübün resmî açıklamasındaki bilgi, kaynak zorunlu (KVKK m.6: sağlık verisi)
+insert into public.sakatliklar (id, oyuncu_id, durum, aciklama, kaynak, kaynak_url, beklenen_donus, yayinda) values
+  ('66666666-0000-4000-8000-000000000001', '55555555-0000-4000-8000-000000000003', 'sakat',
+   'Sağ arka adale; bireysel çalışıyor (örnek).', 'Kulüp açıklaması (örnek)', 'https://ornek.test/aciklama/1',
+   (now() at time zone 'Europe/Istanbul')::date + 14, true),
+  ('66666666-0000-4000-8000-000000000002', '55555555-0000-4000-8000-000000000008', 'cezali',
+   'Sarı kart cezalısı; bir maç yok (örnek).', 'TFF disiplin kurulu (örnek)', null, null, true),
+  ('66666666-0000-4000-8000-000000000003', '55555555-0000-4000-8000-000000000004', 'belirsiz',
+   'Taslak: yayınlanmadı, ziyaretçi görmez (örnek).', 'Kulüp açıklaması (örnek)', null, null, false)
+on conflict (id) do nothing;
+
 -- =====================================================================
 -- İLK YÖNETİCİYİ ATAMAK
 -- 1) Sitede giris.html sayfasından kendinize normal bir hesap açın.

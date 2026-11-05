@@ -7,8 +7,8 @@
 // buradaki kontroller sadece yöneticiye erken ve Türkçe uyarı vermek içindir).
 
 import {
-  ALANLAR, SINIRLAR, baglantiGecerli, baglantiNormallestir, buAyAraligi, durumEtiketi, isoYerelGirise,
-  istanbulBicimle, oranBicimle, raporCsv, reklamDogrula, reklamDurumu, reklamSec, reklamSunulabilir,
+  ALANLAR, SINIRLAR, YASAKLI_SEKTORLER, baglantiGecerli, baglantiNormallestir, buAyAraligi, durumEtiketi, firmaSuz, isoYerelGirise,
+  istanbulBicimle, oranBicimle, raporCsv, reklamDogrula, reklamDurumu, reklamSec, reklamSunulabilir, telefonKaydi,
   telefonuUluslararasiYap, tiklamaOrani, whatsappBaglantisiOlustur, yerelGiristenIso,
 } from './reklam-mantik.js';
 import { reklamKartiOlustur } from './reklam.js';
@@ -199,6 +199,7 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
 
   async function durumDegistir(r, yeni) {
     if (yeni === 'yayinda') {
+      if (!r.sektor_onayi) { bildir('Önce "Düzenle" ile açıp yasaklı sektör listesini onaylayın.', 'kotu'); return; }
       const hatalar = reklamDogrula(r, { simdi: simdi(), yayinaAliniyor: true });
       if (Object.keys(hatalar).length) { bildir(Object.values(hatalar)[0], 'kotu'); return; }
     }
@@ -223,7 +224,7 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
     durum.duzenlenen = r;
     const s = simdi();
     const yeniBas = new Date(Math.ceil(s.getTime() / 3600e3) * 3600e3);
-    const d = r || { firma_adi: '', kisa_metin: '', gorsel_url: '', baglanti_url: null, alan: 'ana_akis', mac_id: null,
+    const d = r || { firma_adi: '', kisa_metin: '', gorsel_url: '', gorsel_kucuk_url: null, gorsel_metni: '', dugme_metni: '', telefon: null, sektor_onayi: false, baglanti_url: null, alan: 'ana_akis', mac_id: null,
       baslangic: yeniBas.toISOString(), bitis: new Date(yeniBas.getTime() + 7 * 864e5).toISOString(), oncelik: 0, durum: 'taslak' };
 
     const alan = (ad, etiket, girdi, yardim) => h('div', { class: 'ry-alan', 'data-alan': ad },
@@ -232,9 +233,16 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       h('small', { class: 'ry-alan-hata', id: `ry-${ad}-hata`, role: 'alert' }));
 
     const firma = h('input', { id: 'ry-firma_adi', name: 'firma_adi', maxlength: SINIRLAR.firmaAdiEnUzun, value: d.firma_adi, required: true });
-    const metin = h('textarea', { id: 'ry-kisa_metin', name: 'kisa_metin', maxlength: SINIRLAR.kisaMetinEnUzun, rows: 3, required: true });
+    // Sınır aşılınca metin SESSİZCE KESİLMEZ: sayaç kırmızı "14 karakter fazla" der, kayıt engellenir
+    const metin = h('textarea', { id: 'ry-kisa_metin', name: 'kisa_metin', rows: 3, required: true, 'aria-describedby': 'ry-kisa_metin-sayac ry-kisa_metin-hata' });
     metin.value = d.kisa_metin;
-    const sayac = h('small', { class: 'ry-sayac' });
+    const sayac = h('small', { class: 'ry-sayac', id: 'ry-kisa_metin-sayac', 'aria-live': 'polite' });
+    const dugmeMetni = h('input', { id: 'ry-dugme_metni', name: 'dugme_metni', maxlength: 40, placeholder: 'Ayrıntılar', value: d.dugme_metni || '' });
+    const araTel = h('input', { id: 'ry-telefon_ara', type: 'tel', inputmode: 'tel', placeholder: '0364 213 19 19', value: d.telefon ? '0' + d.telefon.replace(/^\+90/, '') : '' });
+    const gorselMetni = h('input', { id: 'ry-gorsel_metni', name: 'gorsel_metni', maxlength: SINIRLAR.gorselMetniEnUzun + 40, value: d.gorsel_metni || '', placeholder: 'ör. Narçil Cafe; görseldeki yazı: Loves you, espresso…' });
+    let gorselKucukUrl = d.gorsel_kucuk_url || null;
+    const sektorKutular = YASAKLI_SEKTORLER.map(([k, t]) => h('label', { class: 'ry-secenek' }, h('input', { type: 'checkbox', name: 'sektor', value: k, checked: !!d.sektor_onayi }), ' ', t));
+    const sektorOnayli = () => sektorKutular.every((l) => l.querySelector('input').checked);
     const dosya = h('input', { id: 'ry-gorsel', type: 'file', accept: SINIRLAR.gorselTurleri.join(',') });
     const gorselUrl = h('input', { id: 'ry-gorsel_url', name: 'gorsel_url', type: 'url', value: d.gorsel_url || '', placeholder: 'https://…', 'aria-label': 'Görsel adresi' });
     const gorselDurum = h('small', { class: 'ry-yardim', id: 'ry-gorsel-durum' });
@@ -292,6 +300,9 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       else if (t === 'whatsapp') baglanti = whatsappBaglantisiOlustur(telefon.value, waMesaj.value) || (telefon.value.trim() ? 'gecersiz-whatsapp' : null);
       return {
         firma_adi: firma.value.trim(), kisa_metin: metin.value.trim(), gorsel_url: gorselUrl.value.trim(),
+        gorsel_kucuk_url: gorselKucukUrl && gorselUrl.value.trim() ? gorselKucukUrl : null,
+        gorsel_metni: gorselMetni.value.trim() || null, dugme_metni: dugmeMetni.value.trim() || null,
+        telefon: araTel.value.trim() ? (telefonKaydi(araTel.value) || 'gecersiz') : null, sektor_onayi: sektorOnayli(),
         baglanti_url: baglanti, alan: alanSec.value, mac_id: alanSec.value === 'mac_sponsoru' && macSec.value ? macSec.value : null,
         baslangic: yerelGiristenIso(bas.value), bitis: yerelGiristenIso(bit.value),
         oncelik: oncelik.value === '' ? NaN : Number(oncelik.value),
@@ -303,7 +314,9 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       webKutu.hidden = t !== 'web';
       waKutu.hidden = t !== 'whatsapp';
       macKutu.hidden = alanSec.value !== 'mac_sponsoru';
-      sayac.textContent = `${metin.value.length}/${SINIRLAR.kisaMetinEnUzun}`;
+      const fazla = metin.value.trim().length - SINIRLAR.kisaMetinEnUzun;
+      sayac.textContent = fazla > 0 ? `${metin.value.length}/${SINIRLAR.kisaMetinEnUzun} · ${fazla} karakter fazla` : `${metin.value.length}/${SINIRLAR.kisaMetinEnUzun}`;
+      sayac.classList.toggle('asim', fazla > 0);
       if (t === 'whatsapp') {
         const b = whatsappBaglantisiOlustur(telefon.value, waMesaj.value);
         waSonuc.textContent = b ? `Oluşan bağlantı: ${b}` : telefon.value.trim() ? 'Numara geçersiz. Örnek: 0532 123 45 67' : '';
@@ -312,7 +325,7 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       const onizlemeReklam = {
         id: r ? r.id : 'onizleme', firma_adi: satir.firma_adi || 'Firma adı', kisa_metin: satir.kisa_metin || 'Kısa reklam metni burada görünür.',
         gorsel_url: yerelResim || satir.gorsel_url, baglanti_url: baglantiGecerli(satir.baglanti_url) ? satir.baglanti_url : null,
-        alan: satir.alan, mac_id: satir.mac_id,
+        alan: satir.alan, mac_id: satir.mac_id, dugme_metni: satir.dugme_metni, telefon: satir.telefon === 'gecersiz' ? null : satir.telefon, gorsel_metni: satir.gorsel_metni,
       };
       onMasaustu.replaceChildren(sahne(onizlemeReklam, 'masaustu'));
       onTelefon.replaceChildren(sahne(onizlemeReklam, 'telefon'));
@@ -351,6 +364,13 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       const { error } = await sb.storage.from(DEPO_KOVASI).upload(yol, k, { contentType: k.type, cacheControl: '31536000', upsert: false });
       yukleniyor = false;
       if (error) { gorselDurum.textContent = 'Görsel yüklenemedi: ' + hataMesaji(error); return; }
+      // Küçük kopya (akış 480 px, maç sponsoru 192 px): kart srcset ile yuvasına uyanı indirir
+      gorselKucukUrl = null;
+      const kare = alanSec.value === 'mac_sponsoru';
+      const kk = await gorselKucult(f, kare ? { enGenis: 192, enYuksek: 192 } : { enGenis: 480, enYuksek: 480 });
+      const kyol = yol.replace(/\.(\w+)$/, '-k.' + ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[kk.type] || 'webp'));
+      const ky = await sb.storage.from(DEPO_KOVASI).upload(kyol, kk, { contentType: kk.type, cacheControl: '31536000', upsert: false });
+      if (!ky.error) gorselKucukUrl = sb.storage.from(DEPO_KOVASI).getPublicUrl(kyol).data.publicUrl;
       gorselUrl.value = sb.storage.from(DEPO_KOVASI).getPublicUrl(yol).data.publicUrl;
       gorselDurum.textContent = 'Görsel yüklendi.';
       guncelle();
@@ -364,10 +384,10 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       if (!liste.length) return;
       ozet.append(h('strong', { text: 'Kaydetmeden önce düzeltin:' }), h('ul', {}, liste.map(([, m]) => h('li', { text: m }))));
       for (const [k, m] of liste) {
-        const hedef = k === 'baglanti_url' && turu() === 'whatsapp' ? 'whatsapp' : k;
+        const hedef = k === 'baglanti_url' && turu() === 'whatsapp' ? 'whatsapp' : k === 'telefon' ? 'telefon_ara' : k;
         const yer = form.querySelector(`#ry-${hedef}-hata`) || form.querySelector(`#ry-${k}-hata`);
         if (yer) yer.textContent = m;
-        const girdi = form.querySelector(`#ry-${k}`);
+        const girdi = form.querySelector(`#ry-${k === 'telefon' ? 'telefon_ara' : k}`);
         if (girdi) girdi.setAttribute('aria-invalid', 'true');
       }
     }
@@ -376,6 +396,7 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
     function hatalariHesapla(satir, hedefDurum) {
       const yayinaAliniyor = hedefDurum === 'yayinda' && (!r || r.durum !== 'yayinda');
       const hatalar = reklamDogrula({ ...satir, baglanti_url: satir.baglanti_url === 'gecersiz-whatsapp' ? null : satir.baglanti_url }, { simdi: simdi(), yayinaAliniyor });
+      if (hedefDurum === 'yayinda' && !satir.sektor_onayi) hatalar.sektor = 'Yayına almadan önce yasaklı sektör listesinin dört maddesini de kontrol edip işaretleyin (açılış sayfası dahil).';
       if (turu() === 'whatsapp' && satir.baglanti_url === 'gecersiz-whatsapp') hatalar.baglanti_url = 'WhatsApp numarası geçersiz. Örnek: 0532 123 45 67';
       else if (turu() === 'whatsapp' && !satir.baglanti_url) hatalar.baglanti_url = 'WhatsApp numarasını yazın.';
       else if (turu() === 'web' && !satir.baglanti_url) hatalar.baglanti_url = 'Web adresini yazın ya da "Bağlantı yok" seçin.';
@@ -390,6 +411,7 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       hatalariGoster(hatalar);
       if (Object.keys(hatalar).length) return;
       const kayit = { ...satir, durum: hedefDurum };
+      if (kayit.telefon === 'gecersiz') kayit.telefon = null;
       [kaydetDugme, yayinDugme, durDugme].forEach((b) => b && (b.disabled = true));
       const sorgu = r ? sb.from('reklamlar').update(kayit).eq('id', r.id) : sb.from('reklamlar').insert(kayit);
       const { error } = await sorgu.select().single();
@@ -407,12 +429,19 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       ozet,
       alan('firma_adi', 'Firma adı', firma),
       h('div', { class: 'ry-alan', 'data-alan': 'kisa_metin' }, h('label', { for: 'ry-kisa_metin', text: 'Kısa metin' }), metin, sayac,
+        h('small', { class: 'ry-yardim', text: `En fazla ${SINIRLAR.kisaMetinEnUzun} karakter; telefonda 2-3 satırı geçmesin diye ${SINIRLAR.kisaMetinOnerilen} karakter önerilir. İndirim, kupon, "%" yazılmaz.` }),
         h('small', { class: 'ry-alan-hata', id: 'ry-kisa_metin-hata', role: 'alert' })),
       h('div', { class: 'ry-alan', 'data-alan': 'gorsel_url' }, h('label', { for: 'ry-gorsel', text: 'Görsel' }), dosya,
         h('small', { class: 'ry-yardim', text: 'Önerilen: 1200×628 piksel yatay görsel (maç sponsoru için kare logo). Büyük görsel yüklemeden önce 1200 piksele küçültülüp WebP yapılır (en fazla 2 MB).' }),
+        h('small', { class: 'ry-yardim', text: 'Telefonda akışta 112 px, maçta 64 px görünür: önemli yazıyı görselin ortasına koyun, küçük yazı koymayın; kare görselde yalnız logo olsun.' }),
         gorselDurum, h('details', {}, h('summary', { text: 'Görsel adresini elle yaz' }), gorselUrl),
         h('small', { class: 'ry-alan-hata', id: 'ry-gorsel_url-hata', role: 'alert' })),
-      h('fieldset', { class: 'ry-alan' }, h('legend', { text: 'Reklama tıklayınca ne açılsın?' }), turSec), webKutu, waKutu,
+      alan('gorsel_metni', 'Görseldeki yazı (ekran okuyucu için, isteğe bağlı)', gorselMetni, 'Görselde yazı varsa buraya aynısını yazın. Boş bırakılırsa görsel süs sayılır.'),
+      h('fieldset', { class: 'ry-alan' }, h('legend', { text: 'Düğmeye dokununca ne açılsın?' }), turSec), webKutu, waKutu,
+      alan('dugme_metni', 'Düğme yazısı (isteğe bağlı)', dugmeMetni, 'Boşsa "Ayrıntılar" (WhatsApp\'ta "WhatsApp\'tan yazın"). Ör. "Menüyü gör", "Yol tarifi". 2-24 karakter.'),
+      alan('telefon_ara', '"Ara" düğmesi için telefon (isteğe bağlı)', araTel, 'Doldurulursa kartta ikinci düğme "Ara" çıkar (telefonun arama ekranını açar).'),
+      h('fieldset', { class: 'ry-alan ry-sektor', id: 'ry-sektor', 'data-alan': 'sektor' }, h('legend', { text: 'Yasaklı sektör kontrolü (yayına almadan önce zorunlu)' }), ...sektorKutular,
+        h('small', { class: 'ry-alan-hata', id: 'ry-sektor-hata', role: 'alert' })),
       alan('alan', 'Nerede görünsün?', alanSec), macKutu,
       h('div', { class: 'ry-iki' }, alan('baslangic', 'Başlangıç', bas, 'Türkiye saati'), alan('bitis', 'Bitiş', bit, 'Bu saatte kendiliğinden kalkar')),
       alan('oncelik', 'Öncelik (0-100)', oncelik, 'Aynı yerde birden fazla reklam varsa yüksek olan gösterilir.'),
@@ -424,7 +453,9 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
     form.addEventListener('change', guncelle);
     dosya.addEventListener('change', gorselYukle);
     web.addEventListener('blur', () => { const n = baglantiNormallestir(web.value); if (n) web.value = n; guncelle(); });
-    telefon.addEventListener('blur', () => { const no = telefonuUluslararasiYap(telefon.value); if (no) telefon.value = '0' + no.slice(2).replace(/^(\d{3})(\d{3})(\d{2})(\d{2})$/, '$1 $2 $3 $4'); guncelle(); });
+    const telBicimle = (g) => () => { const no = telefonuUluslararasiYap(g.value); if (no) g.value = '0' + no.slice(2).replace(/^(\d{3})(\d{3})(\d{2})(\d{2})$/, '$1 $2 $3 $4'); guncelle(); };
+    telefon.addEventListener('blur', telBicimle(telefon));
+    araTel.addEventListener('blur', telBicimle(araTel));
 
     reklamBolumu.replaceChildren(
       h('div', { class: 'ry-arac' }, h('button', { type: 'button', class: 'ry-dugme ry-ince', onclick: () => { durum.duzenlenen = null; listeCiz(); } }, '← Listeye dön')),
@@ -457,26 +488,41 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
     const bas = h('input', { type: 'date', id: 'ry-rapor-bas', value: aralik.baslangic });
     const bit = h('input', { type: 'date', id: 'ry-rapor-bit', value: aralik.bitis });
     const sonuc = h('div', { class: 'ry-tablo-kap', id: 'ry-rapor-sonuc' });
+    // Firma süzgeci: reklam verene giden CSV YALNIZ o firmanın satırlarını içerir (başka firmanın rakamı sızmaz)
+    const firmaSec = h('select', { id: 'ry-rapor-firma' }, h('option', { value: '', text: 'Tüm firmalar (yalnız sizin için)' }));
+    const csvNot = h('p', { class: 'ry-yardim', id: 'ry-csv-not', text: 'CSV reklam verene gönderilmek içindir: indirmek için bir firma seçin (dosyada yalnız o firmanın rakamları olur).' });
+    let tumSatirlar = [];
+    let secilenFirma = ''; // son seçilen firma: başka aralığa bakıp dönünce de seçili kalsın
     let satirlar = [];
     let gosterilenAralik = ''; // CSV dosya adı: tablodaki verinin aralığı (sonradan değiştirilen girişler değil)
+    const dosyaAdi = (f) => String(f).toLocaleLowerCase('tr-TR').replace(/[çğıöşü]/g, (c) => ({ ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u' }[c])).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     const csvDugme = h('button', { type: 'button', class: 'ry-dugme', id: 'ry-csv', disabled: true, onclick: () => {
-      const blob = new Blob([raporCsv(satirlar)], { type: 'text/csv;charset=utf-8' });
-      const a = h('a', { href: URL.createObjectURL(blob), download: `reklam-raporu_${gosterilenAralik}.csv` });
+      if (!firmaSec.value) return;
+      const blob = new Blob([raporCsv(firmaSuz(satirlar, firmaSec.value), { donem: gosterilenAralik.replace('_', ' – '), macAdi })], { type: 'text/csv;charset=utf-8' });
+      const a = h('a', { href: URL.createObjectURL(blob), download: `reklam-raporu_${dosyaAdi(firmaSec.value)}_${gosterilenAralik}.csv` });
       document.body.append(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     } }, 'CSV indir (Excel)');
 
     async function getir() {
-      satirlar = []; // hata ya da geçersiz aralıkta eski satırlar CSV olarak inmesin
+      satirlar = []; tumSatirlar = []; // hata ya da geçersiz aralıkta eski satırlar CSV olarak inmesin
       csvDugme.disabled = true;
       if (!bas.value || !bit.value || bit.value < bas.value) { sonuc.replaceChildren(h('p', { class: 'ry-hata', text: 'Tarih aralığı geçersiz.' })); return; }
       sonuc.replaceChildren(h('p', { class: 'ry-bekle', text: 'Yükleniyor…' }));
       const istenen = [bas.value, bit.value];
       const { data, error } = await sb.rpc('reklam_raporu', { p_baslangic_tarih: istenen[0], p_bitis_tarih: istenen[1] });
       if (error) { sonuc.replaceChildren(h('p', { class: 'ry-hata', text: hataMesaji(error) })); return; }
-      satirlar = data || [];
+      tumSatirlar = data || [];
       gosterilenAralik = istenen.join('_');
-      csvDugme.disabled = !satirlar.length;
+      const firmalar = [...new Set(tumSatirlar.map((x) => x.firma_adi))].sort((a, b) => a.localeCompare(b, 'tr'));
+      firmaSec.replaceChildren(h('option', { value: '', text: 'Tüm firmalar (yalnız sizin için)' }), ...firmalar.map((f) => h('option', { value: f, text: f })));
+      firmaSec.value = firmalar.includes(secilenFirma) ? secilenFirma : '';
+      ciz();
+    }
+
+    function ciz() {
+      satirlar = firmaSuz(tumSatirlar, firmaSec.value);
+      csvDugme.disabled = !satirlar.length || !firmaSec.value;
       if (!satirlar.length) { sonuc.replaceChildren(h('p', { class: 'ry-bos', text: 'Bu aralıkta veri yok.' })); return; }
       const top = satirlar.reduce((t, s) => ({ g: t.g + Number(s.gosterim), t: t.t + Number(s.tiklama), m: t.m + (Number(s.supheli_dakika) || 0) }), { g: 0, t: 0, m: 0 });
       const oran = (s) => { const o = s.tiklama_orani != null ? Number(s.tiklama_orani) : tiklamaOrani(s.gosterim, s.tiklama); return o == null ? '–' : `%${oranBicimle(o)}`; };
@@ -490,17 +536,20 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
           h('td', { 'data-baslik': 'Oran', class: 'ry-sayi', text: oran(s) }),
           h('td', { 'data-baslik': 'Sınıra takılan dakika', class: 'ry-sayi' + (Number(s.supheli_dakika) > 0 ? ' ry-supheli' : ''), title: 'Bu reklamın dakika sınırına takıldığı dakika sayısı (fazlası sayılmadı)', text: SAYI.format(Number(s.supheli_dakika) || 0) })))),
         h('tfoot', {}, h('tr', {}, h('th', { scope: 'row', colspan: 2, text: 'Toplam' }),
-          h('td', { class: 'ry-sayi', text: SAYI.format(top.g) }), h('td', { class: 'ry-sayi', text: SAYI.format(top.t) }),
-          h('td', { class: 'ry-sayi', text: oran({ gosterim: top.g, tiklama: top.t }) }),
-          h('td', { class: 'ry-sayi', text: SAYI.format(top.m) })))));
+          h('td', { 'data-baslik': 'Gösterim', class: 'ry-sayi', text: SAYI.format(top.g) }), h('td', { 'data-baslik': 'Tıklama', class: 'ry-sayi', text: SAYI.format(top.t) }),
+          h('td', { 'data-baslik': 'Oran', class: 'ry-sayi', text: oran({ gosterim: top.g, tiklama: top.t }) }),
+          h('td', { 'data-baslik': 'Sınıra takılan dakika', class: 'ry-sayi', text: SAYI.format(top.m) })))));
     }
+    firmaSec.addEventListener('change', () => { secilenFirma = firmaSec.value; ciz(); });
 
     raporBolumu.replaceChildren(
       h('div', { class: 'ry-arac' }, h('h2', { text: 'Rapor' })),
       h('form', { class: 'ry-rapor-suzgec', onsubmit: (e) => { e.preventDefault(); getir(); } },
         h('label', {}, 'Başlangıç ', bas), h('label', {}, 'Bitiş ', bit),
-        h('button', { type: 'submit', class: 'ry-dugme ry-ana', id: 'ry-rapor-goster' }, 'Göster'), csvDugme),
-      h('p', { class: 'ry-yardim', text: 'Tarihler Türkiye takvim günüdür (her iki gün dahil). Gösterim: kartın yarısı en az 1 saniye ekranda kaldı. Aynı ziyaretçinin aynı sayfa açılışındaki tekrarlar sayılmaz.' }),
+        h('button', { type: 'submit', class: 'ry-dugme ry-ana', id: 'ry-rapor-goster' }, 'Göster'),
+        h('label', {}, 'Firma ', firmaSec), csvDugme),
+      csvNot,
+      h('p', { class: 'ry-yardim', text: 'Tarihler Türkiye takvim günüdür (her iki gün dahil). Gösterim: kartın yarısı en az 1 saniye ekranda kaldı. Aynı ziyaretçinin aynı sayfa açılışındaki tekrarlar sayılmaz. Yöneticilerin (sizin) bakışları sayılmaz.' }),
       h('p', { class: 'ry-yardim', id: 'ry-rapor-yaklasik', text: `Sayılar yaklaşıktır: kişisel veri tutulmadığı için bilerek şişirme tam ayırt edilemez. Bir reklama dakikada ${SINIRLAR.gosterimDakikaSiniri} gösterimden ve ${SINIRLAR.tiklamaDakikaSiniri} tıklamadan fazlası sayılmaz; "Sınıra takılan dakika" 0'dan büyükse o aralıkta sayı şişirilmeye çalışılmış olabilir. Reklam verene rakamları "yaklaşık" diye verin.` }),
       sonuc);
     getir();

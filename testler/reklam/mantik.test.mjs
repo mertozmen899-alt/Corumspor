@@ -156,13 +156,34 @@ test('seçim: maça özel sponsor genelden önce gelir, başka maçınki gelmez'
 });
 
 test('kart etiketi ve eylem yazısı', () => {
-  assert.equal(M.reklamEtiketi({ alan: 'ana_akis' }), 'Reklam');
+  assert.equal(M.reklamEtiketi({ alan: 'ana_akis' }), 'Sponsor'); // 013: akış kartı SPONSOR
   assert.equal(M.reklamEtiketi({ alan: 'haber_sonu' }), 'Reklam');
   assert.equal(M.reklamEtiketi({ alan: 'mac_sponsoru', mac_id: null }), 'Sponsor');
   assert.equal(M.reklamEtiketi({ alan: 'mac_sponsoru', mac_id: '7' }), 'Maçın sponsoru');
   assert.equal(M.eylemYazisi('https://wa.me/905321234567'), "WhatsApp'tan yazın");
   assert.equal(M.eylemYazisi('https://a.com'), 'Ayrıntılar');
   assert.equal(M.eylemYazisi(null), '');
+  assert.equal(M.MAC_SPONSORU_NOTU, "Uygulama sponsoru · Çorum FK'nın sponsoru değildir");
+});
+
+test('013: "Ara" telefonu, düğme yazısı, görsel metni, sınır aşımı uyarısı, yasaklı sektör listesi', () => {
+  assert.equal(M.telefonKaydi('0364 213 19 19'), '+903642131919');
+  assert.equal(M.telefonKaydi('0532 123 45 67'), '+905321234567');
+  assert.equal(M.telefonKaydi('123'), null);
+  assert.equal(M.telAdresi('+903642131919'), 'tel:+903642131919');
+  assert.equal(M.telAdresi('tel:+90364'), null);
+  assert.equal(M.telAdresi('javascript:alert(1)'), null);
+  const iyi = { firma_adi: 'A', kisa_metin: 'B', gorsel_url: 'https://abc.supabase.co/storage/v1/object/public/reklam-gorselleri/x.png', alan: 'ana_akis', baslangic: saat(-1), bitis: saat(5), oncelik: 0 };
+  const h = (o) => M.reklamDogrula({ ...iyi, ...o }, { simdi: SIMDI });
+  assert.deepEqual(h({ dugme_metni: 'Menüyü gör', telefon: '+903642131919', gorsel_metni: 'Kahve fincanı' }), {});
+  assert.deepEqual(Object.keys(h({ dugme_metni: 'x' })), ['dugme_metni']);
+  assert.deepEqual(Object.keys(h({ dugme_metni: 'x'.repeat(25) })), ['dugme_metni']);
+  assert.deepEqual(Object.keys(h({ telefon: 'gecersiz' })), ['telefon']);
+  assert.deepEqual(Object.keys(h({ gorsel_metni: 'x'.repeat(201) })), ['gorsel_metni']);
+  assert.deepEqual(Object.keys(h({ gorsel_kucuk_url: 'https://baska.com/x.png' })), ['gorsel_url']);
+  assert.match(h({ kisa_metin: 'x'.repeat(174) }).kisa_metin, /14 karakter fazla/);
+  assert.deepEqual(M.YASAKLI_SEKTORLER.map(([k]) => k), ['bahis', 'alkol', 'tutun', 'kulup']);
+  assert.ok(M.YASAKLI_SEKTORLER.every(([, t]) => t.length > 10) && /nargile/.test(M.YASAKLI_SEKTORLER[2][1]) && /sponsor/.test(M.YASAKLI_SEKTORLER[3][1]));
 });
 
 test('form doğrulama: SQL tetikleyicisiyle aynı kurallar', () => {
@@ -201,19 +222,31 @@ test('tıklama oranı ve Türkçe sayı biçimi', () => {
 });
 
 test('CSV: UTF-8 BOM, noktalı virgül, CRLF, Türkçe oran, tırnak ve formül koruması', () => {
+  // 013: Maç ve Dönem sütunları (dosya adı değişse de dönem kaybolmaz; maç sponsoru satırında maçın adı)
   const csv = M.raporCsv([
     { firma_adi: 'Narçil Cafe; Kahve', alan: 'ana_akis', gosterim: 1200, tiklama: 30, tiklama_orani: 2.5, supheli_dakika: 3 },
-    { firma_adi: '=HYPERLINK("x")', alan: 'mac_sponsoru', gosterim: 0, tiklama: 0, tiklama_orani: null },
+    { firma_adi: '=HYPERLINK("x")', alan: 'mac_sponsoru', mac_id: 'm1', gosterim: 0, tiklama: 0, tiklama_orani: null },
     { firma_adi: 'Şükrü "Usta" Pide', alan: 'haber_sonu', gosterim: '3', tiklama: '1' },
-  ]);
+    { firma_adi: 'Genel', alan: 'mac_sponsoru', mac_id: null, gosterim: 1, tiklama: 0 },
+  ], { donem: '2026-11-01 – 2026-11-30', macAdi: (id) => (id === 'm1' ? '22 Ekim 2026 19:00 · Çorum FK – Örnekköy Spor' : '') });
   assert.equal(csv.charCodeAt(0), 0xfeff);
   const satirlar = csv.slice(1).split('\r\n');
-  assert.equal(satirlar[0], 'Firma;Alan;Gösterim;Tıklama;Tıklama oranı (%);Sınıra takılan dakika');
-  assert.equal(satirlar[1], '"Narçil Cafe; Kahve";Ana sayfa akışı;1200;30;2,50;3');
-  assert.equal(satirlar[2], `"'=HYPERLINK(""x"")";Maç sponsoru;0;0;;0`);
-  assert.equal(satirlar[3], '"Şükrü ""Usta"" Pide";Haber sonu;3;1;33,33;0');
-  assert.equal(satirlar[4], '');
-  assert.equal(M.raporCsv([]), '﻿Firma;Alan;Gösterim;Tıklama;Tıklama oranı (%);Sınıra takılan dakika\r\n');
+  assert.equal(satirlar[0], 'Firma;Alan;Maç;Dönem;Gösterim;Tıklama;Tıklama oranı (%);Sınıra takılan dakika');
+  assert.equal(satirlar[1], '"Narçil Cafe; Kahve";Ana sayfa akışı;;2026-11-01 – 2026-11-30;1200;30;2,50;3');
+  assert.equal(satirlar[2], `"'=HYPERLINK(""x"")";Maç sponsoru;22 Ekim 2026 19:00 · Çorum FK – Örnekköy Spor;2026-11-01 – 2026-11-30;0;0;;0`);
+  assert.equal(satirlar[3], '"Şükrü ""Usta"" Pide";Haber sonu;;2026-11-01 – 2026-11-30;3;1;33,33;0');
+  assert.equal(satirlar[4], 'Genel;Maç sponsoru;Tüm maçlar;2026-11-01 – 2026-11-30;1;0;0,00;0');
+  assert.equal(satirlar[5], '');
+  assert.equal(M.raporCsv([]), '\ufeffFirma;Alan;Maç;Dönem;Gösterim;Tıklama;Tıklama oranı (%);Sınıra takılan dakika\r\n');
+});
+
+test('013: firma süzgeci (CSV yalnız bir firmanın satırları; büyük/küçük harf ve boşluk farkı gözetmez)', () => {
+  const l = [{ firma_adi: 'Narçil Cafe', alan: 'ana_akis' }, { firma_adi: 'Hitit Optik', alan: 'haber_sonu' }, { firma_adi: ' narçil cafe ', alan: 'mac_sponsoru' }];
+  assert.deepEqual(M.firmaSuz(l, 'Narçil Cafe').map((x) => x.alan), ['ana_akis', 'mac_sponsoru']);
+  assert.deepEqual(M.firmaSuz(l, 'Hitit Optik').map((x) => x.firma_adi), ['Hitit Optik']);
+  assert.equal(M.firmaSuz(l, '').length, 3);
+  const csv = M.raporCsv(M.firmaSuz(l, 'Hitit Optik'));
+  assert.ok(csv.includes('Hitit Optik') && !/Narçil/i.test(csv));
 });
 
 test('dakika sınırları (012): reklam başına dakikada 120 gösterim / 30 tıklama, ziyaret başına 5 tıklama (SQL ile aynı)', () => {

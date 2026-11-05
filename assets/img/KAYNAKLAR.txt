@@ -1,0 +1,55 @@
+Bu klasördeki fotoğraflar (Çorumspor Taraftar)
+=============================================
+
+Hepsi Wikimedia Commons'tan, özgür lisanslı (CC BY / CC BY-SA). Fotoğraf her gösterildiğinde atıf ZORUNLUDUR:
+sitede hero ve haber/gol kapağının üstünde küçük "Fotoğraf: …" satırı ve kaynaklar.html sayfası (alt bilgiden bağlantı).
+Kayıtlar: assets/foto-kaynaklari.js (sayfalar bunu kullanır). Test: testler/tarayici-testleri.js "fotoğraf kaynakları".
+
+CC BY-SA: Bu klasördeki kırpılmış / yeniden boyutlandırılmış / WebP'ye çevrilmiş kopyalar (…-480, -800, -828, -1080, -1280,
+-1600.webp) türetilmiş eserdir ve özgün eserle AYNI lisansla (CC BY-SA 3.0 / 4.0) paylaşılır. CC BY 3.0 olan fotoğrafta da
+atıf ve "değiştirildi" notu gerekir.
+
+Hiçbirinde kulüp arması/logosu, basın/ajans fotoğrafı ya da ana konu olarak çocuk yüzü yoktur. Tribün/taraftar fotoğrafı
+özgür lisansla bulunamadı; tribün fotoğrafı ancak hakkı alınarak (çeken kişinin yazılı izni, yüzler tanınmayacak biçimde)
+panelden haber kapağı olarak yüklenir. Stadyum inşaat fotoğrafı (2018) hero olarak KULLANILMAZ.
+
+- corum-saat-kulesi-gece-yatay-*.webp
+  Fotoğraf: Alienatedplus, CC BY-SA 4.0, Wikimedia Commons
+  Kaynak: https://commons.wikimedia.org/wiki/File:Clock_Tower_of_%C3%87orum.jpg
+  Lisans: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/deed.tr)
+  Yapılan değişiklik: Orijinal dikey fotoğrafın üst kısmı 16:9 kırpıldı, koyu tonlar hafifçe karartıldı (kaynaktaki sıkıştırma bloklarını gizlemek için), yeniden boyutlandırıldı.
+- corum-saat-kulesi-gece-dikey-*.webp
+  Fotoğraf: Alienatedplus, CC BY-SA 4.0, Wikimedia Commons
+  Kaynak: https://commons.wikimedia.org/wiki/File:Clock_Tower_of_%C3%87orum.jpg
+  Lisans: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/deed.tr)
+  Yapılan değişiklik: Koyu tonlar hafifçe karartıldı, yeniden boyutlandırıldı. Ayrıca 4:5 kırpıldı (mobil hero).
+- siklik-kapilari-tabiat-parki-*.webp
+  Fotoğraf: Yunus Gergerlioğlu, CC BY-SA 4.0, Wikimedia Commons
+  Kaynak: https://commons.wikimedia.org/wiki/File:The_Landscape_of_S%C4%B1kl%C4%B1k_Gate_park_%C3%87orum.jpg
+  Lisans: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/deed.tr)
+  Yapılan değişiklik: Yeniden boyutlandırıldı.
+- corum-sehir-panorama-*.webp
+  Fotoğraf: altungd, CC BY-SA 3.0, Wikimedia Commons
+  Kaynak: https://commons.wikimedia.org/wiki/File:%C3%87orum_panoroma_-_panoramio.jpg
+  Lisans: CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0/deed.tr)
+  Yapılan değişiklik: Panoramanın orta kısmı ~2.4:1 kırpıldı, yeniden boyutlandırıldı.
+- corum-ulu-camii-*.webp
+  Fotoğraf: Acar54, CC BY-SA 4.0, Wikimedia Commons
+  Kaynak: https://commons.wikimedia.org/wiki/File:%C3%87orum_ulu_camii.jpg
+  Lisans: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/deed.tr)
+  Yapılan değişiklik: Yeniden boyutlandırıldı.
+- hattusa-aslanli-kapi-*.webp
+  Fotoğraf: Bernard Gagnon, CC BY-SA 3.0, Wikimedia Commons
+  Kaynak: https://commons.wikimedia.org/wiki/File:Lion_Gate,_Hattusa_01.jpg
+  Lisans: CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0/deed.tr)
+  Yapılan değişiklik: Yeniden boyutlandırıldı.
+- corum-belediye-binasi-*.webp
+  Fotoğraf: HALUK COMERTEL, CC BY 3.0, Wikimedia Commons
+  Kaynak: https://commons.wikimedia.org/wiki/File:Belediye_binas%C4%B1-%C3%87orum_-_panoramio.jpg
+  Lisans: CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/deed.tr)
+  Yapılan değişiklik: Yeniden boyutlandırıldı.
+- corum-sehir-ici-gun-batimi-*.webp
+  Fotoğraf: Dosseman, CC BY-SA 4.0, Wikimedia Commons
+  Kaynak: https://commons.wikimedia.org/wiki/File:%C3%87orum_View_in_town_3428.jpg
+  Lisans: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/deed.tr)
+  Yapılan değişiklik: Yeniden boyutlandırıldı.

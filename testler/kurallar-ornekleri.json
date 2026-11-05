@@ -8,8 +8,10 @@
     ["resmi", true], ["resmî", true], ["Resmi_Hesap", true],
     ["kulup", true], ["Kulüp", true], ["kulüp.destek", true], ["yetkili", true],
     ["destek", true], ["DESTEK.2", true], ["mod", true], ["sistem", true], ["corumspor", true], ["Çorumspor", true], ["support", true],
+    ["baskan", true], ["Başkan", true], ["Baskan_Savas", true], ["kulup_baskani", true], ["çorumspor", true], ["Çorumspor_1923", true], ["corumspor.resmi", true],
+    ["TeknikDirektör", true], ["kaptan", true], ["antrenör", true],
     ["ayse_19", false], ["emre", false], ["kirmizi_simsek", false], ["destekci_ali", false], ["corumlu", false],
-    ["Çorumlu_Mert", false], ["modern_taraftar", false], ["sistematik", false], ["taraftar1a2b3c", false]
+    ["Çorumlu_Mert", false], ["modern_taraftar", false], ["sistematik", false], ["kaptanin_sesi", false], ["baskentli", false], ["taraftar1a2b3c", false]
   ],
   "kapak": [
     [null, true],

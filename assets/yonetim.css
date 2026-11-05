@@ -1,0 +1,25 @@
+/* Yönetim paneli stili (yalnız yonetim.html yükler; ziyaretçi sayfalarına inmez). Belirteçler assets/stil.css'te. */
+.yonetim-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.yonetim-liste li { border: 1px solid var(--kenar); border-radius: var(--r-kucuk-gorsel); padding: 10px 12px; display: grid; gap: 6px; background: var(--zemin); }
+.yonetim-liste .satir-baslik { font-weight: 700; overflow-wrap: anywhere; }
+.kapak-onizleme { max-width: 220px; border-radius: 8px; display: block; margin-top: 6px; }
+.yonetim-sekmeler { overflow-x: auto; scrollbar-width: thin; border-radius: var(--r-kucuk-gorsel); }
+.yonetim-sekmeler button { flex: 0 0 auto; }
+.yonetim-not { font-size: var(--fs-meta); background: var(--ilan-zemin); border: 1px solid var(--ilan-kenar); border-radius: var(--r-saat); padding: 8px 12px; margin: 0 0 12px; }
+.sikayet-sayisi { color: var(--vurgu-guclu); font-weight: 700; }
+#panel h1 { margin-top: 16px; }
+
+/* Reklam modülü paneli (assets/reklam/yonetim-reklamlar.css) site belirteçlerine bağlanır */
+:root, :root:not([data-theme="light"]):not([data-tema="acik"]) {
+  --ry-zemin: var(--zemin); --ry-kutu: var(--yuzey); --ry-yazi: var(--metin); --ry-soluk: var(--metin-soluk); --ry-kenar: var(--kenar-guclu);
+  --ry-ana: var(--kulup-kirmizi); --ry-ana-ustu: #FFFFFF; --ry-iyi: var(--basari-metin); --ry-kotu: var(--vurgu-guclu); --ry-uyari: var(--altin-metin); --ry-mavi: var(--odak);
+}
+.ry { font-family: var(--font-govde); }
+.ry h2, .ry h3 { font-family: var(--font-baslik); }
+.ry-sekme { font-family: var(--font-baslik); text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
+.ry-sayi, .ry-sahte-skor { font-family: var(--font-govde); font-variant-numeric: tabular-nums; }
+.ry :focus-visible { outline: 3px solid var(--odak); outline-offset: 2px; }
+.ry-wa-sonuc, #ry-wa-sonuc { overflow-wrap: anywhere; word-break: break-word; }
+.ry-sayac.asim { color: var(--ry-kotu); font-weight: 700; }
+.ry-sektor { border: 1px solid var(--ry-kenar) !important; border-radius: 8px; padding: 10px 12px !important; }
+.ry-sektor .ry-secenek { align-items: flex-start; min-height: 32px; }

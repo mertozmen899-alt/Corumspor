@@ -1,50 +1,139 @@
-// Gol arşivi: golü olan maçlar (yeniden eskiye), her maçta goller dakika sırasıyla, videolar gömülü
-import { supabase, h, $, mesaj, sayfaBaslat, tarihYaz, hataMetni, evSahibiDeplasman, skorMetni, dakikaMetni, videoOgesi } from '../ortak.js';
+// Gol arşivi: Sezon (Temmuz–Haziran, "2026-27") ve Rakip filtreleri (fieldset/legend + yerel radyo düğmeleri; rakip çoksa
+// <select>), sonuç sayısı #durum'a duyurulur, seçim adrese yazılır (?sezon=&rakip=). Goller maç maç gruplanır; her gol
+// gol.html?id= sayfasına giden TEK bağlantı. Video bu sayfada yüklenmez (YouTube'a istek yok).
+import { supabase, hazir, h, $, sayfaBaslat, tarihYaz, hataMetni, duyur, cevrimdisiKutusu } from '../ortak.js';
+import { sezonAdi } from '../kurallar.js';
+import { golKarti, macEtiketi } from '../gol-kart.js';
+import { sonVeri, sonVeriYaz } from '../onbellek.js';
 
-const SAYFA_BOYU = 8;
-let sayfa = 0;
+const MAC_SAYFA = 8;        // "Daha fazla gol" her basışta 8 maç daha
+const RAKIP_SECIM_SINIRI = 10; // daha çok rakip varsa radyo yerine <select>
+const arsiv = $('#arsiv');
+const dugme = $('#daha-fazla');
+let maclar = [];
+let gosterilenMac = 0;
+const secim = { sezon: null, rakip: '' };
+const oturumS = sayfaBaslat();
 
-function golKarti(gol, mac) {
-  return h('article', { class: 'gol', 'data-gol-id': gol.id },
-    h('div', { class: 'gol-ust' },
-      h('span', { class: 'dakika' }, dakikaMetni(gol)),
-      h('span', { class: 'oyuncu' }, gol.oyuncu),
-      gol.penalti ? h('span', { class: 'rozet' }, 'Penaltı') : null),
-    gol.aciklama ? h('p', { class: 'aciklama' }, gol.aciklama) : null,
-    videoOgesi(gol.video_url, `${gol.oyuncu} golü, ${mac.rakip} maçı`));
+const golSirasi = (a, b) => a.dakika - b.dakika || (a.ek_dakika || 0) - (b.ek_dakika || 0);
+
+function suzulmus() {
+  return maclar.filter((m) => (!secim.sezon || sezonAdi(m.tarih) === secim.sezon) && (!secim.rakip || m.rakip === secim.rakip));
 }
+
+function adresYaz() {
+  const u = new URL(location.href);
+  if (secim.sezon) u.searchParams.set('sezon', secim.sezon); else u.searchParams.delete('sezon');
+  if (secim.rakip) u.searchParams.set('rakip', secim.rakip); else u.searchParams.delete('rakip');
+  history.replaceState(null, '', u.pathname.split('/').pop() + u.search);
+}
+
+function radyo(ad, deger, etiket, secili, sinifEk = '') {
+  const id = `${ad}-${deger || 'hepsi'}`.replace(/[^\wçğıöşüÇĞİÖŞÜ-]/g, '-');
+  return [h('input', { type: 'radio', name: ad, id, value: deger, checked: secili, class: sinifEk }), h('label', { for: id }, etiket)];
+}
+
+function filtreleriCiz() {
+  const sezonlar = [...new Set(maclar.map((m) => sezonAdi(m.tarih)))].sort().reverse();
+  if (!secim.sezon || !sezonlar.includes(secim.sezon)) secim.sezon = sezonlar[0] || null;
+  $('#sezonlar').replaceChildren(...sezonlar.slice(0, 4).flatMap((s) => radyo('sezon', s, s, s === secim.sezon)));
+  if (sezonlar.length > 4) {
+    // 4'ten fazla sezon: eskiler için seçim kutusu
+    const sec = h('select', { id: 'sezon-eski', 'aria-label': 'Daha eski sezonlar' }, h('option', { value: '' }, 'Eski sezon…'), ...sezonlar.slice(4).map((s) => h('option', { value: s, selected: s === secim.sezon }, s)));
+    $('#sezonlar').after(sec);
+  }
+  const rakipler = [...new Set(maclar.filter((m) => sezonAdi(m.tarih) === secim.sezon).map((m) => m.rakip))].sort((a, b) => a.localeCompare(b, 'tr'));
+  if (secim.rakip && !rakipler.includes(secim.rakip)) secim.rakip = '';
+  const kutu = $('#rakipler');
+  if (rakipler.length > RAKIP_SECIM_SINIRI) {
+    kutu.replaceChildren(h('label', { class: 'gorunmez', for: 'rakip-sec' }, 'Rakip'),
+      h('select', { id: 'rakip-sec', name: 'rakip' }, h('option', { value: '' }, 'Tüm rakipler'), ...rakipler.map((r) => h('option', { value: r, selected: r === secim.rakip }, r))));
+  } else {
+    kutu.replaceChildren(...radyo('rakip', '', 'Tüm rakipler', !secim.rakip), ...rakipler.flatMap((r) => radyo('rakip', r, r, r === secim.rakip)));
+  }
+}
+
+function golSayisi(liste) { return liste.reduce((t, m) => t + m.goller.length, 0); }
+
+function ozetYaz(liste, duyurulsun) {
+  const n = golSayisi(liste);
+  const metin = n ? `${secim.sezon || 'Bütün sezonlar'}${secim.rakip ? ' · ' + secim.rakip : ''} · ${n} gol` : 'Bu filtrede gol yok.';
+  $('#sonuc-sayisi').textContent = metin;
+  if (duyurulsun) duyur(n ? `${secim.sezon}${secim.rakip ? ', ' + secim.rakip : ''}: ${n} gol.` : 'Bu filtrelerle gol bulunamadı.');
+}
+
+function macGrubu(mac) {
+  const goller = [...mac.goller].sort(golSirasi);
+  return h('section', { class: 'arsiv-mac', 'data-mac-id': mac.id, 'aria-labelledby': 'mac-' + mac.id },
+    h('div', { class: 'grup-baslik' },
+      h('span', { class: 'grup-ust' }, tarihYaz(mac.tarih, { saat: false, yil: false }), ' · ', mac.ic_saha ? 'İç saha' : 'Deplasman'),
+      h('h2', { id: 'mac-' + mac.id }, macEtiketi(mac)),
+      h('a', { href: 'mac.html?id=' + encodeURIComponent(mac.id), 'aria-label': `Maç ayrıntısı: ${macEtiketi(mac)}` }, 'Maç →')),
+    h('ul', { class: 'gol-listesi' }, goller.map((g, i) => h('li', { class: 'gol' }, golKarti(g, mac, { ilk: gosterilenMac === 0 && i === 0 })))));
+}
+
+function listeyiCiz({ duyurulsun = false } = {}) {
+  const liste = suzulmus();
+  gosterilenMac = 0;
+  arsiv.replaceChildren();
+  if (!liste.length) {
+    const temizle = h('button', { type: 'button', class: 'dugme ikincil' }, 'Filtreleri temizle');
+    temizle.addEventListener('click', () => { secim.rakip = ''; filtreleriCiz(); listeyiCiz({ duyurulsun: true }); adresYaz(); temizle.blur(); });
+    arsiv.append(h('div', { class: 'filtre-bos' }, h('p', { class: 'bos' }, maclar.length ? 'Bu filtrede gol yok.' : 'Gol arşivi yakında dolacak.'), maclar.length ? temizle : null));
+  }
+  dahaCiz(liste);
+  ozetYaz(liste, duyurulsun);
+}
+
+function dahaCiz(liste = suzulmus()) {
+  const parca = liste.slice(gosterilenMac, gosterilenMac + MAC_SAYFA);
+  const ilk = parca.length ? macGrubu(parca[0]) : null;
+  parca.forEach((m, i) => { arsiv.append(i === 0 ? ilk : macGrubu(m)); gosterilenMac += 1; });
+  dugme.hidden = gosterilenMac >= liste.length;
+  return ilk;
+}
+
+$('#filtreler').addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.name === 'sezon' || t.id === 'sezon-eski') { if (!t.value) return; secim.sezon = t.value; secim.rakip = ''; filtreleriCiz(); }
+  else if (t.name === 'rakip') secim.rakip = t.value;
+  // Liste hemen süzülür, odak seçilen radyoda kalır, sayfa kaymaz (3.2.2); sonuç #durum'a duyurulur
+  const y = window.scrollY;
+  listeyiCiz({ duyurulsun: true });
+  adresYaz();
+  window.scrollTo(0, y);
+  const yeniden = t.id && document.getElementById(t.id);
+  if (yeniden && document.activeElement !== yeniden) yeniden.focus({ preventScroll: true });
+});
+$('#filtreler').addEventListener('submit', (e) => e.preventDefault());
+
+dugme.addEventListener('click', () => {
+  const ilk = dahaCiz();
+  duyur(dugme.hidden ? 'Bütün goller gösteriliyor.' : 'Daha fazla gol yüklendi.');
+  const odak = ilk && ilk.querySelector('a.video-kart, a.gol-satir');
+  if (odak) odak.focus(); else dugme.focus();
+});
 
 async function yukle() {
-  const arsiv = $('#arsiv');
-  const dugme = $('#daha-fazla');
-  dugme.disabled = true;
-  const bas = sayfa * SAYFA_BOYU;
   const { data, error } = await supabase.from('maclar')
-    .select('id, rakip, tarih, ic_saha, corum_skor, rakip_skor, durum, goller!inner(id, oyuncu, dakika, ek_dakika, penalti, video_url, aciklama)')
-    .order('tarih', { ascending: false })
-    .range(bas, bas + SAYFA_BOYU);
-  dugme.disabled = false;
-  if (sayfa === 0) arsiv.replaceChildren();
-  if (error) { mesaj($('#gol-mesaj'), hataMetni(error, 'Goller yüklenemedi.')); return; }
-  const parca = data.slice(0, SAYFA_BOYU);
-  if (!parca.length && sayfa === 0) arsiv.append(h('p', { class: 'bos' }, 'Henüz gol eklenmedi.'));
-  for (const mac of parca) {
-    const [ev, dep] = evSahibiDeplasman(mac);
-    const skor = skorMetni(mac);
-    const goller = [...mac.goller].sort((a, b) => a.dakika - b.dakika || (a.ek_dakika || 0) - (b.ek_dakika || 0));
-    arsiv.append(h('section', { class: 'arsiv-mac', 'data-mac-id': mac.id },
-      h('h2', null, h('a', { href: 'mac.html?id=' + encodeURIComponent(mac.id) }, `${ev} ${skor || '-'} ${dep}`)),
-      h('p', { class: 'tarih' }, tarihYaz(mac.tarih, { saat: false })),
-      h('div', { class: 'gol-listesi izgara' }, goller.map((g) => golKarti(g, mac)))));
+    .select('id, rakip, tarih, ic_saha, corum_skor, rakip_skor, durum, goller!inner(id, oyuncu, dakika, ek_dakika, penalti, video_url, aciklama, kapak_url, sure_sn)')
+    .order('tarih', { ascending: false }).limit(300);
+  if (error) {
+    const eski = sonVeri('goller');
+    if (eski) { maclar = eski.veri; filtreleriCiz(); listeyiCiz(); arsiv.prepend(cevrimdisiKutusu('Bağlantı yok; son görülen goller gösteriliyor.', () => location.reload(), { sonGuncelleme: eski.zaman })); arsiv.dataset.durum = 'onbellek'; return; }
+    arsiv.replaceChildren(cevrimdisiKutusu(hataMetni(error, 'Goller yüklenemedi.'), () => { arsiv.replaceChildren(); yukle(); }));
+    arsiv.dataset.durum = 'hata';
+    return;
   }
-  dugme.hidden = data.length <= SAYFA_BOYU;
-  sayfa += 1;
+  maclar = data;
+  sonVeriYaz('goller', data.slice(0, 12));
+  const p = new URLSearchParams(location.search);
+  secim.sezon = p.get('sezon');
+  secim.rakip = p.get('rakip') || '';
+  filtreleriCiz();
+  listeyiCiz();
+  arsiv.dataset.durum = 'tamam';
 }
 
-const oturum = await sayfaBaslat();
-if (oturum.hazir) {
-  $('#daha-fazla').addEventListener('click', yukle);
-  await yukle();
-} else {
-  $('#arsiv').replaceChildren();
-}
+if (hazir) yukle(); else { arsiv.replaceChildren(); $('#sezonlar').replaceChildren(); $('#rakipler').replaceChildren(); }
+await oturumS;

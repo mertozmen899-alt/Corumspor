@@ -426,3 +426,94 @@ select test.dogru('yetki: anon/authenticated hiçbir public tabloyu TRUNCATE ede
               where t.schemaname = 'public' and has_table_privilege(r.rol, format('%I.%I', t.schemaname, t.tablename), 'TRUNCATE')));
 select test.esit('hesap silinince profil gider', (select count(*) from public.profiles where id = 'bbbbbbbb-0000-4000-8000-000000000003')::text, '0');
 select test.esit('hesap silinince yorumları gider', (select count(*) from public.yorumlar where kullanici_id = 'bbbbbbbb-0000-4000-8000-000000000003')::text, '0');
+
+-- ================================================================ 013: tasarım (manşet, Takım, gol yorumu, şikâyet, yasak)
+select set_config('request.jwt.claim.sub', '', false);
+select test.esit('seed (013): bir manşet haberi', (select count(*) from public.haberler where manset)::text, '1');
+select test.esit('seed (013): 8 oyuncu, 3 sakatlık (1 taslak)', (select count(*) from public.oyuncular)::text || '/' || (select count(*) from public.sakatliklar)::text, '8/3');
+select test.dogru('RLS (013): yeni tablolarda RLS açık',
+  (select bool_and(relrowsecurity) from pg_class where oid in ('public.oyuncular'::regclass, 'public.sakatliklar'::regclass, 'public.yorum_sikayetleri'::regclass)));
+select test.dogru('engelli_mi(), engelli_kullanicilar(): SECURITY DEFINER, search_path sabit',
+  (select bool_and(prosecdef and proconfig is not null) from pg_proc where oid in ('public.engelli_mi()'::regprocedure, 'public.engelli_kullanicilar()'::regprocedure)));
+set role anon;
+select test.esit('anon (013): kadroyu görür', (select count(*) from public.oyuncular)::text, '8');
+select test.esit('anon (013): yalnız yayındaki sakatlıkları görür', (select count(*) from public.sakatliklar)::text, '2');
+select test.esit('anon (013): her sakatlığın kaynağı var', (select count(*) from public.sakatliklar where btrim(kaynak) = '')::text, '0');
+select test.hata_bekle('anon (013): oyuncu ekleyemez', $q$insert into public.oyuncular (ad, mevki) values ('Sahte', 'forvet')$q$, 'row-level security');
+select test.esit('anon (013): sakatlık değiştiremez (0 satır)', test.satir($q$update public.sakatliklar set yayinda = true$q$)::text, '0');
+select test.esit('anon (013): şikâyetleri göremez', (select count(*) from public.yorum_sikayetleri)::text, '0');
+select test.hata_bekle('anon (013): şikâyet edemez',
+  $q$insert into public.yorum_sikayetleri (yorum_id) select id from public.yorumlar limit 1$q$);
+select test.esit('anon (013): engelli sütunu okunamaz', (select count(*) from information_schema.column_privileges
+  where table_schema = 'public' and table_name = 'profiles' and column_name = 'engelli' and grantee = 'anon' and privilege_type = 'SELECT')::text, '0');
+select test.dogru('anon (013): engelli_mi() false', not public.engelli_mi());
+select test.hata_bekle('anon (013): engelli listesi yalnız yönetici', $q$select * from public.engelli_kullanicilar()$q$, 'permission denied|yalnızca yöneticiler');
+reset role;
+
+-- taraftar burak: gol yorumu, tek hedef, şikâyet
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000000002', false);
+set role authenticated;
+select test.esit('taraftar (013): gole yorum yazabilir',
+  test.satir($q$insert into public.yorumlar (gol_id, metin) values ('22222222-0000-4000-8000-000000000001', 'Ne gol ama!')$q$)::text, '1');
+select test.hata_bekle('taraftar (013): yorum hem gole hem habere olamaz (tek hedef)',
+  $q$insert into public.yorumlar (gol_id, haber_id, metin) values ('22222222-0000-4000-8000-000000000001', '33333333-0000-4000-8000-000000000001', 'iki')$q$, 'yorum_tek_hedef');
+select test.hata_bekle('taraftar (013): yorumun golünü değiştiremez',
+  $q$update public.yorumlar set gol_id = '22222222-0000-4000-8000-000000000003' where metin = 'Ne gol ama!'$q$, 'sadece metni');
+select test.hata_bekle('taraftar (013): kadroyu değiştiremez',
+  $q$insert into public.sakatliklar (oyuncu_id, durum, kaynak) values ('55555555-0000-4000-8000-000000000001', 'sakat', 'söylenti')$q$, 'row-level security');
+select test.hata_bekle('taraftar (013): kendi yorumunu şikâyet edemez',
+  $q$insert into public.yorum_sikayetleri (yorum_id) select id from public.yorumlar where metin = 'Ne gol ama!'$q$, 'Kendi yorumunu');
+reset role;
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.esit('yönetici (013): bir yorum yazdı (şikâyet edilecek)',
+  test.satir($q$insert into public.yorumlar (gol_id, metin) values ('22222222-0000-4000-8000-000000000001', 'Yöneticiden not')$q$)::text, '1');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000000002', false);
+set role authenticated;
+select test.esit('taraftar (013): başkasının yorumunu şikâyet eder',
+  test.satir($q$insert into public.yorum_sikayetleri (yorum_id, neden, sikayet_eden) select id, 'hakaret', 'aaaaaaaa-0000-4000-8000-000000000001' from public.yorumlar where metin = 'Yöneticiden not'$q$)::text, '1');
+select test.hata_bekle('taraftar (013): aynı yorumu ikinci kez şikâyet edemez',
+  $q$insert into public.yorum_sikayetleri (yorum_id) select id from public.yorumlar where metin = 'Yöneticiden not'$q$, 'yorum_sikayeti_tek');
+select test.esit('taraftar (013): şikâyetleri (kendi şikâyetini de) okuyamaz', (select count(*) from public.yorum_sikayetleri)::text, '0');
+select test.hata_bekle('taraftar (013): kendini engelleyemez/kaldıramaz',
+  $q$update public.profiles set engelli = true where id = 'bbbbbbbb-0000-4000-8000-000000000002'$q$, 'yalnız yönetici');
+select test.hata_bekle('taraftar (013): ayrılmış ad "Baskan_Savas" reddedilir',
+  $q$update public.profiles set kullanici_adi = 'Baskan_Savas' where id = 'bbbbbbbb-0000-4000-8000-000000000002'$q$, 'kullanılamaz');
+reset role;
+select test.esit('şikâyet (013): şikâyet eden sunucuda oturumdaki kişi (gönderilen yok sayılır)',
+  (select sikayet_eden::text from public.yorum_sikayetleri), 'bbbbbbbb-0000-4000-8000-000000000002');
+
+-- yönetici: şikâyetleri okur, kullanıcıyı engeller; engellenen yorum yazamaz
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.esit('yönetici (013): şikâyetleri okur', (select count(*) from public.yorum_sikayetleri)::text, '1');
+select test.esit('yönetici (013): taslak sakatlığı da görür', (select count(*) from public.sakatliklar)::text, '3');
+select test.esit('yönetici (013): sakatlık ekler (kaynakla)',
+  test.satir($q$insert into public.sakatliklar (oyuncu_id, durum, aciklama, kaynak, kaynak_url, yayinda) values ('55555555-0000-4000-8000-000000000005', 'dondu', 'Takımla çalıştı.', 'Kulüp açıklaması', 'https://corumfk.com.tr/haber', true)$q$)::text, '1');
+select test.hata_bekle('yönetici (013): kaynaksız sakatlık reddedilir',
+  $q$insert into public.sakatliklar (oyuncu_id, durum) values ('55555555-0000-4000-8000-000000000005', 'sakat')$q$, 'kaynak');
+select test.hata_bekle('yönetici (013): kaynak bağlantısı https olmalı',
+  $q$insert into public.sakatliklar (oyuncu_id, durum, kaynak, kaynak_url) values ('55555555-0000-4000-8000-000000000005', 'sakat', 'Kulüp', 'http://ornek.com')$q$, 'check');
+select test.hata_bekle('yönetici (013): açıklama en çok 200 karakter',
+  $q$insert into public.sakatliklar (oyuncu_id, durum, kaynak, aciklama) values ('55555555-0000-4000-8000-000000000005', 'sakat', 'Kulüp', repeat('x', 201))$q$, 'check');
+select test.hata_bekle('yönetici (013): oyuncu fotoğrafı başka siteden olamaz',
+  $q$insert into public.oyuncular (ad, mevki, foto_url) values ('Dış Foto', 'forvet', 'https://baska-site.com/a.jpg')$q$, 'oyuncular_foto_kaynagi');
+select test.hata_bekle('yönetici (013): gol kapağı başka siteden olamaz',
+  $q$update public.goller set kapak_url = 'https://i.ytimg.com/vi/x/hqdefault.jpg' where id = '22222222-0000-4000-8000-000000000002'$q$, 'goller_kapak_kaynagi');
+select test.esit('yönetici (013): haberi manşet yapar',
+  test.satir($q$update public.haberler set manset = true where id = '33333333-0000-4000-8000-000000000001'$q$)::text, '1');
+select test.esit('yönetici (013): taraftarı yorumdan men eder',
+  test.satir($q$update public.profiles set engelli = true where id = 'bbbbbbbb-0000-4000-8000-000000000002'$q$)::text, '1');
+select test.esit('yönetici (013): engelli listesi', (select string_agg(x::text, ',') from public.engelli_kullanicilar() x), 'bbbbbbbb-0000-4000-8000-000000000002');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000000002', false);
+set role authenticated;
+select test.dogru('engellenen (013): engelli_mi() true', public.engelli_mi());
+select test.hata_bekle('engellenen (013): yorum yazamaz (Türkçe mesaj)',
+  $q$insert into public.yorumlar (gol_id, metin) values ('22222222-0000-4000-8000-000000000001', 'tekrar yazıyorum')$q$, 'yorum yazmaya kapatıldı');
+select test.hata_bekle('engellenen (013): kendi yasağını kaldıramaz',
+  $q$update public.profiles set engelli = false where id = 'bbbbbbbb-0000-4000-8000-000000000002'$q$, 'yalnız yönetici');
+reset role;
+update public.profiles set engelli = false where id = 'bbbbbbbb-0000-4000-8000-000000000002';
+update public.haberler set manset = false where id = '33333333-0000-4000-8000-000000000001';

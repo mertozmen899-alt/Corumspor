@@ -1,13 +1,16 @@
 # Çorumspor Taraftar — Tasarım Rehberi
 
-Bu rehber, gayriresmî Çorum FK taraftar uygulamasının kulübe yakışır ama kulübün resmî uygulamasıyla karıştırılmayacak bir görünüme sahip olması için hazırlandı. Araştırma tarihi: 5 Kasım 2026.
+Bu rehber, bağımsız Çorum FK taraftar uygulamasının kulübe yakışır ama kulübün resmî uygulamasıyla karıştırılmayacak bir görünüme sahip olması için hazırlandı. Araştırma tarihi: 5 Kasım 2026.
+
+> **Güncel tasarım: 9. bölüm (013 mobil tasarım, 5 Kasım 2026).** 1-8. bölümler ilk araştırma ve ilk aktarımdır; 9. bölümle
+> çeliştikleri yerde (üst bar ve menü, tema düğmesi, haber kartı, amblem "ÇFK" → "ÇT", yazı tipi dosyaları, "resmî değildir" yeri) 9. bölüm geçerlidir.
 
 Bu klasördeki dosyalar:
 
 | Dosya | Ne işe yarar |
 |---|---|
 | `tasarim.css` | Renk, yazı tipi ve ölçü değişkenleri (açık + koyu tema) ve bileşenlerin temel stilleri. Uygulamaya doğrudan eklenebilir. |
-| `amblem-yedek.svg` | Özgün yedek işaret: kalkan içinde "ÇFK" ve şimşek. Kulübün amblemi **değildir**. |
+| `amblem-yedek.svg` | (ilk sürüm; uygulamada `assets/logo/amblem-yedek.svg` artık özgün **"ÇT"** yuvarlak işaret, 9.6) Kulübün amblemi **değildir**. |
 | `ornek.html` | Paleti ve bileşenleri gösteren örnek sayfa. |
 | `ornek-390.png`, `ornek-1280.png` | Örnek sayfanın açık tema ekran görüntüleri (390 px ve 1280 px genişlik). |
 | `ornek-390-koyu.png`, `ornek-1280-koyu.png` | Aynı sayfanın koyu tema görüntüleri. |
@@ -285,7 +288,7 @@ Tüm sınıflar `tasarim.css` içinde tanımlı. Örnekleri `ornek.html` dosyas�
 - `amblem-yedek.svg`: bu klasördeki özgün monogram (her zaman bulunsun).
 - `amblem.svg` ya da `amblem.png`: **yalnızca kulüpten izin alındıktan sonra** sahibin ekleyeceği resmî dosya. PNG kullanılacaksa en az 256×256 boyutunda ve şeffaf zeminli olsun.
 
-**Otomatik geri dönüş sırası:** `amblem.svg` → `amblem.png` → `amblem-yedek.svg` → yazı işareti ("ÇFK" kırmızı rozet). Dosya yoksa sayfa bozulmaz:
+**Otomatik geri dönüş sırası:** `amblem.svg` → `amblem.png` → `amblem-yedek.svg` → yazı işareti (013'ten beri "ÇT"; kulüp kısaltması "ÇFK" kullanılmaz). Dosya yoksa sayfa bozulmaz:
 
 ```html
 <span class="amblem"><img data-amblem alt="" width="40" height="48"></span>
@@ -373,3 +376,114 @@ Uygulamada eklenen renk çiftleri (aynı formülle hesaplandı; hepsi eşiği ge
 | Koyu | rapor "Sınıra takılan dakika" > 0 (`--ry-uyari`) / kart | #E3BE55 | #161618 | 10.12:1 | 4.5 |
 
 `kontrast.py` aynı klasörde; rehberdeki tablo `python3 docs/kontrast.py` ile yeniden üretilir (0 başarısız).
+
+---
+
+## 9. 013 mobil tasarım (güncel)
+
+Kaynaklar: tasarımcının ekran ekran tarifi, erişilebilirlik isterleri (T-xx; `testler/tasarim-testleri.js`), taraftar / reklam veren /
+başkan incelemeleri ve performans incelemesi. Referans yerleşimler yalnız yerleşim fikri içindir; başka kulübün logosu, fotoğrafı ve
+metni kullanılmadı. Ekran görüntüleri: `docs/ekran/onizleme-ana-360.png`, `onizleme-ana-430.png`, `onizleme-goller-360.png`,
+`onizleme-goller-430.png` (görünüm testi her çalışmada yeniler; diğerleri `testler/ekran/`).
+
+### 9.1 Belirteçler (`assets/stil.css` `:root`; koyu tema `prefers-color-scheme` + `[data-theme=dark]`)
+
+| Grup | Belirteçler |
+|---|---|
+| Renk | `--kulup-kirmizi #CC0000`, `--kulup-siyah #0B0B0B`, `--kulup-altin`, `--zemin`, `--yuzey` (leblebi kreması / #161618), `--yuzey-2`, `--kenar`, `--kenar-guclu` (form ≥3:1), `--metin`, `--metin-soluk`, `--vurgu`, `--vurgu-yumusak(-metin)`, `--altin-metin`, `--ilan-*` (sponsor kartı), `--galibiyet/--beraberlik/--maglubiyet(-metin)`, `--odak` / `--odak-koyu-zemin` |
+| Alt menü | `--nav-zemin` (koyu: `--yuzey`), `--nav-aktif`, `--nav-pasif`, `--nav-gosterge` (etkin öğenin üstünde kırmızı çubuk: renk dışında şekil) |
+| Haplar | `--hap-iz` (açık `--yuzey-2`, **koyu `--yuzey`**), `--hap-pasif-metin`, `--hap-cip-metin`, `--hap-aktif-zemin` (kırmızı), `--hap-aktif-metin` |
+| Sakatlık | `--sakat-*` (kırmızı yumuşak), `--supheli-*` (Cezalı / Şüpheli; ilan sarısı), `--dondu-*` (başarı yeşili) |
+| Hero / kapak | `--hero-karartma` (üstten alta koyulaşan perde), `--hero-metin`, `--hero-meta`, `--hero-min-h 420px`, `--hero-max-h 72svh`, `--kapak-oran 16/9`, `--kapak-karartma`, `--oynat-boyut`, `--sure-zemin` |
+| Yazı | `--font-baslik` Oswald (+ `Oswald Yedek`), `--font-govde` Source Sans 3 (+ `Source Sans Yedek`); akışkan boyutlar `--fs-hero`, `--fs-sayfa`, `--fs-bolum`, `--fs-kart`, `--fs-meta`, `--fs-etiket`, `--fs-saat`; `--lh-*` |
+| Ölçü | `--b-1…--b-12` (4 px ızgara), `--sayfa-kenar` 16 px (375 px üstü 20), `--bolum-arasi`, `--kart-aralik`, `--r-*` köşeler, `--dokunma 44px`, `--ust-bar-h 56px`, `--alt-menu-h 64px`, `--alt-menu-toplam` (+ safe-area), `--yapiskan-h` (JS yazar), `--icerik-max 720px` |
+| Hareket | `--sure-hizli/orta/yavas`, `--egri-cikis`, `--egri-standart`; `prefers-reduced-motion: reduce` hepsini kapatır; **sonsuz animasyon yok** (canlı rozeti sabit) |
+
+### 9.2 Kabuk
+
+- **Üst bar** (`header.ust`, yapışkan, siyah, altında 3 px kırmızı): solda (detay sayfasında) geri düğmesi `[data-geri]`, ortada
+  "ÇT" işareti + "ÇORUMSPOR TARAFTAR", sağda profil simgesi (girişliyse baş harf avatarı). Büyük yazı tipinde ad alt satıra iner.
+- **Şerit:** `main`'in ilk öğesi `p.resmi-degil` "⚡ Bağımsız taraftar uygulaması" (yapışkan değil). "Çorum FK'nın resmî uygulaması
+  değildir" yalnız alt bilgi künyesinde ve `gizlilik.html`'de.
+- **Alt menü** (`nav.alt-nav`, sabit, 4 öğe: Ana Sayfa · Gol Arşivi · Takım · Profil; simge + etiket, ≥44 px): etkin öğe kırmızı +
+  üstte çubuk, `aria-current="page"` (detay sayfasında bölümü `"true"`). `env(safe-area-inset-*)`; `html { scroll-padding }` üst bar,
+  yapışkan filtre/sekme (`--yapiskan-h`) ve alt menü kadar: klavye odağı hiçbir çubuğun altında kalmaz. Sanal klavye açılınca
+  (görünür yükseklik küçülünce) menü gizlenir ve `inert` olur. Yükseklik ≤ 500 px'te çubuklar yapışkan değildir.
+- **Alt bilgi künyesi:** ad, bağımsızlık cümlesi, `SAHIP_ADI`, `ILETISIM_EPOSTA` + "kaldırma talebine 24 saat içinde dönülür",
+  Gizlilik · Topluluk kuralları · Fotoğraf kaynakları.
+- Kalıcı canlı bölgeler `#durum` (status) ve `#uyari` (alert); listelerde `aria-live` yok. Atlama bağlantısı "İçeriğe geç".
+
+### 9.3 Bileşenler
+
+- **Hero** (`.hero`): tam genişlik fotoğraf (`picture`: dikey 4:5 `-dikey-480/828/1080`, 600 px üstü yatay `-yatay-828/1280/1600`;
+  `fetchpriority=high`, sayfadaki tek öncelikli görsel), alttan perde (yazının başladığı yerde ≥ .70 siyah; beyaz fotoğrafta da
+  başlık 8.45:1), kırmızı "MANŞET" etiketi, büyük harf Oswald başlık, tarih · "Habere git →". Yükseklik bir **alt sınırdır**
+  (`min-height: clamp(420px, 125vw, 72svh)`): %200 yazıda hero uzar, yazı kırpılmaz. Sağ üstte foto atfı
+  ("Fotoğraf: yazar, lisans, Wikimedia Commons"). Maç günü varyantı: "MAÇ GÜNÜ", saat ve stat.
+- **Son dakika satırı** (`.haber-satir`): solda tarih + başlık (Oswald), sağda 96×72 küçük kapak (srcset 480; yoksa "ÇT" yer tutucu).
+  Satırın tamamı tek bağlantı. "Daha fazla haber": 6'şar, `aria-disabled` ile, odak ilk yeni habere.
+- **Sponsor kartı** (akışta): kesikli altın kenar, ilan sarısı zemin, ilk öğe DOM metni "● SPONSOR" (nokta `aria-hidden`), solda
+  112 px görsel (srcset küçük kopya), firma adı (başlık değil), 3 satır metin, yalnız düğme bağlantı ("Ayrıntılar" ya da firmanın
+  yazısı; isteğe bağlı "Ara"). Oswald ve kulüp kırmızısı kullanılmaz. Kural: 3. haberden sonra, sonra en sık 8 haberde bir, en çok
+  3; her kart farklı firma; boşsa `li` silinir; geç gelirse okunan yerin üstüne eklenmez. Yükseklik ≤ 200 px.
+- **Gol kapağı** (`.video-kart`): 16:9, sol üstte dakika rozeti, ortada kırmızı oynat dairesi, sağ altta süre, altında oyuncu ·
+  gol türü ve maç satırı. Ana sayfada yatay kaydırılan şerit (`ul` + `li`, otomatik ilerleme yok, kart genişliği `min(77vw, 320px)`),
+  arşivde liste. Videosuz gol: `.gol-satir` (dakika, oyuncu, Penaltı rozeti; büyük yazıda rozet alt satıra iner).
+- **Sıradaki maç kartı** (`.sonraki-mac`): ortalı, küçük; lig · geri sayım, iki takım baş harf rozeti ("ÇF" kırmızı, rakip gri),
+  ortada saat kutusu, tarih ve stat, "Maç bilgisi →". Canlı skor yok; "Canlı" rozeti sabit (yanıp sönmez).
+- **"Kim yok?"**: yayında sakatlık kayıtlarından en çok 3 ad + durum çipi, "Kaynaklı sakatlık bilgisi →".
+- **Haplar** (`fieldset > legend` + `.hap-iz` / `.cip-satir`, gerçek `input[type=radio]` görsel olarak gizli ama odaklanabilir):
+  seçili hap kırmızı zemin + **✓** (renk dışında şekil), odak halkası etikette. Tek seçenek içeriği kadar genişlikte. İskeletler aynı
+  yükseklikte (kayma yok). Sezon Temmuz–Haziran ("2026-27"), en çok 4 hap (fazlası seçim kutusu); rakip 10'dan fazlaysa seçim kutusu.
+- **Sekmeler** (Takım): WAI-ARIA tablist, ok / Home / End, adres `#kadro|#sakatlik|#fikstur` (paneller `panel-<ad>`), geri tuşu çalışır.
+- **Kadro kartı**: forma numarası büyük kırmızı (fotoğraf yoksa ızgara deseni üstünde), ad, numara · mevki, sakat/cezalı çipi.
+  Mevki başlıkları `h3`. **Sakatlık satırı:** ad, mevki, durum çipi (metin: Sakat / Cezalı / Şüpheli / Döndü), not, tahmini dönüş,
+  **Kaynak** (bağlantılı) ve "Güncellendi <zaman>" (`time[datetime]`); üstte KVKK notu.
+- **Fikstür satırı**: ay başlıkları (`h4`), gün/ay kutusu, maç, tarih · iç saha/deplasman · lig, sağda saat ya da skor + G/B/M rozeti
+  ("Galibiyet/Beraberlik/Mağlubiyet" ekran okuyucuda); sıradaki maç solda kırmızı çizgi + "SIRADAKİ".
+- **Video facade** (`videoFasad`): kendi kapağımız + oynat düğmesi; dokununca youtube-nocookie iframe (`autoplay`, `cc_lang_pref=tr`)
+  ya da `<video preload="none" controls>`, odak oynatıcıya. Dokunmadan önce YouTube'a SIFIR istek, i.ytimg.com hiç kullanılmaz.
+  Altyazı alanı yok: "Bu videoda altyazı yok" notu.
+- **Yorumlar**: görünür etiket "Yorumun", sayaç (sessiz kesme yok, eşiklerde duyuru), `aria-disabled` gönderim (çift dokunma tek kayıt),
+  yeni yorum listeye eklenir (liste yeniden çizilmez), odak alanda; düzenle/sil/gizle yerinde; başkasının yorumunda "Şikâyet et"
+  (neden seçimi). Boş: "Tribün sessiz. İlk sözü sen söyle!".
+- **Profil**: misafirde simgeli avatar + "Tribüne hoş geldin" + Giriş yap / Kayıt ol; üyede avatar, ad, e-posta, Yorumlarım, (yönetici)
+  Yönetim paneli; Görünüm (Tema: Cihaz ayarı / Açık / Koyu radyoları); Hakkında; **Çıkış yap** onay penceresi (`dialog`, arka plan
+  `inert`, Esc kapatır, odak düğmeye döner). İskelet misafir görünümüyle aynı boyda.
+- **Durumlar**: her liste iskeletle açılır (`data-durum="bekliyor"`), sonra `tamam` / `onbellek` (son görülen veri, "Bağlantı yok;
+  son görülen … gösteriliyor", "Gösterilen bilgi … itibarıyla", Tekrar dene) / `hata` (Tekrar dene). Boş sayfa yok.
+
+### 9.4 Ekranlar
+
+| Ekran | Sıra |
+|---|---|
+| Ana Sayfa | hero → Son dakika (+ sponsor) → Gol arşivinden şeridi → Sıradaki maç → Kim yok? |
+| Gol Arşivi | başlık + alt yazı → yapışkan filtreler (Sezon, Rakip) → sonuç sayısı (duyurulur) → maç grupları (tarih · iç saha/deplasman, maç adı, "Maç →", goller) → Daha fazla gol |
+| Gol | facade video (+ atıf) → dakika + oyuncu (`h1`) → anlatım → maç bağlantısı → WhatsApp'ta paylaş → Bu maçın diğer golleri → Yorumlar |
+| Takım | `h1` Takım → sekmeler → Kadro (mevkiye göre) / Sakatlık (KVKK notu + kayıtlar) / Fikstür (sıradaki maçlar, sonuçlar) |
+| Profil | yukarıda |
+| Haber / Maç | geri düğmesi; haber: kapak (+ atıf / kapak kaynağı), başlık, metin, haber sonu reklamı, yorumlar; maç: başlık + skor + G/B/M, "Maçın sponsoru" (+ "Uygulama sponsoru · Çorum FK'nın sponsoru değildir"), goller, yorumlar |
+| Giriş | sekmeler Giriş / Kayıt; satır içi alan hataları (`aria-invalid` + `aria-describedby`), şifre göster, Şifremi unuttum (aynı mesaj: hesap var/yok söylenmez), kayıttan sonra "Hoş geldin X!" + e-posta onayı açıklaması |
+| Yeni şifre | `sifre.html`: iki alan, satır içi hata, "Şifren yenilendi"; bağlantı geçersizse yeni bağlantı iste |
+| Künye sayfaları | Topluluk kuralları, Fotoğraf kaynakları, Gizlilik (Son güncelleme; veri sorumlusu ayar.js'ten) |
+
+### 9.5 Performans kuralları
+
+- LCP ≤ 2,5 sn (Yavaş 4G), ≤ 4 sn (Hızlı 3G); CLS < 0,05 her sayfada (`testler/performans-testleri.js` ölçer).
+- 3 yazı tipi dosyası (~37 KB; latin + Türkçe), `font-display: optional` + metrik eşlenmiş yedekler, ikisi `preload`.
+- Hero ≤ 60 KB WebP, srcset/sizes. Küçük kapaklar `loading=lazy` + width/height. Reklam görselinin yuvaya uygun küçük kopyası.
+- Modül zinciri derinliği ≤ 2: her sayfanın statik içe aktarmaları `<link rel="modulepreload">`; yorumlar ve reklam modülü tembel.
+- Önbellek: `_headers` (bir yola tek Cache-Control), `sw.js`, `assets/onbellek.js`.
+
+### 9.6 "ÇT" işareti
+
+`assets/logo/amblem-yedek.svg`: kırmızı daire, kesikli beyaz halka, siyah iç daire, beyaz "Ç" (yay + çengel) ve "T", altın şimşek.
+Kulübün rozetinden, kartalından, yazısından ve "ÇFK" kısaltmasından hiçbirini içermez. Resmî amblem yalnız yazılı izinle
+(`AMBLEM_DOSYASI`); sıra: o dosya → yedek → "ÇT" yazı işareti.
+
+### 9.7 Kontrast
+
+013'te eklenen çiftler (alt menü, haplar, sakatlık çipleri, hero ve foto atfının beyaz fotoğraf üstündeki en kötü durumu, odak halkası)
+`docs/kontrast.py`'nin "013 çiftleri" tablosundadır; hepsi eşiği geçer (en düşük: koyu temada seçili hap / iz 3.07:1, arayüz eşiği 3:1;
+seçili hapta ayrıca ✓ var). Tasarım testi betiği çalıştırır, 0 başarısız bekler.
+

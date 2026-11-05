@@ -30,7 +30,19 @@ export const SINIRLAR = Object.freeze({
   ziyaretTiklamaSiniri: 5,      // bir sayfa ziyaretinde en fazla 5 tıklama (bütün reklamlar)
   gosterimDakikaSiniri: 120,    // bir reklama dakikada en fazla 120 gösterim (bütün ziyaretçiler); fazlası sayılmaz
   tiklamaDakikaSiniri: 30,      // bir reklama dakikada en fazla 30 tıklama (bütün ziyaretçiler); fazlası sayılmaz
+  // 013_tasarim.sql:
+  dugmeMetniEnAz: 2, dugmeMetniEnUzun: 24, // isteğe bağlı düğme yazısı (boşsa "Ayrıntılar")
+  gorselMetniEnUzun: 200,       // görseldeki yazı / alt metin
+  kisaMetinOnerilen: 120,       // telefonda 3 satırı geçmesin diye önerilen (sınır 160)
 });
+
+/** Yayına almadan önce yöneticinin onaylaması gereken yasaklı sektörler (başkan ve reklamveren değerlendirmesi; docs/REKLAM.md). */
+export const YASAKLI_SEKTORLER = Object.freeze([
+  ['bahis', 'Bahis, şans oyunu, "tahmin" sitesi, kripto / fan token değil'],
+  ['alkol', 'Alkollü içki değil; menüsünün öne çıkan kısmı alkol olan işletme değil'],
+  ['tutun', 'Tütün, nargile, e-sigara değil; açılış sayfasında (menüde) de yok'],
+  ['kulup', "Çorum FK'nın sponsorlarıyla çakışan marka değil (inşaat, savunma/havacılık, iklimlendirme: kulübün yazılı onayı olmadan alınmaz); kulüp adı/arması/oyuncu kullanılmıyor"],
+]);
 
 // ---------------------------------------------------------------------------
 // Bağlantı kuralları (SQL'deki public.reklam_baglanti_gecerli ile birebir aynı desenler)
@@ -232,10 +244,24 @@ export function reklamSec(reklamlar, { alan, macId = null } = {}, simdi = new Da
   return adaylar[0] || null;
 }
 
-/** Kartın üstündeki etiket. */
+/** Kartın üstündeki etiket. Akış: "Sponsor" (gerçek metin, ilk öğe); haber sonu: "Reklam"; maç: "Maçın sponsoru" / "Sponsor". */
 export function reklamEtiketi(r) {
   if (r && r.alan === 'mac_sponsoru') return r.mac_id != null && r.mac_id !== '' ? 'Maçın sponsoru' : 'Sponsor';
+  if (r && r.alan === 'ana_akis') return 'Sponsor';
   return 'Reklam';
+}
+
+/** Maç alanındaki sponsor kartının alt satırı: kulübün sponsoruyla karışmasın (başkanın değerlendirmesi). */
+export const MAC_SPONSORU_NOTU = "Uygulama sponsoru · Çorum FK'nın sponsoru değildir";
+
+/** "+905321234567" → "tel:+905321234567" (yalnız SQL'deki biçim). */
+export function telAdresi(telefon) {
+  return typeof telefon === 'string' && /^\+90[2-5][0-9]{9}$/.test(telefon) ? 'tel:' + telefon : null;
+}
+/** Panel girdisi "0364 213 19 19" → "+903642131919" ya da null. */
+export function telefonKaydi(girdi) {
+  const no = telefonuUluslararasiYap(girdi);
+  return no ? '+' + no : null;
 }
 
 /** Bağlantı düğmesinin yazısı. */
@@ -254,7 +280,12 @@ export function reklamDogrula(r, { simdi = new Date(), yayinaAliniyor = false } 
   if (!firma) h.firma_adi = 'Firma adı boş olamaz.';
   else if (firma.length > SINIRLAR.firmaAdiEnUzun) h.firma_adi = `Firma adı en fazla ${SINIRLAR.firmaAdiEnUzun} karakter olabilir.`;
   if (!metin) h.kisa_metin = 'Kısa metin boş olamaz.';
-  else if (metin.length > SINIRLAR.kisaMetinEnUzun) h.kisa_metin = `Kısa metin en fazla ${SINIRLAR.kisaMetinEnUzun} karakter olabilir.`;
+  else if (metin.length > SINIRLAR.kisaMetinEnUzun) h.kisa_metin = `Kısa metin en fazla ${SINIRLAR.kisaMetinEnUzun} karakter olabilir (${metin.length - SINIRLAR.kisaMetinEnUzun} karakter fazla).`;
+  const dm = (r.dugme_metni || '').trim();
+  if (dm && (dm.length < SINIRLAR.dugmeMetniEnAz || dm.length > SINIRLAR.dugmeMetniEnUzun)) h.dugme_metni = `Düğme yazısı ${SINIRLAR.dugmeMetniEnAz}-${SINIRLAR.dugmeMetniEnUzun} karakter olmalı (boş bırakılırsa "Ayrıntılar").`;
+  if (r.telefon != null && r.telefon !== '' && !telAdresi(r.telefon)) h.telefon = 'Telefon numarası geçersiz. Örnek: 0364 213 19 19';
+  if (r.gorsel_metni && String(r.gorsel_metni).length > SINIRLAR.gorselMetniEnUzun) h.gorsel_metni = `Görseldeki yazı en fazla ${SINIRLAR.gorselMetniEnUzun} karakter olabilir.`;
+  if (r.gorsel_kucuk_url && !gorselAdresiGecerli(r.gorsel_kucuk_url)) h.gorsel_url = 'Görseli "Dosya seç" ile yeniden yükleyin.';
   if (!r.gorsel_url) h.gorsel_url = 'Bir görsel yükleyin.';
   else if (!gorselAdresiGecerli(r.gorsel_url)) h.gorsel_url = 'Görseli "Dosya seç" ile yükleyin (yalnızca sitenin kendi deposundaki görseller kabul edilir).';
   if (r.baglanti_url && !baglantiGecerli(r.baglanti_url)) {
@@ -300,17 +331,29 @@ function csvHucre(v, metinMi) {
   return /[;"\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
-/** reklam_raporu satırlarından Excel'de düzgün açılan CSV metni (BOM dahil).
+/** Rapor satırlarını tek firmaya süzer (firma adı büyük/küçük harf ve boşluk farkı gözetmeden). */
+export function firmaSuz(satirlar, firma) {
+  if (!firma) return [...(satirlar || [])];
+  const n = (x) => String(x || '').trim().toLocaleLowerCase('tr-TR');
+  return (satirlar || []).filter((s) => n(s.firma_adi) === n(firma));
+}
+
+/** reklam_raporu satırlarından Excel'de düzgün açılan CSV metni (BOM dahil). Reklam verene giden dosya TEK firmalık olmalı
+ *  (firmaSuz); panel de CSV'yi yalnız bir firma seçiliyken indirir.
+ *  ops.donem: "2026-11-01 – 2026-11-30" (her satıra yazılır: dosya adı değişse de dönem kaybolmaz)
+ *  ops.macAdi: mac_id → "22 Ekim 2026 19:00 · Çorum FK – Örnekköy Spor" (maç sponsoru satırları için)
  *  "Sınıra takılan dakika": reklamın dakika sınırına (SINIRLAR) takıldığı dakika sayısı; 0'dan büyükse o aralıkta sayı
  *  şişirilmeye çalışılmış olabilir (fazlası zaten sayılmadı). */
-export function raporCsv(satirlar) {
-  const basliklar = ['Firma', 'Alan', 'Gösterim', 'Tıklama', 'Tıklama oranı (%)', 'Sınıra takılan dakika'];
+export function raporCsv(satirlar, { donem = '', macAdi = () => '' } = {}) {
+  const basliklar = ['Firma', 'Alan', 'Maç', 'Dönem', 'Gösterim', 'Tıklama', 'Tıklama oranı (%)', 'Sınıra takılan dakika'];
   const satir = [basliklar.map((b) => csvHucre(b, true)).join(';')];
   for (const s of satirlar || []) {
     const oran = s.tiklama_orani != null ? Number(s.tiklama_orani) : tiklamaOrani(s.gosterim, s.tiklama);
     satir.push([
       csvHucre(s.firma_adi, true),
       csvHucre(ALANLAR[s.alan] || s.alan, true),
+      csvHucre(s.alan === 'mac_sponsoru' ? (s.mac_id ? macAdi(s.mac_id) || '' : 'Tüm maçlar') : '', true),
+      csvHucre(donem, true),
       csvHucre(Number(s.gosterim) || 0, false),
       csvHucre(Number(s.tiklama) || 0, false),
       csvHucre(oranBicimle(oran), false),

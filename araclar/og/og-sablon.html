@@ -6,10 +6,14 @@
 <!--
   Çorumspor Taraftar paylaşım görseli (WhatsApp, X, Facebook önizlemesi). ÖZGÜN çizim: kulüp renkleri (kırmızı #CC0000,
   siyah #0B0B0B, altın #C9A227) ve uygulamanın kendi yedek işareti (assets/logo/amblem-yedek.svg). Çorum FK'nın resmî
-  amblemi, sponsor logoları ya da fotoğraf KULLANILMAZ; "Resmî değildir" uyarısı görselin üstünde.
+  amblemi, sponsor logoları ya da fotoğraf KULLANILMAZ; "Bağımsız taraftar uygulaması" yazar (013).
   PNG üretmek için: node araclar/og-olustur.js  (çıktı: assets/img/og-1200x630.png). Yazı tipleri sitenin kendi dosyaları.
 -->
-<link rel="stylesheet" href="../../assets/fonts/fontlar.css">
+<style>
+  @font-face { font-family: "Oswald"; font-weight: 700; src: url(../../assets/fonts/oswald-700-tr.woff2) format("woff2"); }
+  @font-face { font-family: "Source Sans 3"; font-weight: 400; src: url(../../assets/fonts/source-sans-3-400-tr.woff2) format("woff2"); }
+  @font-face { font-family: "Source Sans 3"; font-weight: 700; src: url(../../assets/fonts/source-sans-3-700-tr.woff2) format("woff2"); }
+</style>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { background: #333; }
@@ -27,7 +31,7 @@
   .ad { font-family: "Oswald", sans-serif; font-weight: 700; text-transform: uppercase; line-height: .95; letter-spacing: .01em; }
   .ad .b1 { display: block; font-size: 104px; }
   .ad .b2 { display: block; font-size: 72px; color: #CC0000; letter-spacing: .06em; margin-top: 22px; }
-  .alt { font-family: "Oswald", sans-serif; font-weight: 500; font-size: 36px; letter-spacing: .08em; text-transform: uppercase; color: #E9E6E0; display: flex; gap: 18px; align-items: center; }
+  .alt { font-family: "Oswald", sans-serif; font-weight: 700; font-size: 34px; letter-spacing: .08em; text-transform: uppercase; color: #E9E6E0; display: flex; gap: 18px; align-items: center; }
   .alt i { width: 10px; height: 10px; background: #C9A227; transform: rotate(45deg); display: inline-block; }
   .resmi { display: inline-block; align-self: flex-start; font-size: 24px; font-weight: 600; color: #0B0B0B; background: #FFFFFF; padding: 8px 16px; border-radius: 6px; }
   .cizgi { width: 120px; height: 6px; background: #CC0000; border-radius: 3px; }
@@ -44,8 +48,8 @@
       <div class="ad"><span class="b1">Çorumspor</span><span class="b2">Taraftar</span></div>
     </div>
     <div class="cizgi"></div>
-    <div class="alt">Haberler <i></i> Maçlar <i></i> Goller <i></i> Yorumlar</div>
-    <div class="resmi">Gayriresmî taraftar uygulaması · Resmî Çorum FK uygulaması değildir</div>
+    <div class="alt">Haberler <i></i> Goller <i></i> Takım <i></i> Tribün</div>
+    <div class="resmi">Bağımsız taraftar uygulaması</div>
   </div>
 </div>
 </body>

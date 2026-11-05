@@ -2,105 +2,124 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://*.supabase.co data: blob:; media-src 'self' https: blob:; frame-src https://www.youtube-nocookie.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://*.supabase.co data: blob:; media-src 'self' https: blob:; frame-src https://www.youtube-nocookie.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<meta name="robots" content="noindex">
 <title>Gizlilik ve KVKK · Çorumspor Taraftar</title>
-<meta name="description" content="Çorumspor Taraftar hangi bilgileri, nerede ve neden saklıyor: KVKK aydınlatma metni ve tarayıcı depolaması.">
+<meta name="description" content="Çorumspor Taraftar gizlilik ve KVKK aydınlatma metni: hangi bilgiler, neden, nerede, ne kadar süre.">
 <meta property="og:site_name" content="Çorumspor Taraftar">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="tr_TR">
 <meta property="og:title" content="Gizlilik ve KVKK · Çorumspor Taraftar">
-<meta property="og:description" content="Çorumspor Taraftar hangi bilgileri, nerede ve neden saklıyor.">
+<meta property="og:description" content="Çorumspor Taraftar gizlilik ve KVKK aydınlatma metni: hangi bilgiler, neden, nerede, ne kadar süre.">
 <meta property="og:image" content="assets/img/og-1200x630.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Çorumspor Taraftar: gayriresmî taraftar uygulaması (kırmızı-siyah, özgün yedek işaret)">
+<meta property="og:image:alt" content="Çorumspor Taraftar: bağımsız taraftar uygulaması (kırmızı-siyah, özgün ÇT işareti)">
 <meta name="theme-color" content="#0B0B0B">
 <link rel="icon" href="assets/logo/amblem-yedek.svg" type="image/svg+xml">
-<link rel="stylesheet" href="assets/fonts/fontlar.css">
+<link rel="preload" href="assets/fonts/oswald-700-tr.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/source-sans-3-400-tr.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/stil.css">
 <script src="assets/tema.js"></script>
 <script defer src="assets/vendor/supabase-js-2.45.4/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o"></script>
-<script type="module" src="assets/sayfa/gizlilik.js"></script>
+<link rel="modulepreload" href="assets/sayfa/metin.js">
+<link rel="modulepreload" href="assets/ortak.js">
+<link rel="modulepreload" href="assets/istemci.js">
+<link rel="modulepreload" href="assets/ayar.js">
+<link rel="modulepreload" href="assets/kurallar.js">
+<link rel="modulepreload" href="assets/foto-kaynaklari.js">
+<script type="module" src="assets/sayfa/metin.js"></script>
 </head>
 <body>
+<a class="atla" href="#icerik">İçeriğe geç</a>
 <header class="ust">
-  <div class="kap">
-    <a class="logo" href="index.html" aria-label="Çorumspor Taraftar ana sayfa"><span class="amblem"><img data-amblem src="assets/logo/amblem-yedek.svg" alt="" width="40" height="48"></span><span class="logo-ad">Çorumspor Taraftar<span class="logo-alt">Kırmızı Şimşekler için taraftar gündemi</span></span></a>
-    <div class="oturum-alani" id="oturum-alani"></div>
-    <button type="button" class="tema-dugme" id="tema-dugme" aria-label="Temayı değiştir"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
-    <nav class="menu" aria-label="Ana menü"><a href="index.html">Haberler</a><a href="maclar.html">Maçlar</a><a href="goller.html">Goller</a></nav>
+  <div class="ust-bar">
+    <div class="ust-sol"></div>
+    <a class="logo" href="index.html" aria-label="Çorumspor Taraftar ana sayfa"><span class="amblem"><img data-amblem src="assets/logo/amblem-yedek.svg" alt="" width="34" height="34"></span><span class="logo-ad">Çorumspor Taraftar</span></a>
+    <div class="ust-sag" id="oturum-alani"><a class="ikon-dugme" href="profil.html" id="profil-baglanti"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg><span class="gorunmez">Profil</span></a></div>
   </div>
 </header>
-<div class="resmi-degil"><strong>Resmî Çorum FK uygulaması değildir.</strong> Taraftarlar tarafından hazırlanan bağımsız bir uygulamadır.</div>
-<main id="icerik" class="kap">
-<article class="kutu gizlilik" id="gizlilik">
+<main id="icerik" tabindex="-1">
+<p class="resmi-degil"><svg viewBox="0 0 12 12" width="12" height="12" fill="currentColor" aria-hidden="true" focusable="false"><path d="M7 0 1 7h4l-1 5 6-7H6z"/></svg>Bağımsız taraftar uygulaması</p>
+<div class="kap metin-sayfa">
+<article id="gizlilik" class="gizlilik">
   <h1>Gizlilik ve KVKK aydınlatma metni</h1>
-  <p class="uyari taslak-notu" id="taslak-notu" role="note"><strong>Taslak — hukukçuya gösterilmeli.</strong> Bu metin sitenin kodundan çıkarılarak yazıldı (5 Kasım 2026). Hukuki görüş değildir; yayına almadan önce bir avukata okutun ve köşeli parantezli yerleri doldurun.</p>
+  <p class="soluk kucuk-yazi" id="son-guncelleme">Son güncelleme: 5 Kasım 2026</p>
 
   <h2>1. Veri sorumlusu</h2>
-  <p>Çorumspor Taraftar, taraftarlar tarafından hazırlanan bağımsız bir uygulamadır; Çorum FK ile bağı yoktur. Veri sorumlusu: <strong>[Ad Soyad / unvan]</strong>, adres: <strong>[adres]</strong>, e-posta: <strong>[iletişim e-postası]</strong>.</p>
+  <p>Çorumspor Taraftar, taraftarlar tarafından hazırlanan bağımsız bir uygulamadır. <strong>Çorum FK'nın resmî uygulaması değildir</strong>; kulüple bir bağı yoktur. Veri sorumlusu: <strong data-ayar="SAHIP_ADI">uygulama sahibi</strong>, iletişim: <a data-ayar="ILETISIM_EPOSTA" href="kurallar.html#iletisim">iletişim adresi</a>.</p>
 
-  <h2>2. Hesap açarsanız sakladıklarımız</h2>
+  <h2>2. Hesap açarsan sakladıklarımız</h2>
   <ul>
-    <li><strong>E-posta adresiniz ve şifreniz:</strong> giriş için. Şifre düz metin olarak saklanmaz (Supabase Auth şifreyi geri döndürülemez biçimde saklar). E-posta adresiniz sitede kimseye gösterilmez.</li>
-    <li><strong>Kullanıcı adınız:</strong> yorumlarınızın yanında herkese görünür.</li>
+    <li><strong>E-posta adresin ve şifren:</strong> giriş için. Şifre düz metin olarak saklanmaz (Supabase Auth şifreyi geri döndürülemez biçimde saklar). E-posta adresin sitede kimseye gösterilmez. "Şifremi unuttum" dersen bu adrese bir sıfırlama bağlantısı gider.</li>
+    <li><strong>Kullanıcı adın:</strong> yorumlarının yanında herkese görünür.</li>
     <li><strong>Hesap bilgileri:</strong> kayıt ve son giriş zamanı; giriş güvenliği için Supabase'in kayıtlarında giriş yapılan IP adresi.</li>
-    <li><strong>Yorumlarınız:</strong> metin, yazılma ve düzenlenme zamanı. Yorumlar herkese açıktır; kurallara uymayan yorumu yöneticiler gizleyebilir (gizlenen yorumu yalnız siz ve yöneticiler görür) ya da silebilir. Yorum yazmak için e-posta adresinizi onaylamanız gerekir.</li>
-    <li><strong>Yorum düzenleme zamanları:</strong> yalnız “dakikada en fazla 10 düzenleme” kuralı için hesabınızla birlikte tutulur, 1 saat sonra silinir; kimseye gösterilmez.</li>
-    <li><strong>Rolünüz</strong> (taraftar ya da yönetici) yalnız size ve sitenin kurallarına açıktır; başka ziyaretçiler göremez.</li>
+    <li><strong>Yorumların:</strong> metin, yazılma ve düzenlenme zamanı, hangi habere, maça ya da gole yazıldığı. Yorumlar herkese açıktır; kurallara (<a href="kurallar.html">topluluk kuralları</a>) uymayan yorumu yöneticiler gizleyebilir ya da silebilir. Kuralı tekrar tekrar çiğneyen hesabın yorum yazması kapatılabilir (bu bilgi yalnız yöneticilere ve sana görünür). Yorum yazmak için e-posta adresini onaylaman gerekir.</li>
+    <li><strong>Şikâyetlerin:</strong> bir yorumu şikâyet edersen hangi yorumu, hangi nedenle ve ne zaman şikâyet ettiğin saklanır; yalnız yöneticiler görür, yorumu yazana söylenmez.</li>
+    <li><strong>Yorum düzenleme zamanları:</strong> yalnız "dakikada en fazla 10 düzenleme" kuralı için hesabınla birlikte tutulur, 1 saat sonra silinir; kimseye gösterilmez.</li>
+    <li><strong>Rolün</strong> (taraftar ya da yönetici) yalnız sana ve sitenin kurallarına açıktır; başka ziyaretçiler göremez.</li>
   </ul>
-  <p>Hesabınızı silmek isterseniz <strong>[iletişim e-postası]</strong> adresine yazın; hesabınız silinince profiliniz ve yorumlarınız da silinir.</p>
+  <p>Hesabını silmek istersen <a data-ayar="ILETISIM_EPOSTA" href="kurallar.html#iletisim">iletişim adresi</a> adresine yaz; hesabın silinince profilin, yorumların ve şikâyetlerin de silinir.</p>
 
-  <h2>3. Hesap açmasanız da işlenenler</h2>
+  <h2>3. Hesap açmasan da işlenenler</h2>
   <ul>
-    <li><strong>Reklam sayımı:</strong> bir reklam kartı ekranda göründüğünde ya da tıklandığında sunucuya reklamın kimliği, yeri (ana sayfa, haber sonu, maç), maç ve zaman gönderilir. Bunun yanında her sayfa açılışında yeniden üretilen <strong>rastgele bir sayfa açılışı kimliği</strong> ve yalnız tıklamada <strong>rastgele bir sekme kimliği</strong> gider. Kullanıcı kimliği, IP adresi ya da tarayıcı bilgisi reklam sayımına yazılmaz. Bir reklama dakikada çok fazla gösterim/tıklama gelirse fazlası sayılmaz ve yalnız “bu reklam bu dakikada sınıra takıldı” bilgisi (reklam, dakika, sayı) tutulur.</li>
-    <li><strong>Sunucu kayıtları:</strong> sitenin barındırıldığı hizmet ve veritabanı hizmeti, her istekte teknik olarak IP adresinizi ve tarayıcı bilgisini görür ve kısa süre kayıt tutabilir (bkz. 5. bölüm).</li>
+    <li><strong>Reklam sayımı:</strong> bir reklam kartı ekranda göründüğünde ya da düğmesine dokunulduğunda sunucuya reklamın kimliği, yeri (ana sayfa, haber sonu, maç), maç ve zaman gönderilir. Bunun yanında her sayfa açılışında yeniden üretilen <strong>rastgele bir sayfa açılışı kimliği</strong> ve yalnız tıklamada <strong>rastgele bir sekme kimliği</strong> gider. Kullanıcı kimliği, IP adresi ya da tarayıcı bilgisi reklam sayımına yazılmaz. Yöneticilerin bakışları sayılmaz. Bir reklama dakikada çok fazla gösterim/tıklama gelirse fazlası sayılmaz ve yalnız "bu reklam bu dakikada sınıra takıldı" bilgisi (reklam, dakika, sayı) tutulur.</li>
+    <li><strong>Sunucu kayıtları:</strong> sitenin barındırıldığı hizmet ve veritabanı hizmeti, her istekte teknik olarak IP adresini ve tarayıcı bilgisini görür ve kısa süre kayıt tutabilir (bkz. 5. bölüm).</li>
   </ul>
 
-  <h2>4. Tarayıcınızda saklananlar (çerez yok)</h2>
-  <p>Site <strong>çerez kullanmaz</strong>. Aşağıdakiler yalnız sizin tarayıcınızda durur; tarayıcı ayarlarından ya da “site verilerini temizle” ile silebilirsiniz.</p>
+  <h2>4. Tarayıcında saklananlar (çerez yok)</h2>
+  <p>Site <strong>çerez kullanmaz</strong>. Aşağıdakiler yalnız senin tarayıcında durur; tarayıcı ayarlarından ya da "site verilerini temizle" ile silebilirsin.</p>
   <div class="tablo-kap">
   <table class="gizlilik-tablo">
     <thead><tr><th scope="col">Ad</th><th scope="col">Nerede</th><th scope="col">Ne için</th><th scope="col">Ne kadar</th></tr></thead>
     <tbody>
-      <tr><td data-baslik="Ad"><code>sb-[proje]-auth-token</code></td><td data-baslik="Nerede">localStorage</td><td data-baslik="Ne için">Giriş yaptıysanız oturumunuz (giriş anahtarları, kullanıcı kimliğiniz ve e-posta adresiniz). Supabase Auth yazar.</td><td data-baslik="Ne kadar">Çıkış yapana kadar</td></tr>
-      <tr><td data-baslik="Ad"><code>tema</code></td><td data-baslik="Nerede">localStorage</td><td data-baslik="Ne için">Açık/koyu tema seçiminiz (yalnız düğmeye bastıysanız).</td><td data-baslik="Ne kadar">Silinene kadar</td></tr>
+      <tr><td data-baslik="Ad"><code>sb-[proje]-auth-token</code></td><td data-baslik="Nerede">localStorage</td><td data-baslik="Ne için">Giriş yaptıysan oturumun (giriş anahtarları, kullanıcı kimliğin ve e-posta adresin). Supabase Auth yazar.</td><td data-baslik="Ne kadar">Çıkış yapana kadar</td></tr>
+      <tr><td data-baslik="Ad"><code>tema</code></td><td data-baslik="Nerede">localStorage</td><td data-baslik="Ne için">Açık/koyu tema seçimin (yalnız Profil › Görünüm'de seçtiysen).</td><td data-baslik="Ne kadar">Silinene kadar</td></tr>
+      <tr><td data-baslik="Ad"><code>son-veri-v1</code></td><td data-baslik="Nerede">localStorage</td><td data-baslik="Ne için">Son görülen haber başlıkları, sıradaki maç ve son goller (herkese açık bilgiler): internet yokken ya da yavaşken sayfa boş kalmasın diye. Kişisel bilgi içermez.</td><td data-baslik="Ne kadar">Her ziyarette yenilenir; en çok 30 KB</td></tr>
       <tr><td data-baslik="Ad"><code>reklam-sekme-kimligi</code></td><td data-baslik="Nerede">sessionStorage</td><td data-baslik="Ne için">Rastgele sekme kimliği: aynı sekmede aynı reklama 30 dakika içindeki tekrar tıklama sayılmasın diye. Kimseyle eşleştirilemez.</td><td data-baslik="Ne kadar">Sekme kapanınca silinir</td></tr>
+      <tr><td data-baslik="Ad"><code>kabuk-…</code>, <code>veri-…</code></td><td data-baslik="Nerede">Cache Storage (service worker)</td><td data-baslik="Ne için">Sayfaların kendisi (HTML, stil, yazı tipi, simgeler) ve herkese açık son haber/maç/gol listeleri: stadyumda bağlantı kopunca da açılsın diye. Giriş, yorum, reklam sayımı ve videolar saklanmaz.</td><td data-baslik="Ne kadar">Yeni sürüm yayınlanınca eskisi silinir</td></tr>
     </tbody>
   </table>
   </div>
 
   <h2>5. Bilgilerin gittiği hizmetler</h2>
   <ul>
-    <li><strong>Supabase</strong> (veritabanı, giriş, görseller): hesap, yorum ve reklam sayımı burada durur. Sunucu bölgesi: <strong>[Central EU (Frankfurt)]</strong>. Giriş e-postaları (onay bağlantısı) Supabase ya da <strong>[bağlanan e-posta hizmeti]</strong> üzerinden gider.</li>
-    <li><strong>[Cloudflare Pages]</strong> (sitenin barındırılması): sayfaları size gönderir, IP adresinizi görür.</li>
-    <li><strong>YouTube</strong> (<code>youtube-nocookie.com</code>): gol videoları gömülü gösterilir. Video kutusu ekrana yaklaşınca YouTube'a bağlanılır ve IP adresiniz Google'a gider; videoyu oynatınca YouTube kendi kurallarıyla veri saklayabilir.</li>
-    <li><strong>Gol videosu (.mp4)</strong> bağlantıları başka bir siteden geliyorsa video o siteden yüklenir.</li>
-    <li><strong>Reklam verenler</strong>: reklama tıklarsanız firmanın sitesi ya da WhatsApp yeni sekmede açılır; oradan sonrası o firmanın kurallarına tabidir. Reklam görselleri sitenin kendi deposundan gelir, reklam verene bilgi gitmez.</li>
+    <li><strong>Supabase</strong> (veritabanı, giriş, görseller): hesap, yorum ve reklam sayımı burada durur. Sunucu bölgesi: <strong>Central EU (Frankfurt)</strong>. Giriş e-postaları (onay ve şifre sıfırlama bağlantısı) Supabase'in e-posta hizmeti üzerinden gider.</li>
+    <li><strong>Cloudflare Pages</strong> (sitenin barındırılması): sayfaları sana gönderir, IP adresini görür.</li>
+    <li><strong>YouTube</strong> (<code>youtube-nocookie.com</code>): gol videoları yalnız sen <strong>oynat düğmesine dokununca</strong> yüklenir. O ana kadar YouTube'a hiçbir istek gitmez (kapak görseli sitenin kendisinden gelir). Dokununca IP adresin Google'a gider ve YouTube kendi kurallarıyla veri saklayabilir.</li>
+    <li><strong>Gol videosu (.mp4)</strong> bağlantıları başka bir siteden geliyorsa video yine yalnız dokununca o siteden yüklenir.</li>
+    <li><strong>Reklam verenler</strong>: reklamın düğmesine dokunursan firmanın sitesi ya da WhatsApp yeni sekmede açılır ("Ara" düğmesi telefonunun arama ekranını açar); oradan sonrası o firmanın kurallarına tabidir. Reklam görselleri sitenin kendi deposundan gelir, reklam verene bilgi gitmez.</li>
+    <li><strong>Paylaş</strong> düğmesi WhatsApp'ı açar; neyi kime göndereceğine sen karar verirsin.</li>
   </ul>
-  <p>Sitenin kullandığı Supabase kütüphanesi (supabase-js) ve yazı tipleri <strong>sitenin kendisinden</strong> sunulur: jsDelivr, Google Fonts gibi bir dağıtım ağına (CDN) istek gitmez. Haber kapakları ve reklam görselleri yalnız sitenin kendi Supabase deposundan yüklenir; başka sitelerdeki görseller sayfada hiç istenmez.</p>
-  <p>Bu hizmetlerin sunucuları yurt dışında olabilir. <strong>[Yurt dışına aktarımın hukuki dayanağı (KVKK m. 9) avukatla belirlenmeli.]</strong></p>
+  <p>Sitenin kullandığı Supabase kütüphanesi (supabase-js) ve yazı tipleri <strong>sitenin kendisinden</strong> sunulur: jsDelivr, Google Fonts gibi bir dağıtım ağına (CDN) istek gitmez. Haber kapakları, gol kapakları ve reklam görselleri yalnız sitenin kendisinden ya da kendi Supabase deposundan yüklenir; başka sitelerdeki görseller sayfada hiç istenmez.</p>
+  <p>Bu hizmetlerin sunucuları yurt dışında olabilir; yurt dışına aktarım KVKK 9. maddeye tabidir.</p>
 
   <h2>6. Neden işliyoruz (hukuki sebep)</h2>
-  <p>Hesap ve yorumlar: üyelik ilişkisinin kurulması ve yürütülmesi. Güvenlik kayıtları ve yorum kötüye kullanımını önleme (e-posta onayı, dakikada en fazla 5 ve günde en fazla 50 yorum, aynı yorumun 10 dakika içinde tekrarlanmaması, düzenleme sınırı): meşru menfaat. Reklam sayımı: kişisel veri içermeyen istatistik. <strong>[KVKK m. 5 dayanakları avukatla teyit edilmeli.]</strong></p>
+  <p>Hesap ve yorumlar: üyelik ilişkisinin kurulması ve yürütülmesi. Güvenlik kayıtları, şikâyetler ve yorum kötüye kullanımını önleme (e-posta onayı, dakikada en fazla 5 ve günde en fazla 50 yorum, aynı yorumun 10 dakika içinde tekrarlanmaması, düzenleme sınırı, yorum yasağı): meşru menfaat. Reklam sayımı ve son görülen verinin tarayıcıda saklanması: kişisel veri içermeyen işlemler. Sakatlık bilgileri yalnız kulübün kamuya açıkladığı ölçüde, kaynağıyla yayımlanır.</p>
 
-  <h2>7. Haklarınız</h2>
-  <p>KVKK 11. madde uyarınca bilgilerinizin işlenip işlenmediğini öğrenme, düzeltilmesini ya da silinmesini isteme, itiraz etme ve diğer haklarınızı <strong>[iletişim e-postası]</strong> adresine yazarak kullanabilirsiniz. Ayrıca Kişisel Verileri Koruma Kurulu'na şikâyette bulunabilirsiniz.</p>
-
-  <p class="soluk kucuk-yazi">Son güncelleme: 5 Kasım 2026 (taslak).</p>
+  <h2>7. Hakların</h2>
+  <p>KVKK 11. madde uyarınca bilgilerinin işlenip işlenmediğini öğrenme, düzeltilmesini ya da silinmesini isteme, itiraz etme ve diğer haklarını <a data-ayar="ILETISIM_EPOSTA" href="kurallar.html#iletisim">iletişim adresi</a> adresine yazarak kullanabilirsin. Ayrıca Kişisel Verileri Koruma Kurulu'na şikâyette bulunabilirsin.</p>
 </article>
-<noscript><p class="uyari">Bu sayfa JavaScript olmadan da okunabilir; sitenin geri kalanı JavaScript ile çalışır.</p></noscript>
+</div>
+<noscript><p class="kap uyari">Bu site JavaScript ile çalışır. Tarayıcında JavaScript'i aç.</p></noscript>
 </main>
+<nav class="alt-nav" id="alt-nav" aria-label="Ana gezinme">
+  <ul>
+    <li><a href="index.html"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" class="cizgi"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><svg class="dolu" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 2.2 2.4 10.2a1 1 0 0 0-.4.8V20a2 2 0 0 0 2 2h5.5v-6.5h5V22H20a2 2 0 0 0 2-2v-9a1 1 0 0 0-.4-.8z"/></svg><span>Ana Sayfa</span></a></li>
+    <li><a href="goller.html"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" class="cizgi"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z"/></svg><svg class="dolu" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M6 4h12a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4zm3.5 4.2v7.6L16 12z"/></svg><span>Gol Arşivi</span></a></li>
+    <li><a href="takim.html"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" class="cizgi"><path d="M8 3 3 6l2 5 2-1v11h10V10l2 1 2-5-5-3c-.5 1.7-2.1 3-4 3S8.5 4.7 8 3z"/></svg><svg class="dolu" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8.2 2.2 2 5.9l2.6 6.4L7 11.2V22h10V11.2l2.4 1.1L22 5.9l-6.2-3.7-.7.2C14.8 4 13.5 5 12 5s-2.8-1-3.1-2.6z"/></svg><span>Takım</span></a></li>
+    <li><a href="profil.html"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" class="cizgi"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg><svg class="dolu" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="12" cy="7.5" r="4.5"/><path d="M3 22c0-5.2 4-8.5 9-8.5s9 3.3 9 8.5z"/></svg><span>Profil</span></a></li>
+  </ul>
+</nav>
 <footer class="alt">
   <div class="kap">
-    <p><strong>Çorumspor Taraftar</strong> · bağımsız taraftar uygulaması. <strong>Resmî Çorum FK uygulaması değildir</strong>; kulüple bir bağı yoktur.</p>
-    <p>Kulüp adı ve amblemi hak sahiplerine aittir. Biz Anadoluyuz; tribünden, gönüllü taraftarlar için.</p>
-    <p>Yorumlar kullanıcılara aittir. Kurallara uymayan yorumlar yöneticiler tarafından gizlenebilir.</p>
-    <p><a href="gizlilik.html" aria-current="page">Gizlilik ve KVKK aydınlatma metni</a> · Site çerez kullanmaz.</p>
+    <p><strong>Çorumspor Taraftar</strong> · bağımsız taraftar uygulaması. <strong>Çorum FK'nın resmî uygulaması değildir</strong>; kulüple bir bağı yoktur. Kulüp adı hak sahibine aittir.</p>
+    <p>Künye: <span data-ayar="SAHIP_ADI">uygulama sahibi</span> · İletişim ve kaldırma talepleri: <a data-ayar="ILETISIM_EPOSTA" href="kurallar.html#iletisim">iletişim adresi</a> (kaldırma talebine 24 saat içinde dönülür).</p>
+    <p class="baglantilar"><a href="gizlilik.html">Gizlilik ve KVKK</a><a href="kurallar.html">Topluluk kuralları</a><a href="kaynaklar.html">Fotoğraf kaynakları</a></p>
   </div>
 </footer>
+<div id="durum" class="gorunmez" role="status" aria-live="polite" aria-atomic="true"></div>
+<div id="uyari" class="gorunmez" role="alert"></div>
 </body>
 </html>

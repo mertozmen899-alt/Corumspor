@@ -42,3 +42,24 @@ ext=[("Açık","kategori etiketi","#A80000","#FBEAEA"),("Koyu","kategori etiketi
 ("Açık","odak halkası / beyaz (UI ≥3)","#0B57D0","#FFFFFF"),("Koyu","odak halkası / siyah (UI ≥3)","#8AB4F8","#0B0B0B")]
 print("\n| Tema | Kullanım | Ön plan | Arka plan | Oran |\n|---|---|---|---|---|")
 for m,r,a,b in ext: print(f"| {m} | {r} | {a} | {b} | {cr(a,b):.2f}:1 |")
+# --- 013 mobil tasarım çiftleri (alt menü, haplar, sakatlık çipleri, hero/foto atfı en kötü durum) ---
+# En kötü durum: yarı saydam siyah katman BEYAZ fotoğraf üstünde (ör. .70 siyah → #4D4D4D, .62 → #616161, .72 → #474747).
+y013=[("Açık","alt menü edilgin / zemin","#5C5A57","#FFFFFF",4.5),("Açık","alt menü etkin / zemin","#CC0000","#FFFFFF",4.5),
+("Açık","hap edilgin / hap izi","#5C5A57","#ECE8E1",4.5),("Açık","çip metni / hap izi","#141414","#ECE8E1",4.5),
+("Her iki","seçili hap: beyaz / kırmızı","#FFFFFF","#CC0000",4.5),("Açık","seçili hap / hap izi (UI ≥3)","#CC0000","#ECE8E1",3.0),
+("Açık","Sakat çipi","#A80000","#FBEAEA",4.5),("Açık","Cezalı / Şüpheli çipi","#7A5C00","#FFF6DB",4.5),("Açık","Döndü çipi","#1E7D3A","#E9F5EC",4.5),
+("Açık","saat kutusu metni","#141414","#ECE8E1",4.5),("Açık","Sponsor etiketi / kart","#6B4F00","#FFF6DB",4.5),
+("Koyu","alt menü edilgin / yüzey","#A9A6A0","#161618",4.5),("Koyu","alt menü etkin / yüzey","#FF6B66","#161618",4.5),
+("Koyu","hap edilgin / hap izi (--yuzey)","#A9A6A0","#161618",4.5),("Koyu","çip metni / hap izi","#F3F1EC","#161618",4.5),
+("Koyu","seçili hap / hap izi (UI ≥3)","#CC0000","#161618",3.0),("Koyu","hap izi / sayfa zemini (dekor, eşik yok)","#161618","#0B0B0B",1.0),
+("Koyu","Sakat çipi","#FF8A85","#3A1213",4.5),("Koyu","Cezalı / Şüpheli çipi","#E3BE55","#2A2312",4.5),("Koyu","Döndü çipi","#4CC074","#10261A",4.5),
+("Koyu","Sponsor etiketi / kart","#F0CF73","#2A2312",4.5),
+("Her iki","hero başlığı: beyaz / .70 katman (beyaz foto)","#FFFFFF","#4D4D4D",4.5),("Her iki","hero meta #E4E1DB / .70 katman","#E4E1DB","#4D4D4D",4.5),
+("Her iki","foto atfı: beyaz / .62 katman","#FFFFFF","#616161",4.5),("Her iki","video süresi: beyaz / .72 katman","#FFFFFF","#474747",4.5),
+("Her iki","odak halkası (koyu zemin) / siyah üst bar (UI ≥3)","#8AB4F8","#0B0B0B",3.0)]
+bad013=0
+print("\n**013 çiftleri**\n\n| Tema | Kullanım | Ön plan | Arka plan | Oran | Eşik | Sonuç |\n|---|---|---|---|---|---|---|")
+for m,r,a,b,need in y013:
+    o=cr(a,b); ok=o>=need; bad013+= not ok
+    print(f"| {m} | {r} | {a} | {b} | {o:.2f}:1 | {need} | {'✅' if ok else '❌'} |")
+print("FAIL 013:",bad013,file=sys.stderr)

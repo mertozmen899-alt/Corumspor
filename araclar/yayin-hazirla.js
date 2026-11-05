@@ -1,6 +1,7 @@
 // Yayına çıkacak dosyaları hazırlar: yalnız sitenin herkese açık dosyaları yayin/ klasörüne kopyalanır.
 // Cloudflare Pages: Build command  node araclar/yayin-hazirla.js   ·   Build output directory  yayin   (README 5. bölüm)
-// Kopyalanan: kökteki *.html sayfaları, assets/ (tamamı), _headers, robots.txt, .nojekyll (ve varsa favicon.ico / favicon.svg).
+// Kopyalanan: kökteki *.html sayfaları, assets/ (tamamı), _headers, robots.txt, .nojekyll, sw.js (ve varsa favicon.ico / favicon.svg).
+// assets/ayar.js'teki SUPABASE_URL doluysa sayfalara <link rel="preconnect"> eklenir (depodaki dosyalar değişmez).
 // Kopyalanmayan: testler/, supabase/, docs/, araclar/, node_modules/, .git, README/AGENTS ve diğer her şey.
 // Bunlardan biri (ya da sembolik bağ) listeye girerse komut DURUR ve çıkış kodu 1 olur: yayın yapılmaz.
 // İsteğe bağlı: SITE_ADRESI=https://alan-adiniz (Cloudflare Pages → Settings → Environment variables) verilirse
@@ -8,7 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const KOK_DOSYALARI = ['_headers', 'robots.txt', '.nojekyll', 'favicon.ico', 'favicon.svg'];
+const KOK_DOSYALARI = ['_headers', 'robots.txt', '.nojekyll', 'favicon.ico', 'favicon.svg', 'sw.js'];
 const KLASORLER = ['assets'];
 const YASAK = ['testler', 'supabase', 'docs', 'araclar', 'node_modules', 'yayin', '.git'];
 
@@ -47,6 +48,20 @@ function ogTamAdres(html, siteAdresi, sayfa) {
 }
 
 /**
+ * Supabase kökenine önceden bağlan (performans: modüller çalışmadan bağlantı açılsın). Adres TEK ayar dosyasından
+ * (assets/ayar.js) okunur; yer tutucu ya da https olmayan adreste dokunulmaz. REST/RPC CORS ister (crossorigin), Storage
+ * görselleri ayrı bağlantı havuzunu kullanır (crossorigin'siz ikinci satır).
+ */
+function onBaglanti(html, supabaseUrl) {
+  if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(String(supabaseUrl || '')) || /preconnect/.test(html)) return html;
+  return html.replace(/(<meta charset="utf-8">\n)/, `$1<link rel="preconnect" href="${supabaseUrl}" crossorigin>\n<link rel="preconnect" href="${supabaseUrl}">\n`);
+}
+
+function ayardanSupabase(kok) {
+  try { return (/export const SUPABASE_URL = '([^']+)'/.exec(fs.readFileSync(path.join(kok, 'assets', 'ayar.js'), 'utf8')) || [])[1] || null; } catch (e) { return null; }
+}
+
+/**
  * @param {{kok?: string, hedef?: string, ekstra?: string[], siteAdresi?: string|null}} ops
  * @returns {string[]} kopyalanan göreli yollar
  */
@@ -68,16 +83,20 @@ function hazirla({ kok = path.resolve(__dirname, '..'), hedef = path.join(kok, '
     if (goreli.startsWith('..') || yasakli(goreli)) throw new Error(`Bu dosya yayına girmemeli (bağ ${goreli}'e gidiyor): ${yol}`);
   }
   fs.rmSync(hedef, { recursive: true, force: true });
+  const supabaseUrl = ayardanSupabase(kok);
   for (const yol of liste) {
     const kaynak = path.join(kok, yol), varis = path.join(hedef, yol);
     fs.mkdirSync(path.dirname(varis), { recursive: true });
-    if (siteAdresi && /^[^/]+\.html$/.test(yol)) fs.writeFileSync(varis, ogTamAdres(fs.readFileSync(kaynak, 'utf8'), siteAdresi, yol));
-    else fs.copyFileSync(kaynak, varis);
+    if (/^[^/]+\.html$/.test(yol)) {
+      let html = onBaglanti(fs.readFileSync(kaynak, 'utf8'), supabaseUrl);
+      if (siteAdresi) html = ogTamAdres(html, siteAdresi, yol);
+      fs.writeFileSync(varis, html);
+    } else fs.copyFileSync(kaynak, varis);
   }
   return liste;
 }
 
-module.exports = { hazirla, yayinListesi, YASAK };
+module.exports = { hazirla, yayinListesi, onBaglanti, YASAK };
 
 if (require.main === module) {
   try {

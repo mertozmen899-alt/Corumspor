@@ -66,14 +66,14 @@ test('yayın: yalnız HTML sayfaları, assets/, _headers, robots.txt, .nojekyll;
     Y.hazirla({ kok: KOK, hedef });
     const dosyalar = hepsi(hedef);
     const sayfalar = readdirSync(KOK).filter((d) => d.endsWith('.html')).sort();
-    for (const s of [...sayfalar, '_headers', 'robots.txt', '.nojekyll', 'assets/vendor/supabase-js-2.45.4/supabase.js', 'assets/img/og-1200x630.png', 'assets/stil.css', 'assets/fonts/fontlar.css']) {
+    for (const s of [...sayfalar, '_headers', 'robots.txt', '.nojekyll', 'assets/vendor/supabase-js-2.45.4/supabase.js', 'assets/img/og-1200x630.png', 'assets/stil.css', 'assets/fonts/oswald-700-tr.woff2', 'sw.js']) {
       assert.ok(dosyalar.includes(s), 'yayında olmalı: ' + s);
     }
     for (const yasak of ['testler', 'supabase', 'docs', 'araclar', 'node_modules', '.git', 'yayin']) {
       assert.ok(!dosyalar.some((d) => d === yasak || d.startsWith(yasak + '/')), 'yayında olmamalı: ' + yasak);
     }
     assert.ok(!dosyalar.some((d) => /(^|\/)(README\.md|AGENTS\.md|package(-lock)?\.json|\.gitignore|\.env.*)$/.test(d)), dosyalar.filter((d) => /md$|json$/.test(d)).join(','));
-    assert.deepEqual(dosyalar.filter((d) => !d.includes('/')).sort(), [...sayfalar, '.nojekyll', '_headers', 'robots.txt'].sort());
+    assert.deepEqual(dosyalar.filter((d) => !d.includes('/')).sort(), [...sayfalar, '.nojekyll', '_headers', 'robots.txt', 'sw.js'].sort());
     // Sayfaların ve CSS'in istediği her yerel dosya yayında (kırık bağlantı yok); JS modüllerinin sabit import'ları da
     const eksik = [];
     for (const d of dosyalar.filter((x) => /\.(html|css|js)$/.test(x))) {
@@ -81,7 +81,9 @@ test('yayın: yalnız HTML sayfaları, assets/, _headers, robots.txt, .nojekyll;
       const adresler = d.endsWith('.html') ? [...metin.matchAll(/\b(?:src|href|content)="([^"#?]+)/g)].map((m) => m[1])
         : d.endsWith('.css') ? [...metin.matchAll(/url\(\s*['"]?([^'")?#]+)/g)].map((m) => m[1])
           : [...metin.matchAll(/^\s*(?:import|export)\s[^'"]*from\s+'(\.{1,2}\/[^']+)'/gm)].map((m) => m[1]);
-      for (const a of adresler) {
+      for (let a of adresler) {
+        const yenile = /^\d+;\s*url=(.+)$/.exec(a); // <meta http-equiv="refresh" content="0; url=takim.html">
+        if (yenile) a = yenile[1];
         if (/^(https?:|data:|mailto:|blob:|#)/.test(a) || !/\.[a-z0-9]+$/i.test(a) || /^[A-Za-zÇ]/.test(a) && !/[./]/.test(a)) continue;
         const tam = path.normalize(path.join(path.dirname(path.join(hedef, d)), a));
         if (!existsSync(tam)) eksik.push(d + ' → ' + a);
@@ -89,6 +91,28 @@ test('yayın: yalnız HTML sayfaları, assets/, _headers, robots.txt, .nojekyll;
     }
     assert.deepEqual(eksik, []);
   } finally { rmSync(hedef, { recursive: true, force: true }); }
+});
+
+test('service worker (013): önbelleğe alınan bütün dosyalar var; auth/rpc/POST/YouTube saklanmaz; yönetim dışarıda', () => {
+  const sw = readFileSync(path.join(KOK, 'sw.js'), 'utf8');
+  const liste = [...sw.matchAll(/'((?:assets\/[^']+)|(?:[a-z]+\.html))'/g)].map((m) => m[1]);
+  assert.ok(liste.length >= 20, 'liste kısa: ' + liste.length);
+  assert.deepEqual(liste.filter((d) => !existsSync(path.join(KOK, d))), []);
+  assert.ok(!liste.includes('yonetim.html'));
+  assert.match(sw, /if \(r\.method !== 'GET'\) return;/);
+  assert.match(sw, /\(haberler\|maclar\|goller\|oyuncular\|sakatliklar\)\$/, 'yalnız herkese açık tablolar');
+  assert.ok(!/rpc\|/.test(sw) && !/youtube/i.test(sw.replace(/\/\/.*$/gm, '')), 'rpc ve YouTube saklanmaz');
+  assert.match(sw, /type !== 'opaque'/);
+  const ortak = readFileSync(path.join(KOK, 'assets/ortak.js'), 'utf8');
+  assert.match(ortak, /\['localhost', '127\.0\.0\.1'\]\.includes\(location\.hostname\) \|\| sahteMod\) return;/, 'testte (localhost / ?sahte=1) kayıt yok');
+});
+
+test('yayın (013): SUPABASE_URL doluysa sayfalara preconnect eklenir; yer tutucu adresle eklenmez', () => {
+  const Y = require('../araclar/yayin-hazirla.js');
+  const html = '<head>\n<meta charset="utf-8">\n<title>x</title></head>';
+  assert.match(Y.onBaglanti(html, 'https://abcd.supabase.co'), /<meta charset="utf-8">\n<link rel="preconnect" href="https:\/\/abcd\.supabase\.co" crossorigin>\n<link rel="preconnect" href="https:\/\/abcd\.supabase\.co">/);
+  assert.equal(Y.onBaglanti(html, 'https://PROJE-KODUNUZ.supabase.co'), html);
+  assert.equal(Y.onBaglanti(html, 'javascript:alert(1)'), html);
 });
 
 test('yayın: testler/, supabase/, docs/, araclar/ ya da node_modules dahil edilmeye kalkılırsa durur', () => {

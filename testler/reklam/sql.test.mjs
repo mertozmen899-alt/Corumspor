@@ -142,8 +142,8 @@ after(() => {
   rmSync(kume.dizin, { recursive: true, force: true });
 });
 
-test('gerçek 001 şeması: profiles/is_admin/maclar uygulamanınki, taklit değil; migration sırası 001 → 002 → 010 → 011 → 012', () => {
-  assert.deepEqual(MIGRATIONLAR.map((d) => path.basename(d)), ['001_temel_sema.sql', '002_depolama.sql', '010_reklamlar.sql', '011_denetim_duzeltmeleri.sql', '012_denetim_2.sql']);
+test('gerçek 001 şeması: profiles/is_admin/maclar uygulamanınki, taklit değil; migration sırası 001 → 002 → 010 → 011 → 012 → 013', () => {
+  assert.deepEqual(MIGRATIONLAR.map((d) => path.basename(d)), ['001_temel_sema.sql', '002_depolama.sql', '010_reklamlar.sql', '011_denetim_duzeltmeleri.sql', '012_denetim_2.sql', '013_tasarim.sql']);
   assert.equal(q("select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name in ('kullanici_adi', 'role')"), '2');
   assert.equal(q("select data_type from information_schema.columns where table_schema = 'public' and table_name = 'maclar' and column_name = 'id'"), 'uuid');
   assert.equal(q(`select role from public.profiles where id = ${lit(UYE)}`), 'taraftar', 'kayıtta metadata rolü yok sayılır');
@@ -198,7 +198,8 @@ test('ziyaretçi taslak/duraklatılmış/süresi dolmuş/başlamamış reklamı 
   assert.equal(q('select count(*) from public.reklam_olaylari', anon), '0');
   // aktif_reklam iç alanları (olusturan, durum) vermez
   const cikti = q(`select row_to_json(a)::text from public.aktif_reklam('ana_akis') a`, anon);
-  assert.deepEqual(Object.keys(JSON.parse(cikti)).sort(), ['alan', 'baglanti_url', 'firma_adi', 'gorsel_url', 'id', 'kisa_metin', 'mac_id']);
+  // 013: + düğme yazısı, "Ara" telefonu, görseldeki yazı (alt), küçük görsel; iç alanlar (olusturan, durum, sektor_onayi) yine yok
+  assert.deepEqual(Object.keys(JSON.parse(cikti)).sort(), ['alan', 'baglanti_url', 'dugme_metni', 'firma_adi', 'gorsel_kucuk_url', 'gorsel_metni', 'gorsel_url', 'id', 'kisa_metin', 'mac_id', 'telefon']);
   assert.equal(aktif('yanlis_alan'), '-');
 });
 
@@ -621,4 +622,45 @@ test('uygulama kuralları SQL ile JS (assets/kurallar.js) aynı sonucu verir (or
   assert.equal(sabit(ekle, 'c_tekrar_suresi'), K.YORUM_SINIRLARI.tekrarDakika);
   assert.equal(sabit(duz, 'c_dakika_siniri'), K.YORUM_SINIRLARI.duzenlemeDakikada);
   assert.equal(sabit(gun, 'c_duzenleme_suresi'), K.YORUM_SINIRLARI.duzenlemeSuresiDakika);
+});
+
+// ---------------------------------------------------------------------------- 013: yönetici sayılmaz, akışta farklı firmalar
+test('013: yöneticinin gösterim/tıklaması sayılmaz (reklam_olay_kaydet "yonetici" döner, olay yazılmaz)', () => {
+  temizle();
+  const id = reklamEkle({ firma_adi: 'Sayım Firma' });
+  const z = uuid();
+  assert.equal(olay(id, 'gosterim', z, 'ana_akis', null, admin), 'yonetici');
+  assert.equal(olay(id, 'tiklama', z, 'ana_akis', null, admin, uuid()), 'yonetici');
+  assert.equal(q(`select count(*) from public.reklam_olaylari where reklam_id = ${lit(id)}`), '0');
+  assert.equal(olay(id, 'gosterim', z, 'ana_akis', null, anon), 'kaydedildi');
+  assert.equal(olay(id, 'gosterim', uuid(), 'ana_akis', null, uye), 'kaydedildi');
+  assert.equal(q(`select count(*) from public.reklam_olaylari where reklam_id = ${lit(id)}`), '2');
+  // geçersiz istek yönetici için de hata (önce doğrulama)
+  assert.match(hata(`select public.reklam_olay_kaydet(${lit(id)}, 'gosterim', gen_random_uuid(), 'haber_sonu', null)`, admin), /bu alanda/);
+  const govde = q("select prosrc from pg_proc where oid = 'public.reklam_olay_kaydet(uuid, text, uuid, text, text, uuid)'::regprocedure");
+  assert.match(govde, /if public\.is_admin\(\) then\s+return 'yonetici';/);
+});
+
+test('013: aktif_reklamlar akışta aynı firmayı bir kez verir (farklı firma yoksa ikinci yuva boş kalır)', () => {
+  temizle();
+  reklamEkle({ firma_adi: 'Narçil Cafe', oncelik: 50 });
+  reklamEkle({ firma_adi: 'narçil cafe ', oncelik: 40 });
+  assert.equal(q(`select string_agg(firma_adi, ',') from public.aktif_reklamlar('ana_akis', 5)`, anon), 'Narçil Cafe');
+  reklamEkle({ firma_adi: 'Hitit Optik', oncelik: 10 });
+  reklamEkle({ firma_adi: 'Taslak Firma', durum: 'taslak', oncelik: 99 });
+  assert.equal(q(`select string_agg(firma_adi, ',') from public.aktif_reklamlar('ana_akis', 5)`, anon), 'Narçil Cafe,Hitit Optik');
+  assert.equal(q(`select count(*) from public.aktif_reklamlar('ana_akis', 1)`, anon), '1');
+  assert.equal(q(`select count(*) from public.aktif_reklamlar('mac_sponsoru', 5)`, anon), '0');
+  assert.equal(q("select prosecdef from pg_proc where oid = 'public.aktif_reklamlar(text, integer)'::regprocedure"), 't');
+});
+
+test('013: reklam yeni alanları (düğme yazısı 2-24, "Ara" +90…, görsel metni ≤200, küçük görsel depodan) SQL kısıtları', () => {
+  temizle();
+  const id = reklamEkle({ firma_adi: 'Alanlı' });
+  q(`update public.reklamlar set dugme_metni = 'Menüyü gör', telefon = '+903642131919', gorsel_metni = 'Kahve', gorsel_kucuk_url = ${lit(GORSEL.replace('.png', '-k.webp'))}, sektor_onayi = true where id = ${lit(id)}`, admin);
+  assert.equal(q(`select dugme_metni || '|' || telefon from public.aktif_reklam('ana_akis')`, anon), 'Menüyü gör|+903642131919');
+  assert.match(hata(`update public.reklamlar set dugme_metni = 'x' where id = ${lit(id)}`, admin), /reklamlar_dugme_metni/);
+  assert.match(hata(`update public.reklamlar set telefon = 'tel:123' where id = ${lit(id)}`, admin), /reklamlar_telefon/);
+  assert.match(hata(`update public.reklamlar set gorsel_metni = repeat('x', 201) where id = ${lit(id)}`, admin), /reklamlar_gorsel_metni/);
+  assert.match(hata(`update public.reklamlar set gorsel_kucuk_url = 'https://baska.com/x.png' where id = ${lit(id)}`, admin), /reklamlar_gorsel_kucuk/);
 });

@@ -1,5 +1,5 @@
 // Uygulamanın saf kuralları (DOM yok, ağ yok). Tarayıcıda, sahte istemcide (testler/sahte-supabase.js) ve Node'da aynı dosya.
-// Buradaki kurallar veritabanındakilerin AYNASIDIR (supabase/migrations/012_denetim_2.sql). Birini değiştirirseniz ötekini de
+// Buradaki kurallar veritabanındakilerin AYNASIDIR (supabase/migrations/012_denetim_2.sql + 013_tasarim.sql). Birini değiştirirseniz ötekini de
 // değiştirin; testler/kurallar-ornekleri.json iki tarafta da denenir (testler/uygulama.test.mjs, testler/reklam/sql.test.mjs).
 // Asıl koruma sunucudadır; buradaki denetimler kullanıcıya erken ve Türkçe uyarı vermek içindir.
 
@@ -25,8 +25,9 @@ export function yorumMetniAyni(a, b) {
 export const KULLANICI_ADI_DESENI = /^[A-Za-z0-9_.çğıöşüÇĞİÖŞÜ]{3,24}$/;
 const TR_HARF = { Ç: 'c', Ğ: 'g', İ: 'i', I: 'i', Ö: 'o', Ş: 's', Ü: 'u', Â: 'a', Î: 'i', Û: 'u', ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u', â: 'a', î: 'i', û: 'u' };
 // İçinde geçmesi yeten kökler ve tam eşleşmesi gerekenler (SQL'deki listeyle AYNI)
-const AYRILMIS_KOK = /(admin|yonetici|yonetim|moderator|resmi|corumfk|kulup|yetkili)/;
-const AYRILMIS_TAM = ['destek', 'mod', 'sistem', 'corumspor', 'corumsportaraftar', 'support', 'official', 'root'];
+// 013_tasarim.sql: baskan, corumspor (kök), teknikdirektor, kaptan, antrenor eklendi (başkanın değerlendirmesi)
+const AYRILMIS_KOK = /(admin|yonetici|yonetim|moderator|resmi|corumfk|corumspor|kulup|yetkili|baskan|teknikdirektor)/;
+const AYRILMIS_TAM = ['destek', 'mod', 'sistem', 'corumsportaraftar', 'support', 'official', 'root', 'kaptan', 'antrenor'];
 
 /** Yanıltıcı / ayrılmış ad mı (yönetici, admin, resmî, kulüp, Çorum FK, destek…)? Harf büyüklüğü, Türkçe harf, rakam, _ ve . fark etmez. */
 export function kullaniciAdiAyrilmis(ad) {
@@ -56,4 +57,34 @@ export function kapakAdresiGecerli(url) {
   if (url === null || url === undefined) return true;
   if (typeof url !== 'string' || url.length > 2000 || KONTROL_KARAKTERI.test(url) || url.includes('..')) return false;
   return KAPAK_YEREL.test(url) || KAPAK_DEPO.test(url);
+}
+
+// ---------------------------------------------------------------------------
+// Gol arşivi sezonu (013): futbol sezonu Temmuz-Haziran. Maç tarihi Türkiye saatine göre: Temmuz 2026 – Haziran 2027 = "2026-27".
+// ---------------------------------------------------------------------------
+export function sezonAdi(iso) {
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return null;
+  const p = {};
+  for (const x of new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit' }).formatToParts(d)) p[x.type] = x.value;
+  const yil = Number(p.year), ay = Number(p.month);
+  const bas = ay >= 7 ? yil : yil - 1;
+  return `${bas}-${String((bas + 1) % 100).padStart(2, '0')}`;
+}
+
+// ---------------------------------------------------------------------------
+// Sakatlık kaydı (SQL: sakatliklar kısıtları, 013). Kaynak ZORUNLU: yalnız kulübün açıkladığı bilgi (KVKK m.6, sağlık verisi).
+// ---------------------------------------------------------------------------
+export const SAKATLIK_DURUMLARI = Object.freeze({ sakat: 'Sakat', cezali: 'Cezalı', belirsiz: 'Şüpheli', dondu: 'Döndü' });
+const KAYNAK_URL = /^https:\/\/[a-z0-9.-]+\.[a-z]{2,63}(\/[^\s"<>]*)?$/i;
+/** Hata yoksa boş nesne; varsa alan → Türkçe mesaj. */
+export function sakatlikHatalari(s) {
+  const h = {};
+  if (!s.oyuncu_id) h.oyuncu_id = 'Oyuncuyu seçin.';
+  if (!SAKATLIK_DURUMLARI[s.durum]) h.durum = 'Durumu seçin.';
+  const k = String(s.kaynak ?? '').trim();
+  if (k.length < 3 || k.length > 120) h.kaynak = 'Kaynak zorunlu (3-120 karakter): ör. "Kulüp açıklaması". Söylenti girilmez.';
+  if (s.aciklama && String(s.aciklama).length > 200) h.aciklama = 'Açıklama en fazla 200 karakter olabilir.';
+  if (s.kaynak_url && (!KAYNAK_URL.test(s.kaynak_url) || s.kaynak_url.length > 500)) h.kaynak_url = 'Kaynak bağlantısı https:// ile başlamalı.';
+  return h;
 }
