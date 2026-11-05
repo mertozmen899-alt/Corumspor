@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; media-src 'self' https: blob:; frame-src https://www.youtube-nocookie.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Maç · Çorumspor Taraftar</title>
+<meta name="description" content="Maç ayrıntısı, goller ve taraftar yorumları.">
+<meta name="theme-color" content="#0B0B0B">
+<link rel="icon" href="assets/logo/amblem-yedek.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/fonts/fontlar.css">
+<link rel="stylesheet" href="assets/reklam/reklam.css">
+<link rel="stylesheet" href="assets/stil.css">
+<script src="assets/tema.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+<script type="module" src="assets/sayfa/mac.js"></script>
+</head>
+<body>
+<header class="ust">
+  <div class="kap">
+    <a class="logo" href="index.html" aria-label="Çorumspor Taraftar ana sayfa"><span class="amblem"><img data-amblem src="assets/logo/amblem-yedek.svg" alt="" width="40" height="48"></span><span class="logo-ad">Çorumspor Taraftar<span class="logo-alt">Kırmızı Şimşekler için taraftar gündemi</span></span></a>
+    <div class="oturum-alani" id="oturum-alani"></div>
+    <button type="button" class="tema-dugme" id="tema-dugme" aria-label="Temayı değiştir"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+    <nav class="menu" aria-label="Ana menü"><a href="index.html">Haberler</a><a href="maclar.html" aria-current="page">Maçlar</a><a href="goller.html">Goller</a></nav>
+  </div>
+</header>
+<div class="resmi-degil"><strong>Resmî Çorum FK uygulaması değildir.</strong> Taraftarlar tarafından hazırlanan bağımsız bir uygulamadır.</div>
+<main id="icerik" class="kap">
+<div id="mac"><p class="yukleniyor">Maç yükleniyor…</p></div>
+<div id="mac-sponsoru"></div>
+<section id="mac-golleri" aria-labelledby="gol-baslik" hidden>
+  <div class="bolum-baslik"><h2 id="gol-baslik">Goller</h2></div>
+  <div id="gol-listesi" class="gol-listesi"></div>
+</section>
+<div id="yorumlar"></div>
+<noscript><p class="uyari">Bu site JavaScript ile çalışır. Lütfen tarayıcınızda JavaScript'i açın.</p></noscript>
+</main>
+<footer class="alt">
+  <div class="kap">
+    <p><strong>Çorumspor Taraftar</strong> · bağımsız taraftar uygulaması. <strong>Resmî Çorum FK uygulaması değildir</strong>; kulüple bir bağı yoktur.</p>
+    <p>Kulüp adı ve amblemi hak sahiplerine aittir. Biz Anadoluyuz; tribünden, gönüllü taraftarlar için.</p>
+    <p>Yorumlar kullanıcılara aittir. Kurallara uymayan yorumlar yöneticiler tarafından gizlenebilir.</p>
+  </div>
+</footer>
+</body>
+</html>

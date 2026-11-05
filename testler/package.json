@@ -1,0 +1,8 @@
+{
+  "name": "corumspor-testler",
+  "private": true,
+  "description": "Sadece test için. Postgres kurulu değilse SQL testleri PGlite ile çalışır: npm install --prefix testler",
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.10"
+  }
+}

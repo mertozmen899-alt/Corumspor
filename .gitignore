@@ -1,0 +1,28 @@
+# Bağımlılıklar (sadece testler için; site derleme gerektirmez)
+node_modules/
+testler/node_modules/
+testler/package-lock.json
+
+# Yerel ayar/sır dosyaları (assets/ayar.js'te sadece herkese açık anon anahtar olur)
+.env
+.env.*
+supabase/.temp/
+supabase/.branches/
+
+# Editör / sistem
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# Test geçici çıktıları (ekran görüntüleri testler/ekran/ içinde bilerek depoda tutulur)
+test-results/
+playwright-report/
+testler/.gecici/
+testler/**/*.log
+reklam-raporu_*.csv
+*.tgz
+
+# Test ekran görüntüleri her çalıştırmada yeniden üretilir (seçilmişler docs/ekran/ içinde)
+testler/ekran/
