@@ -17,16 +17,25 @@ test('bağlantı doğrulama: ortak örnek listesi', () => {
 
 test('telefon -> wa.me (ortak örnek listesi) ve mesaj ekleme', () => {
   for (const [tel, beklenen] of ORNEK.telefon) assert.equal(M.whatsappBaglantisiOlustur(tel), beklenen, tel);
-  const b = M.whatsappBaglantisiOlustur('0532 123 45 67', 'Merhaba, maç indirimi var mı?');
-  assert.equal(b, 'https://wa.me/905321234567?text=' + encodeURIComponent('Merhaba, maç indirimi var mı?'));
+  const b = M.whatsappBaglantisiOlustur('0532 123 45 67', 'Merhaba, menünüzü görebilir miyim?');
+  assert.equal(b, 'https://wa.me/905321234567?text=' + encodeURIComponent('Merhaba, menünüzü görebilir miyim?'));
   assert.equal(M.baglantiGecerli(b), true);
   assert.equal(M.whatsappBaglantisiMi(b), true);
-  assert.equal(M.whatsappBaglantisiMi('https://corumdoner.com.tr'), false);
+  assert.equal(M.whatsappBaglantisiMi('https://narcil.net'), false);
 });
 
 test('bağlantı normalleştirme', () => {
   assert.equal(M.baglantiNormallestir('  corumdoner.com.tr/menu '), 'https://corumdoner.com.tr/menu');
-  assert.equal(M.baglantiNormallestir('https://çorumdöner.com/kampanya?a=1'), 'https://xn--orumdner-r0a9m.com/kampanya?a=1');
+  assert.equal(M.baglantiNormallestir('https://çorumdöner.com/menu?a=1'), 'https://xn--orumdner-r0a9m.com/menu?a=1');
+  // ilk reklam: Narçil'in sitesi narcil.net (ASCII). "narçil.net" yazılırsa panel punycode'a çevirir; ç'li hâli doğrulamadan geçmez
+  assert.equal(M.baglantiNormallestir('narcil.net'), 'https://narcil.net');
+  // önerilen bağlantı: menünün kahve bölümü (sorgu dizesi korunur ve geçerlidir)
+  assert.equal(M.baglantiNormallestir(' narcil.net/?category=espresso-bazli-kahveler '), 'https://narcil.net/?category=espresso-bazli-kahveler');
+  assert.equal(M.baglantiGecerli(M.baglantiNormallestir('narcil.net/?category=espresso-bazli-kahveler')), true);
+  assert.equal(M.baglantiNormallestir('narcil.net?category=espresso-bazli-kahveler'), 'https://narcil.net?category=espresso-bazli-kahveler');
+  assert.equal(M.baglantiNormallestir('narçil.net'), 'https://xn--naril-0ra.net');
+  assert.equal(M.baglantiGecerli('https://narçil.net'), false);
+  assert.equal(M.baglantiGecerli(M.baglantiNormallestir('narçil.net')), true);
   assert.equal(M.baglantiNormallestir(''), null);
   assert.equal(M.baglantiNormallestir(null), null);
   assert.equal(M.baglantiNormallestir('http://a.com'), 'http://a.com');
@@ -157,7 +166,7 @@ test('kart etiketi ve eylem yazısı', () => {
 });
 
 test('form doğrulama: SQL tetikleyicisiyle aynı kurallar', () => {
-  const iyi = { firma_adi: 'Çorum Döner', kisa_metin: 'Maç günü %20 indirim', gorsel_url: 'https://abc.supabase.co/storage/v1/object/public/reklam-gorselleri/2026/11/x.png', baglanti_url: 'https://corumdoner.com.tr', alan: 'ana_akis', mac_id: null, baslangic: saat(-1), bitis: saat(5), oncelik: 10 };
+  const iyi = { firma_adi: 'Narçil Cafe', kisa_metin: "Espresso bazlı kahveler, Türk kahvesi, bitki çayları, taze sıkılmış meyve suları ve tatlılar. Menünün tamamı narcil.net'te.", gorsel_url: 'https://abc.supabase.co/storage/v1/object/public/reklam-gorselleri/2026/11/x.png', baglanti_url: 'https://narcil.net', alan: 'ana_akis', mac_id: null, baslangic: saat(-1), bitis: saat(5), oncelik: 10 };
   assert.deepEqual(M.reklamDogrula(iyi, { simdi: SIMDI }), {});
   const h = (o, ops) => Object.keys(M.reklamDogrula({ ...iyi, ...o }, { simdi: SIMDI, ...ops }));
   assert.deepEqual(h({ firma_adi: '  ' }), ['firma_adi']);
@@ -193,18 +202,25 @@ test('tıklama oranı ve Türkçe sayı biçimi', () => {
 
 test('CSV: UTF-8 BOM, noktalı virgül, CRLF, Türkçe oran, tırnak ve formül koruması', () => {
   const csv = M.raporCsv([
-    { firma_adi: 'Çorum Döner; Kebap', alan: 'ana_akis', gosterim: 1200, tiklama: 30, tiklama_orani: 2.5 },
+    { firma_adi: 'Narçil Cafe; Kahve', alan: 'ana_akis', gosterim: 1200, tiklama: 30, tiklama_orani: 2.5, supheli_dakika: 3 },
     { firma_adi: '=HYPERLINK("x")', alan: 'mac_sponsoru', gosterim: 0, tiklama: 0, tiklama_orani: null },
     { firma_adi: 'Şükrü "Usta" Pide', alan: 'haber_sonu', gosterim: '3', tiklama: '1' },
   ]);
   assert.equal(csv.charCodeAt(0), 0xfeff);
   const satirlar = csv.slice(1).split('\r\n');
-  assert.equal(satirlar[0], 'Firma;Alan;Gösterim;Tıklama;Tıklama oranı (%)');
-  assert.equal(satirlar[1], '"Çorum Döner; Kebap";Ana sayfa akışı;1200;30;2,50');
-  assert.equal(satirlar[2], `"'=HYPERLINK(""x"")";Maç sponsoru;0;0;`);
-  assert.equal(satirlar[3], '"Şükrü ""Usta"" Pide";Haber sonu;3;1;33,33');
+  assert.equal(satirlar[0], 'Firma;Alan;Gösterim;Tıklama;Tıklama oranı (%);Sınıra takılan dakika');
+  assert.equal(satirlar[1], '"Narçil Cafe; Kahve";Ana sayfa akışı;1200;30;2,50;3');
+  assert.equal(satirlar[2], `"'=HYPERLINK(""x"")";Maç sponsoru;0;0;;0`);
+  assert.equal(satirlar[3], '"Şükrü ""Usta"" Pide";Haber sonu;3;1;33,33;0');
   assert.equal(satirlar[4], '');
-  assert.equal(M.raporCsv([]), '﻿Firma;Alan;Gösterim;Tıklama;Tıklama oranı (%)\r\n');
+  assert.equal(M.raporCsv([]), '﻿Firma;Alan;Gösterim;Tıklama;Tıklama oranı (%);Sınıra takılan dakika\r\n');
+});
+
+test('dakika sınırları (012): reklam başına dakikada 120 gösterim / 30 tıklama, ziyaret başına 5 tıklama (SQL ile aynı)', () => {
+  assert.equal(M.SINIRLAR.gosterimDakikaSiniri, 120);
+  assert.equal(M.SINIRLAR.tiklamaDakikaSiniri, 30);
+  assert.equal(M.SINIRLAR.ziyaretTiklamaSiniri, 5);
+  assert.ok(Object.isFrozen(M.SINIRLAR));
 });
 
 test('sayfa ziyareti kimliği: uuid v4, randomUUID yoksa yedek yol', () => {

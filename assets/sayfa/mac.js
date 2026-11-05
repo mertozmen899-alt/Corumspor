@@ -23,11 +23,20 @@ function bulunamadi() {
     h('a', { class: 'dugme', href: 'maclar.html' }, 'Maçlara dön')));
 }
 
-if (oturum.hazir) {
+// Sunucuya ulaşılamadı (ağ hatası): "bulunamadı" demeyiz
+function yuklenemedi() {
+  kok.replaceChildren(h('div', { class: 'kutu' }, h('h1', null, 'Maç yüklenemedi'),
+    h('p', null, 'Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edip sayfayı yenileyin.'), h('a', { class: 'dugme', href: 'maclar.html' }, 'Maçlara dön')));
+}
+
+if (!oturum.hazir) {
+  kok.replaceChildren(); // sayfaBaslat uyarıyı gösterdi; "yükleniyor" yazısı kalmasın
+} else {
   if (!kimlikGecerli(id)) bulunamadi();
   else {
     const { data: mac, error } = await supabase.from('maclar').select('*').eq('id', id).maybeSingle();
-    if (error || !mac) bulunamadi();
+    if (error) yuklenemedi();
+    else if (!mac) bulunamadi();
     else {
       const [ev, dep] = evSahibiDeplasman(mac);
       document.title = `${ev} - ${dep} · Çorumspor Taraftar`;
@@ -35,8 +44,8 @@ if (oturum.hazir) {
       kok.replaceChildren(h('header', { class: 'mac-basi', id: 'mac-basi' },
         h('div', { class: 'ust-satir' }, durumRozeti(mac.durum), mac.organizasyon ? h('span', null, mac.organizasyon) : null),
         h('h1', { class: 'takimlar' },
-          h('span', { class: 'takim' + (ev === TAKIM_ADI ? ' biz' : '') }, ev),
-          h('span', { class: 'orta', id: 'skor' }, skor || 'vs'),
+          h('span', { class: 'takim' + (ev === TAKIM_ADI ? ' biz' : '') }, ev), ' ',
+          h('span', { class: 'orta', id: 'skor' }, skor || 'vs'), ' ',
           h('span', { class: 'takim' + (dep === TAKIM_ADI ? ' biz' : '') }, dep)),
         h('div', { class: 'meta' },
           h('time', { datetime: mac.tarih, id: 'mac-tarihi' }, tarihYaz(mac.tarih, { gun: true }), ' (TSİ)'),

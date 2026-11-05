@@ -4,6 +4,8 @@ Hazırlayan: Claude, Mert için
 Tarih: 5 Kasım 2026
 Durum: Öneri belgesi. Temel reklam sistemi ayrıca kuruluyor; bu belge onun **üstüne** eklenecekleri anlatıyor. Temel sistemi değiştirmiyoruz.
 
+> **Karar (Mert, 5 Kasım 2026):** Reklamlar dışarıdaki işletmelerden gelir. **Maça özel / maç günü indirim kampanyası yapılmayacak.** Bu yüzden D fikri (Taraftar Fırsatları / indirim kuponu) ve ona dayanan bütün parçalar (paketlerdeki kupon, rapordaki kupon sayıları, "gol atınca indirim") aşağıda *Mert kararıyla çıkarıldı* diye işaretlendi. "Maçın sponsoru" yerleşimi kalıyor: bir işletmenin bir maça sponsor olması sorun değil, yalnız indirim teklifi olmaz.
+
 ---
 
 ## 0. Bir bakışta (5 dakikada okuyun)
@@ -12,14 +14,14 @@ Durum: Öneri belgesi. Temel reklam sistemi ayrıca kuruluyor; bu belge onun **�
 
 **Asıl sorun:** Temel sistemde her alanda aynı anda **tek reklam** gösteriliyor (öncelik kazanır). Bu taraftar için iyi, çünkü uygulama reklam çöplüğüne dönmüyor. Ama satılabilecek yer az. Daha çok firmaya satmanın üç yolu var: (1) zamanı akıllıca bölmek, (2) taraftarı rahatsız etmeyen yeni alanlar açmak, (3) firmaya reklamın **işe yaradığını göstermek**, ki yenilesin.
 
-**Önerilen 7 fikir (önem sırasıyla):**
+**Önerilen 7 fikir (önem sırasıyla; D çıkarıldı, kalan 6):**
 
 | # | Fikir | Mert'e ne kazandırır | Zorluk |
 |---|---|---|---|
 | A | **Sponsor Paketleri + Doluluk Takvimi + Bitiş Hatırlatması** | Neyin boş olduğunu görür, hazır paketle satar, yenilemeyi kaçırmaz | Orta |
 | B | **Aylık Firma Raporu (WhatsApp özeti + firmaya özel link + PDF)** | Firma sonucu görür, yeniler | Küçük |
 | C | **Büyük Maç Haftası Paketi** | Fenerbahçe gibi maçlarda tek firmaya tüm alanları pahalıya satar | Küçük |
-| D | **Taraftar Fırsatları: maç günü / gol / galibiyet indirim kuponu** | Esnaf "kaç müşteri geldi"yi sayabilir; en ikna edici ürün | Orta |
+| D | ~~Taraftar Fırsatları: maç günü / gol / galibiyet indirim kuponu~~ | **Mert kararıyla çıkarıldı (5 Kasım 2026): maça özel indirim yapılmayacak.** | – |
 | E | **Gol Sponsoru** | Gol arşivinde yeni, değerli bir alan | Küçük |
 | F | **"Bizi Destekleyenler" vitrini + QR çıkartma** | Sınırsız yer: küçük esnafa ucuz paket satılır | Küçük-Orta |
 | G | **Sponsorlu "Maçın Oyuncusu" anketi** | Her maçtan sonra yeni bir sponsor alanı, taraftar uygulamaya geri gelir | Orta |
@@ -29,7 +31,7 @@ Durum: Öneri belgesi. Temel reklam sistemi ayrıca kuruluyor; bu belge onun **�
 **Önerilen sıra:**
 1. Hemen (mümkünse Fenerbahçe maçından önce): Firma kartı, Büyük Maç Haftası sihirbazı (C), dürüst sayım, Aylık Rapor (B).
 2. Sonra: Paketler + Doluluk Takvimi (A), Vitrin + QR (F).
-3. Sonra: Fırsatlar (D) ve Gol Sponsoru (E). İkisi birlikte "gol atınca indirim" gibi güçlü bir ürün oluşturur.
+3. Sonra: Gol Sponsoru (E). (Fırsatlar (D) Mert kararıyla çıkarıldı, 5 Kasım 2026: maça özel indirim yapılmayacak.)
 4. Sonra: Maçın Oyuncusu anketi (G).
 
 Belgenin sonunda **firmalara gönderilecek hazır teklif yazısı** (bölüm 6) ve **yasal yapılır / yapılmaz listesi** (bölüm 7) var.
@@ -46,7 +48,7 @@ Kısaca hatırlatma (başka bir çalışan bunu kuruyor, değiştirmiyoruz):
 - Aynı alanda en yüksek öncelik kazanır. Eşitse en yeni kazanır.
 - Rapor: görüntülenme (ekranda gerçekten görünen, aynı sayfa ziyaretinde bir kez sayılan), tıklama, tıklama oranı, tarih aralığı, CSV indirme.
 
-Bu belgedeki her fikir bu yapının üstüne kurulu. Yeni alan açan fikirler (gol, anket, fırsat, vitrin) temel sistemdeki **yerleşim** listesine yeni bir seçenek ekleyerek çalışır. Böylece Mert her şeyi aynı Reklamlar ekranından yönetir.
+Bu belgedeki her fikir bu yapının üstüne kurulu. Yeni alan açan fikirler (gol, anket, vitrin) temel sistemdeki **yerleşim** listesine yeni bir seçenek ekleyerek çalışır. Böylece Mert her şeyi aynı Reklamlar ekranından yönetir.
 
 ---
 
@@ -59,7 +61,7 @@ Bu belgedeki her fikir bu yapının üstüne kurulu. Yeni alan açan fikirler (g
 3. **Anlaşma bitiş hatırlatması:** Reklamın bitmesine 7 gün kala admin panelde uyarı ve hazır yenileme mesajı.
 4. **Aylık firma raporu:** WhatsApp'a yapıştırılacak kısa özet, firmaya özel salt okunur rapor linki ve yazdırılabilir PDF.
 5. **Gol sponsoru:** Gol arşivi ve maçtaki gol listesi "X sunar".
-6. **Taraftar fırsatları (indirim kuponu):** Maç günü, gol sonrası veya galibiyet sonrası geçerli esnaf indirimleri. Kasada gösterilen canlı kupon.
+6. ~~**Taraftar fırsatları (indirim kuponu)**~~: **Mert kararıyla çıkarıldı (5 Kasım 2026): maça özel indirim yapılmayacak.**
 7. **Sponsorlu "Maçın Oyuncusu" anketi:** Maç bitince taraftar oylar, sonuç kartında sponsor görünür.
 8. **"Bizi Destekleyenler" vitrin sayfası:** Tüm destekçi esnafın listesi, adres, WhatsApp, yol tarifi.
 9. **QR kodlar:** Esnafın camına "Taraftar Dostu İşletme" çıkartması, stat çevresinde afiş. Kaç kez okutulduğu sayılır.
@@ -98,7 +100,7 @@ Bahis, kripto, "fan token" ortaklıkları ya hiç düşünülmedi ya da yasal ne
 | 3 | Bitiş hatırlatması | Yüksek | Nötr | K | Düşük | **Geliştir (A'ya katıldı)** |
 | 4 | Aylık firma raporu | Yüksek | Nötr | K | Düşük | **Geliştir (B)** |
 | 5 | Gol sponsoru | Yüksek | Orta | K | Düşük | **Geliştir (E)** |
-| 6 | Taraftar fırsatları / kupon | Çok yüksek | Yüksek | O | Orta (indirim kuralları) | **Geliştir (D)** |
+| 6 | ~~Taraftar fırsatları / kupon~~ | – | – | – | – | **Mert kararıyla çıkarıldı (5 Kasım 2026): maça özel indirim yapılmayacak.** |
 | 7 | Maçın Oyuncusu anketi | Orta | Yüksek | O | Düşük (ödülsüz olursa) | **Geliştir (G)** |
 | 8 | Bizi Destekleyenler vitrini | Yüksek | Orta | K | Düşük | **Geliştir (F)** |
 | 9 | QR kodlar | Orta | Orta | K | Düşük (afiş izni) | **Geliştir (F'ye katıldı)** |
@@ -118,17 +120,17 @@ Bahis, kripto, "fan token" ortaklıkları ya hiç düşünülmedi ya da yasal ne
 | 23 | Sponsorlu bülten | Orta | Düşük | O | Yüksek (İYS kaydı ve onay şart) | **Ele** (şimdilik). |
 | 24 | Dürüst ve KVKK uyumlu sayım | Dolaylı ama şart | Yüksek (gizlilik) | K-O | Düşük | **Zorunlu temel** (bölüm 4) |
 
-**Sonuç:** 7 fikir geliştirilecek (A-G). 1 zorunlu temel iş var. 7 fikir sonraya kaldı, 7 fikir elendi.
+**Sonuç:** 7 fikir geliştirilecekti (A-G); D sonradan Mert kararıyla çıkarıldı (5 Kasım 2026: maça özel indirim yapılmayacak), kalan 6 fikir (A, B, C, E, F, G). 1 zorunlu temel iş var. 7 fikir sonraya kaldı, 7 fikir elendi.
 
 **Elerken kullandığımız kural:** Taraftarı rahatsız eden, temel kuralları ("pop-up yok, video ve yorumun üstüne yok") delen ya da Mert'i hukuki riske sokan her şey elendi. Kalanlar arasında en çok "esnafa somut sonuç gösteren" fikirler öne alındı. Yerel esnaf soyut "görüntülenme" sayısından çok "kaç müşteri geldi" sorusunu umursar.
 
-**Benzer örnekler (bunlar zaten Türkiye'de çalışıyor):**
+**Benzer örnekler (araştırma notu; Mert indirim modelini seçmedi, bkz. D):**
 - Ankaragücü'nün uygulamasında esnaf uygulama içinden paket alıyor; taraftar uygulamayı dükkanda gösterince indirim alıyor ([CNN Türk](https://www.cnnturk.com/spor/futbol/ankaragucunun-mobil-uygulamasi-cikti-725566)).
 - Samsunspor FC uygulamasında taraftar uygulamadan QR kod üretip anlaşmalı restoran ve kafelerde indirim kullanıyor ([App Store](https://apps.apple.com/tr/app/samsunspor-fc/id6746769048?l=tr)).
 - Trabzonspor taraftar grubu VİRA, bir deplasman maçı öncesi 20'ye yakın işletmeyle %50'ye varan "dostluk indirimi" kampanyası yaptı ([DHA](https://www.dha.com.tr/foto-galeri/egeden-karadenize-vefa-koprusu-misafir-taraftara-dostluk-indirimi-2863909)).
 - Şekerbank ile Sivasspor, taraftar harcamalarının kulübe destek olduğu bir POS modeli kurdu ([CNBC-e](https://www.cnbce.com/haberler/sekerbank-ve-sivasspordan-isbirligi-taraftar-pos-ile-harcamalar-kulube-destek-olacak-h39111)).
 
-Kısacası esnaf indirimi ve uygulama birleşimi Türk taraftarına tanıdık geliyor. Fikir D bu yüzden en güçlü öneri.
+Kısacası esnaf indirimi ve uygulama birleşimi Türk taraftarına tanıdık geliyor. Yine de D fikri Mert kararıyla çıkarıldı (5 Kasım 2026): maça özel indirim yapılmayacak. Esnafa somut sonuç göstermek için rapor (B), vitrin ve QR okutma sayısı (F) kullanılır.
 
 ---
 
@@ -147,7 +149,7 @@ Bu iş satılmaz ama bütün satışlar buna dayanır. Bir esnaf "1.000 tıklama
 6. **Kişisel veri tutulmaz:**
    - IP adresi, isim, telefon kaydedilmez.
    - Görüntülenme tekrarını önlemek için sadece o sayfa ziyaretine ait, geçici ve rastgele bir numara kullanılır. Bu numara cihazda saklanmaz.
-   - Tıklama tekrarı, oylama ve kupon için cihazı tanımak gerekir. Bunun için rastgele, isimsiz bir cihaz numarası kullanılır, sunucuda da sadece şifrelenmiş (karıştırılmış) hali tutulur. Bu numara sadece bu özelliğin çalışması için kullanılır, başka bir yerle paylaşılmaz, reklam hedeflemek için kullanılmaz.
+   - Tıklama tekrarı ve oylama için cihazı tanımak gerekir. Bunun için rastgele, isimsiz bir cihaz numarası kullanılır, sunucuda da sadece şifrelenmiş (karıştırılmış) hali tutulur. Bu numara sadece bu özelliğin çalışması için kullanılır, başka bir yerle paylaşılmaz, reklam hedeflemek için kullanılmaz.
    - Firmalara sadece **toplam sayılar** gider. Hiçbir taraftar bilgisi firmaya verilmez.
 7. **Gizlilik metni (aydınlatma metni) güncellensin:** "Reklam alanlarının kaç kez görüldüğünü isimsiz olarak sayıyoruz" gibi bir cümle eklensin. Google Analytics gibi dış analiz araçları kullanılıyorsa, KVKK'nın çerez rehberine göre önceden ve ayrı ayrı onay alınmalı. Önceden işaretli kutu ve "kabul etmeden giremezsin" duvarı olmamalı ([KVKK Çerez Rehberi](https://kvkk.gov.tr/Icerik/7353/Cerez-Uygulamalari-Hakkinda-Rehber), [2025 güncellemesi özeti](https://www.erdem-erdem.av.tr/bilgi-bankasi/kisisel-verileri-koruma-kurumu-cerez-uygulamalari-hakkinda-rehberi-guncelledi), [hukuk yorumu](https://hukukcularevi.com/cerez-politikasi-ve-cerez-onayi-kvkk/)). Kendi sunucumuzda, isimsiz ve kişiyi tanımayan sayım için onay gerekmeyebilir, ama bu konuda görüşler farklı. Bir avukata bir kez sorulması iyi olur.
 8. **"Resmi değildir" ibaresi:** Uygulamanın alt kısmında ve vitrinde "Bu uygulama taraftarlar tarafından hazırlanmıştır, Çorum FK'nın resmi uygulaması değildir" yazsın. Kulübün kendi resmi sponsorları var ([Halk TV](https://halktv.com.tr/spor/corum-fknin-yeni-sponsorlari-belli-oldu-961510h)). Bizim sponsorlarımız "Çorum FK resmi sponsoru" gibi görünmemeli (bkz. bölüm 7).
@@ -156,7 +158,7 @@ Bu iş satılmaz ama bütün satışlar buna dayanır. Bir esnaf "1.000 tıklama
 
 ---
 
-## 5. Seçilen 7 fikrin ayrıntılı tarifi
+## 5. Seçilen 7 fikrin ayrıntılı tarifi (D Mert kararıyla çıkarıldı)
 
 Her fikir aynı düzende anlatıldı: **taraftar ne görür, Mert admin panelde ne yapar, hangi veriler gerekir, temel sisteme nasıl oturur, nelere dikkat edilmeli, esnafa ne söylenir.**
 
@@ -197,13 +199,13 @@ Temel sistemde firma adı her reklamda düz yazı olarak giriliyor. Paket, rapor
 
 | Paket | İçerik (1 aylık) | Kime uygun | Fiyat oranı önerisi |
 |---|---|---|---|
-| **Bronz: "Destekçi"** | Vitrinde yer (F), ayda 1 fırsat kuponu (D), aylık rapor (B) | Küçük esnaf, ilk kez deneyecekler | 1x |
+| **Bronz: "Destekçi"** | Vitrinde yer (F), QR çıkartma (F), aylık rapor (B) | Küçük esnaf, ilk kez deneyecekler | 1x |
 | **Gümüş: "Maç Ortağı"** | Bronz + 1 iç saha maçında "Maçın sponsoru" + 1 hafta haber sonu alanı + 1 maç anket sponsorluğu (G) | Orta büyüklükte restoran, oto servis, kurs | ~3x |
 | **Altın: "Ana Destekçi"** | Gümüş + 2 hafta haber akışı kartı + 1 ay gol sponsorluğu (E) + vitrinde en üstte büyük kart + QR çıkartma ve afiş (F) | Şehrin bilinen markaları | ~6x |
 | **Büyük Maç Haftası** | Seçilen büyük maçın haftasında tüm alanlar tek firmada (C) | Görünmek isteyen her firma | Altın'ın yarısı ile tamamı arası, maça göre |
-| **Sezonluk** | Herhangi bir paket, sezon sonuna kadar | Sadık destekçiler | Aylık toplamdan %15-20 indirim |
+| **Sezonluk** | Herhangi bir paket, sezon sonuna kadar | Sadık destekçiler | Ayrı sezonluk fiyat (Mert belirler) |
 
-Bronz paketin "haber akışı" içermemesi bilinçli bir seçim: Bronz, sınırsız sayıda satılabilen alanlardan (vitrin, kupon) oluşur. Böylece 30 esnafa birden Bronz satılabilir, kıt alanlar (haber akışı, maç sponsoru) üst paketlere kalır.
+Bronz paketin "haber akışı" içermemesi bilinçli bir seçim: Bronz, sınırsız sayıda satılabilen alanlardan (vitrin, QR çıkartma) oluşur. Böylece 30 esnafa birden Bronz satılabilir, kıt alanlar (haber akışı, maç sponsoru) üst paketlere kalır.
 
 **Gereken veri:**
 - **anlaşmalar** tablosu: firma, paket türü, başlangıç, bitiş, tutar (iç kayıt), ödeme durumu, notlar.
@@ -233,7 +235,7 @@ Bronz paketin "haber akışı" içermemesi bilinçli bir seçim: Bronz, sınırs
 - Link, giriş gerektirmeyen, sadece o firmanın verilerini gösteren bir sayfaya açılır. Sayfada şunlar bulunur:
   - Firmanın logosu, dönem (örn. "1-31 Ekim 2026").
   - Her reklamın küçük resmi ve hangi alanda çıktığı ("Ana sayfa", "Fenerbahçe maçı sayfası").
-  - Büyük rakamlar: **Görüntülenme**, **Tıklama**, **Tıklama oranı**. Fırsat kuponu varsa **"Kuponu açan"** ve **"Kasada kullanılan"** (D). Anket varsa **oy sayısı** (G). Gol sponsorluğu varsa **sponsorluk döneminde atılan gol sayısı** (E).
+  - Büyük rakamlar: **Görüntülenme**, **Tıklama**, **Tıklama oranı**. (Kupon sayıları yok: D Mert kararıyla çıkarıldı.) Anket varsa **oy sayısı** (G). Gol sponsorluğu varsa **sponsorluk döneminde atılan gol sayısı** (E).
   - Basit bir günlük grafik. Maç günleri işaretli olur, böylece firma "maç günü zirve yapıyor" diye görür.
   - Küçük bir not: "Görüntülenme: reklamınızın en az yarısının ekranda en az 1 saniye göründüğü sayı. Aynı sayfa ziyaretinde bir kez sayılır. Kişi sayısı değildir."
   - **"PDF olarak indir / yazdır"** düğmesi.
@@ -249,7 +251,6 @@ Merhaba Ahmet Bey,
 - Görüntülenme: 12.430 (reklamınızın ekranda göründüğü sayı)
 - Tıklama: 214 (sitenize veya WhatsApp'ınıza gelen)
 - Tıklama oranı: %1,7
-- Maç günü kuponunuz kasada 38 kez kullanıldı
 Ayrıntılı rapor: [link]
 Kasım ayı için yeriniz hazır. Devam edelim mi?
 Mert
@@ -304,50 +305,18 @@ Mert
 
 ---
 
-### D. Taraftar Fırsatları: maç günü / gol / galibiyet indirim kuponu
+### D. ~~Taraftar Fırsatları: maç günü / gol / galibiyet indirim kuponu~~
 
-**Amacı:** Esnafın en çok istediği şey dükkana gelen müşteridir. Kupon bunu **sayılabilir** yapar. Taraftar da gerçek bir fayda görür ("uygulamayı açınca indirim çıkıyor"). Türkiye'de Samsunspor ve Ankaragücü uygulamaları benzer bir model kullanıyor (bölüm 3).
+**Mert kararıyla çıkarıldı (5 Kasım 2026): maça özel indirim yapılmayacak.**
 
-**Taraftar ne görür?**
-1. Menüde **"Fırsatlar"** bölümü bulunur. Esnafın aktif indirimleri liste halinde görünür: logo, "Maç günü tüm dürümlerde %15", geçerlilik ("Bugün 23:59'a kadar"), mahalle.
-2. Ana sayfa haber akışındaki tek reklam kartı bir fırsatı da gösterebilir. Kart üzerinde "Sponsor" yazısı ve "Fırsatı gör" düğmesi olur. Yeni bir kart açılmaz, mevcut tek kart kullanılır.
-3. Taraftar **"Kuponu göster"** der. Tam ekran kupon açılır:
-   - Firma adı, indirim, kısa koşullar ("Masa başına 1 kupon, paket serviste geçmez").
-   - Kupon kodu (örn. `CORUM15`).
-   - **Canlı saat ve hareket eden takım renkleri.** Kasiyer bunun ekran görüntüsü değil, o an açılmış gerçek kupon olduğunu anlar.
-   - **"Kasada kullan"** düğmesi.
-4. "Kasada kullan"a basılınca **4 haneli işletme şifresi** sorulur. Şifreyi sadece işletme bilir. Kasiyer taraftarın telefonuna şifreyi yazar, kupon "Kullanıldı" olur ve sayılır. Aynı telefondan aynı kupon (Mert'in seçtiği kurala göre) günde 1 kez ya da toplam 1 kez kullanılabilir.
-   - İşletme şifre girmekle uğraşmak istemezse kod yine de geçerlidir. O zaman sayım sadece "kuponu açan" olarak kalır.
+Bu fikir taraftara maç günü, gol ya da galibiyet sonrası geçerli esnaf indirimi ve kasada gösterilen kupon öneriyordu.
+Mert'in kararıyla yapılmayacak: reklamlar dışarıdaki işletmelerden gelir, uygulamada maça özel indirim kampanyası,
+kupon, "Fırsatlar" bölümü ya da kupon sayımı olmaz. Ayrıntılı tarif (ekranlar, tablolar, kupon örnekleri) bu yüzden belgeden kaldırıldı.
+Ona bağlı parçalar da çıkarıldı: Bronz paketteki kupon, aylık rapordaki "kuponu açan / kasada kullanılan" sayıları,
+gol sponsorundaki "gol atınca indirim" etiketi, vitrindeki "Fırsat" düğmesi ve teklif şablonundaki kupon satırları.
 
-**Kuponun ne zaman geçerli olacağı (Mert seçer):**
-- **Tarih aralığında her gün.**
-- **Sadece maç günleri** (Çorum FK'nın maç oynadığı gün, Türkiye saatiyle 00:00-23:59).
-- **Galibiyetten sonra 24 saat.** Maç sonucu girilince kendiliğinden açılır. Örnek: "Kazandık! Yarın akşama kadar lahmacunlar %20 indirimli."
-- **Çorum FK gol atınca 24 saat.** Gol sponsoruyla (E) birleşince güçlü bir ürün olur: "Her Çorum golünde [Firma]'da indirim."
-- **Sadece iç saha maç günleri.** Stada gelen taraftar için, statta veya çevresindeki esnafa uygun.
-
-**Mert admin panelde ne yapar?**
-1. **Fırsatlar** ekranında "Yeni fırsat" der. Firma, başlık, açıklama, **koşullar (zorunlu alan)**, kod, işletme şifresi, geçerlilik türü, başlangıç-bitiş tarihi ve kullanım sınırı girilir.
-2. Kaydetmeden önce bir hatırlatma kutusu işaretlenir: "Firmadan indirimin gerçek olduğunu, indirim öncesi fiyatın son 10 günün en düşük fiyatı olduğunu teyit ettim." (bkz. bölüm 7)
-3. Raporda her fırsat için şunlar görünür: **görüntülenme, kuponu açan, kasada kullanılan**. Bu rakamlar aylık rapora (B) da girer.
-
-**Gereken veri:**
-- **fırsatlar** tablosu: firma, başlık, açıklama, koşullar, kod, işletme şifresi (şifrelenmiş saklanır), geçerlilik türü, başlangıç, bitiş, kullanım sınırı, durum.
-- **fırsat olayları** tablosu: fırsat, olay türü (görüntülendi / kupon açıldı / kullanıldı), isimsiz cihaz numarası (şifrelenmiş), zaman.
-- Maç sonucu ve gol bilgisi zaten uygulamada var (gol arşivi ve maç detayı). Tetikleyiciler buradan beslenir.
-
-**Temel sisteme nasıl oturur?**
-- Temel sistemdeki reklam linki seçeneklerine ("web sitesi", "WhatsApp") üçüncü bir seçenek eklenir: **"Uygulama içi fırsat"**. Böylece mevcut reklam kartları fırsata yönlendirebilir.
-- Fırsatlar bölümü ayrı bir sayfadır. Haberlerin, videoların ve yorumların içine girmez.
-- Para hiçbir şekilde uygulamadan geçmez. İndirimi esnaf kasada uygular.
-
-**Dikkat:**
-- Fırsat sayfasının üstünde net bir uyarı bulunsun: "Fırsatlar işletmeler tarafından sunulur. Koşullardan ve indirimden işletme sorumludur."
-- Esnafa aynı anda en fazla 1-2 aktif fırsat izni verin, yoksa liste değersizleşir.
-- **Ödül, çekiliş, "ilk 10 kişiye bedava" gibi şans unsuru taşıyan kampanyalar yapmayın.** Bunlar çekiliş sayılabilir ve izin gerektirir (bölüm 7). Herkese açık, şartları belli bir indirim güvenlidir.
-
-**Esnafa söylenecek cümle:**
-> "Reklamı görüp dükkanınıza gelen her taraftar kupon gösterir. Kasada sizin şifrenizle onaylanır, ay sonunda kaç müşteri getirdiğimizi tek tek sayarız."
+**Kalan:** "Maçın sponsoru" yerleşimi ve Büyük Maç Haftası (C) aynen duruyor; bir işletme bir maça sponsor olabilir,
+yalnız indirim teklifi olmaz. Esnafa sonuç göstermek için aylık rapor (B) ve vitrin/QR sayıları (F) kullanılır.
 
 ---
 
@@ -360,7 +329,6 @@ Mert
 - **Her Çorum FK golünün kartında** videonun **altında** (asla üstünde değil) küçük bir etiket: "Sponsor: [Firma]".
 - **Maç detayındaki gol listesinde** (dakika ve atan oyuncu) küçük logo.
 - Rakip takımın gollerinde sponsor görünmez, çünkü hiçbir esnaf rakibin golüyle anılmak istemez.
-- Fırsat bağlıysa (D) etiket şöyle olur: "Bu golün şerefine [Firma]'da 24 saat %10 indirim, fırsatı gör".
 
 **Mert admin panelde ne yapar?** Normal reklam oluşturur gibi yeni reklam açar ve yerleşim olarak **"Gol sponsoru"** seçer. Başlangıç-bitiş tarihi girer. İsterse belirli bir maça bağlar (sadece o maçın gollerinde görünür). Öncelik kuralı aynıdır.
 
@@ -390,7 +358,7 @@ Mert
 **Taraftar ne görür?**
 1. Menüde **"Bizi Destekleyenler"** sayfası. Başlıkta "Bu uygulamayı ayakta tutan Çorumlu işletmeler" yazar.
 2. Firmalar pakete göre gruplanır. **Altın** üstte büyük kartlarla, **Gümüş** orta boyda, **Bronz** sade liste halinde.
-3. Her kartta logo, firma adı, sektör, mahalle, kısa tanıtım ve düğmeler bulunur: **Ara**, **WhatsApp**, **Yol tarifi** (harita uygulamasını açar) ve aktif fırsat varsa **Fırsat**.
+3. Her kartta logo, firma adı, sektör, mahalle, kısa tanıtım ve düğmeler bulunur: **Ara**, **WhatsApp**, **Yol tarifi** (harita uygulamasını açar).
 4. Üstte filtreler: sektör ("Yeme-içme", "Oto", ...) ve **"Maç öncesi"** (stada yakın, maç günü açık yerler). Bu filtre, sonraya bırakılan "Maç günü rehberi" fikrinin ilk adımıdır.
 5. Sayfanın altında "Siz de destekçi olmak ister misiniz? Mert'e yazın" düğmesi bulunur. Bu, Mert'e yeni müşteri getirir.
 
@@ -401,7 +369,7 @@ Mert
 
 **Mert admin panelde ne yapar?**
 - Firma kartında "Vitrinde göster" seçilir. Seviye, anlaşmadaki paketten otomatik gelir ama elle değiştirilebilir.
-- **QR Kodlar** ekranında "Yeni QR" denir: ad (örn. "Kebapçı X cam çıkartması"), hedef (firma vitrini / fırsat / ana sayfa). Sistem kısa bir link ve QR resmi üretir, basılabilir çıktı verir.
+- **QR Kodlar** ekranında "Yeni QR" denir: ad (örn. "Kebapçı X cam çıkartması"), hedef (firma vitrini / ana sayfa). Sistem kısa bir link ve QR resmi üretir, basılabilir çıktı verir.
 - Her QR'ın kaç kez okutulduğu görülür ve aylık rapora (B) eklenir.
 
 **Gereken veri:**
@@ -475,15 +443,15 @@ Aşağıdaki metni köşeli parantezleri doldurarak WhatsApp'tan, e-postayla vey
 >
 > | Paket | Neler var | Fiyat |
 > |---|---|---|
-> | **Bronz: Destekçi** | "Bizi Destekleyenler" sayfasında firma kartınız (adres, WhatsApp, yol tarifi) · Ayda 1 taraftar indirim kuponu · Aylık rapor | [___] TL |
+> | **Bronz: Destekçi** | "Bizi Destekleyenler" sayfasında firma kartınız (adres, WhatsApp, yol tarifi) · "Taraftar Dostu İşletme" QR çıkartması · Aylık rapor | [___] TL |
 > | **Gümüş: Maç Ortağı** | Bronz'daki her şey · 1 iç saha maçında "Maçın Sponsoru" · 1 hafta haber sonu reklamı · 1 maç "Maçın Oyuncusu" anket sponsorluğu | [___] TL |
 > | **Altın: Ana Destekçi** | Gümüş'teki her şey · 2 hafta ana sayfa reklamı · 1 ay "Gol Sponsoru" (tüm gol kartlarında adınız) · Destekçiler sayfasında en üstte büyük kart · "Taraftar Dostu İşletme" cam çıkartması ve QR afiş | [___] TL |
 > | **Büyük Maç Haftası** | [Maç adı] haftasında uygulamadaki tüm reklam alanları sadece sizin | [___] TL |
 >
-> Sezon sonuna kadar anlaşmalarda **%[__] indirim** uygulanır. Büyük maç haftaları ayrıca satılır, aylık paketlere dahil değildir.
+> Sezon sonuna kadar yapılan anlaşmalar için ayrı **sezonluk fiyat**: [___] TL. Büyük maç haftaları ayrıca satılır, aylık paketlere dahil değildir.
 >
 > **Size ne gelir?**
-> - Her ay WhatsApp'ınıza: reklamınızın kaç kez görüntülendiği, kaç kişinin tıklayıp sitenize veya WhatsApp'ınıza geldiği ve kuponunuzun kasada kaç kez kullanıldığı.
+> - Her ay WhatsApp'ınıza: reklamınızın kaç kez görüntülendiği ve kaç kişinin tıklayıp sitenize veya WhatsApp'ınıza geldiği.
 > - Size özel, istediğiniz zaman bakabileceğiniz bir rapor sayfası.
 >
 > **Nasıl çalışır?**
@@ -491,7 +459,7 @@ Aşağıdaki metni köşeli parantezleri doldurarak WhatsApp'tan, e-postayla vey
 > 2. Yayından önce telefon ve bilgisayar görünümünü size gösteriyorum, onayınızı alıyorum.
 > 3. Anlaştığımız tarihte yayına giriyor, bitiş tarihinde kendiliğinden kalkıyor.
 >
-> **Kurallarımız:** Tüm reklamlarda "Reklam" veya "Sponsor" ibaresi bulunur. Bahis, alkollü içki, tütün ve elektronik sigara, fal ve medyum reklamları kabul edilmez. Reklam içeriğindeki bilgilerin (fiyat, indirim, kampanya koşulları) doğruluğundan reklam veren firma sorumludur.
+> **Kurallarımız:** Tüm reklamlarda "Reklam" veya "Sponsor" ibaresi bulunur. Bahis, alkollü içki, tütün ve elektronik sigara, fal ve medyum reklamları kabul edilmez. Uygulamada maça özel indirim veya kupon kampanyası yapılmaz. Reklam içeriğindeki bilgilerin (ürün, hizmet, fiyat) doğruluğundan reklam veren firma sorumludur.
 >
 > **Ödeme:** Uygulama üzerinden ödeme alınmaz. Ödeme [havale / elden] yapılır, [fatura / makbuz] verilir.
 >
@@ -525,7 +493,7 @@ Ayrıntılı teklifi ekte gönderiyorum. Mert
 
 1. **Her reklamda "Reklam" veya "Sponsor" yazsın, firma adı açıkça görünsün.** Reklamın haberle karışmaması gerekir. Reklam olduğu anlaşılmayan tanıtım (örtülü reklam) yasaktır ([Paraşüt](https://www.parasut.com/blog/sosyal-medya-reklamciligi-ve-ortulu-reklamlar-nedir), [Reklam Kurulu kılavuzu](https://iabtr.org/wp-content/uploads/2024/06/Sosyal-Medya-Etkileyicileri-Tarafindan-Yapilan-Ticari-Reklam-ve-Haksiz-Ticari-Uygulamalar-Hakkinda-Kilavuz1062021101250.pdf)). 1 Temmuz 2026 tarihli ve 33297 sayılı Resmî Gazete'de yayımlanan, 1 Ağustos 2026'da yürürlüğe giren değişiklik, tanıtım içeriklerinde "Reklam", "Tanıtım" gibi açık ibareleri ve reklam verenin belirtilmesini zorunlu hale getirdi ([Erdem & Erdem](https://www.erdem-erdem.av.tr/bilgi-bankasi/ticari-reklam-ve-haksiz-ticari-uygulamalar-yonetmeliginde-kapsamli-degisiklikler-yapildi), [GZT](https://www.gzt.com/gundem/sosyal-medyada-reklam-yazmak-zorunlu-mu-4245635)). Değişiklik ağırlıkla sosyal medya etkileyicilerini hedefliyor, ama aynı mantık bizim uygulamamız için de en güvenli yoldur.
 2. **Firma için haber yazarsanız** (örn. "X restoranı taraftarlara özel menü çıkardı"), başına "Reklam" veya "Tanıtım" yazın. Parayla yazılan haber, reklam etiketi olmadan yayımlanamaz.
-3. **İndirim kampanyalarında gerçek indirim.** 1 Ağustos 2026'dan itibaren mallarda indirim öncesi fiyat, son 10 günün en düşük fiyatıdır; çabuk bozulan mallarda ve hizmetlerde indirimden hemen önceki fiyattır ([Erdem & Erdem](https://www.erdem-erdem.av.tr/bilgi-bankasi/ticari-reklam-ve-haksiz-ticari-uygulamalar-yonetmeliginde-kapsamli-degisiklikler-yapildi)). Kupon koşullarını açık yazın, firmadan teyit alın.
+3. **Maça özel indirim ve kupon yok** (Mert kararı, 5 Kasım 2026). Bir firma reklam metnine kendi genel indirimini yazmak isterse yasal kural şudur: 1 Ağustos 2026'dan itibaren mallarda indirim öncesi fiyat, son 10 günün en düşük fiyatıdır; çabuk bozulan mallarda ve hizmetlerde indirimden hemen önceki fiyattır ([Erdem & Erdem](https://www.erdem-erdem.av.tr/bilgi-bankasi/ticari-reklam-ve-haksiz-ticari-uygulamalar-yonetmeliginde-kapsamli-degisiklikler-yapildi)). Firmadan teyit alın.
 4. **Reklamlar doğru ve dürüst olmalı** ([Yönetmelik, Resmî Gazete 10.01.2015](https://resmigazete.gov.tr/eskiler/2015/01/20150110-5.htm)). "Çorum'un en iyisi" gibi kanıtlanamayan iddialardan kaçının ya da firmadan kanıt isteyin. Şikayet olursa Reklam Kurulu inceler ([Ticaret Bakanlığı](https://ticaret.gov.tr/tuketici/ticari-reklamlar/reklam-kuruluna-nasil-basvurulur)).
 5. **Firmayla yazılı anlaşma yapın** (bir sayfalık yeterli): tarih, alanlar, tutar, "reklam içeriğinden firma sorumludur" maddesi, "büyük maç haftaları hariçtir" maddesi, iptal ve iade koşulu.
 6. **Gizlilik metnini güncelleyin.** Kişisel veri tutmadan sayın (bölüm 4). Analitik veya reklam çerezi kullanıyorsanız önceden ve ayrı ayrı onay alın; önceden işaretli kutu kullanmayın ([KVKK Çerez Rehberi](https://kvkk.gov.tr/Icerik/7353/Cerez-Uygulamalari-Hakkinda-Rehber)).
@@ -535,11 +503,11 @@ Ayrıntılı teklifi ekte gönderiyorum. Mert
 
 ### Yapmayın
 
-1. **Hiçbir bahis reklamı almayın, yasal görünen siteler, "tahmin" siteleri ve bayiler dahil.** Yasa dışı spor bahsine teşvik ve reklam, 7258 sayılı Kanun'un 5. maddesine göre hapis cezası gerektiren bir suçtur ([Or Hukuk](https://or.av.tr/yasa-disi-bahis-kacak-bahis-suc-ve-cezalari-7258-sayili-kanun-uygulamasi/), [Hukukçular Evi: bahis sponsorluğu](https://hukukcularevi.com/yasa-disi-bahis-sitesi-sponsorlugu-kulup-sirket-7258-5-reklam-tck-55-282-masak-7405-5-4-savunma/)). Futbol yayınlarındaki bahis reklamları için büyük yayıncılar hakkında iddianame hazırlandı ([NTV](https://www.ntv.com.tr/turkiye/acun-ilicali-ve-sadettin-sarana-yasa-disi-bahis-iddianamesi,fMbTIl7RY0GstFq8dcR5-g)). 2026 değişikliği yasa dışı bahis ve kumar reklam yasağını genişletti ([Erdem & Erdem](https://www.erdem-erdem.av.tr/bilgi-bankasi/ticari-reklam-ve-haksiz-ticari-uygulamalar-yonetmeliginde-kapsamli-degisiklikler-yapildi)). "Bonus", "oran", "kupon" çağrışımı yapan hiçbir görsel kabul etmeyin. Bizim "kupon"umuz indirim kuponudur, maç tahminiyle asla birleştirmeyin.
+1. **Hiçbir bahis reklamı almayın, yasal görünen siteler, "tahmin" siteleri ve bayiler dahil.** Yasa dışı spor bahsine teşvik ve reklam, 7258 sayılı Kanun'un 5. maddesine göre hapis cezası gerektiren bir suçtur ([Or Hukuk](https://or.av.tr/yasa-disi-bahis-kacak-bahis-suc-ve-cezalari-7258-sayili-kanun-uygulamasi/), [Hukukçular Evi: bahis sponsorluğu](https://hukukcularevi.com/yasa-disi-bahis-sitesi-sponsorlugu-kulup-sirket-7258-5-reklam-tck-55-282-masak-7405-5-4-savunma/)). Futbol yayınlarındaki bahis reklamları için büyük yayıncılar hakkında iddianame hazırlandı ([NTV](https://www.ntv.com.tr/turkiye/acun-ilicali-ve-sadettin-sarana-yasa-disi-bahis-iddianamesi,fMbTIl7RY0GstFq8dcR5-g)). 2026 değişikliği yasa dışı bahis ve kumar reklam yasağını genişletti ([Erdem & Erdem](https://www.erdem-erdem.av.tr/bilgi-bankasi/ticari-reklam-ve-haksiz-ticari-uygulamalar-yonetmeliginde-kapsamli-degisiklikler-yapildi)). "Bonus", "oran", "kupon" çağrışımı yapan hiçbir görsel kabul etmeyin. Uygulamada kupon yoktur (Mert kararı, 5 Kasım 2026).
 2. **Alkollü içki reklamı ve alkol firması sponsorluğu almayın.** Haziran 2026'da kabul edildiği bildirilen düzenlemeyle alkollü içki üreticilerinin, ithalatçılarının ve pazarlayıcılarının etkinliklere marka, logo veya unvanlarıyla destek vermesi yasaklandı ([Yeni Şafak](https://www.yenisafak.com/gundem/alkol-ureticilerine-sponsorluk-yasagi-4832066), [NTV](https://www.ntv.com.tr/turkiye/alkol-reklami-yasagi-genisliyor-kaymakamlara-denetim-yetkisi-veriliyor-1715757)). Alkol satan bir restoran reklam vermek isterse görselde ve metinde içki olmasın. Şüphe varsa kabul etmeyin.
 3. **Tütün, sigara, elektronik sigara, ısıtılmış tütün ve nargile reklamı almayın.** 4207 sayılı Kanun bunların reklam ve tanıtımını yasaklıyor; elektronik sigara ve ısıtılmış tütün de 2018'de kapsama alındı ([Lexpera: 4207](https://www.lexpera.com.tr/mevzuat/kanunlar/tutun-urunlerinin-zararlarinin-onlenmesi-ve-kontrolu-hakkinda-kanun-4207), [Hukukçular Evi](https://hukukcularevi.com/elektronik-sigara-ve-isitilmis-tutun-urunleri-ithalat-yasagi-satis-ve-yaptirim/)).
 4. **Fal, medyum, astroloji reklamı almayın** (2026 değişikliğiyle yasak genişledi).
-5. **İzinsiz çekiliş veya ödüllü yarışma yapmayın.** Sosyal platformlardaki çekilişler genel olarak Milli Piyango İdaresi izni gerektiriyor; izinsiz çekiliş yapan fenomenler hakkında soruşturma açıldı ([Lexpera: MPİ Yönetmeliği](https://www.lexpera.com.tr/mevzuat/yonetmelikler/milli-piyango-idaresi-genel-mudurlugu-karsiligi-nakit-olmayan-piyangolar-ve-cekilisler-hakkinda), [Ensonhaber](https://www.ensonhaber.com/gundem/milli-piyangodan-izinsiz-cekilis-yapan-16-fenomene-sorusturma), [Hukuki Haber](https://www.hukukihaber.net/sosyal-medyada-yapilan-cekilisler-yasal-midir-belirli-bir-yaptirimi-mevcut-mudur/amp)). Anket ve kuponlar ödülsüz ve şanssız kalsın.
+5. **İzinsiz çekiliş veya ödüllü yarışma yapmayın.** Sosyal platformlardaki çekilişler genel olarak Milli Piyango İdaresi izni gerektiriyor; izinsiz çekiliş yapan fenomenler hakkında soruşturma açıldı ([Lexpera: MPİ Yönetmeliği](https://www.lexpera.com.tr/mevzuat/yonetmelikler/milli-piyango-idaresi-genel-mudurlugu-karsiligi-nakit-olmayan-piyangolar-ve-cekilisler-hakkinda), [Ensonhaber](https://www.ensonhaber.com/gundem/milli-piyangodan-izinsiz-cekilis-yapan-16-fenomene-sorusturma), [Hukuki Haber](https://www.hukukihaber.net/sosyal-medyada-yapilan-cekilisler-yasal-midir-belirli-bir-yaptirimi-mevcut-mudur/amp)). Anketler ödülsüz ve şanssız kalsın.
 6. **Taraftarlara toplu reklam mesajı (SMS, e-posta, WhatsApp) atmayın.** Ticari elektronik ileti için İleti Yönetim Sistemi (İYS) kaydı ve alıcının onayı gerekir; esnafa (tacirlere) gönderilen iletilerde önceden onay şartı yoksa da kayıt yükümlülükleri sürer ([Hukukçular Evi: İYS](https://hukukcularevi.com/ticari-elektronik-ileti-iys-izin-6563-reklam/), [Lexpera: Yönetmelik](https://www.lexpera.com.tr/mevzuat/yonetmelikler/ticari-iletisim-ve-ticari-elektronik-iletiler-hakkinda-yonetmelik)). Esnafa teklifi tek tek, konuştuktan sonra gönderin.
 7. **Meslek kuralları reklamı kısıtlayan meslekleri sıradan reklam gibi almayın:** doktor, diş hekimi, eczane, avukat gibi. Bu mesleklerin kendi meslek kuralları reklamı sınırlar. Ya hiç almayın ya da sadece isim ve adres gibi bilgi niteliğinde bir vitrin kaydı yapın ve önce kendilerine sorun. (Genel bilgi.)
 8. **Sağlık iddiası taşıyan reklam almayın** ("zayıflatır", "tedavi eder" gibi). Takviye gıdanın normal beslenmenin yerini tuttuğu izlenimi veren reklam 2026'da yasaklandı.

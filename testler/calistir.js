@@ -1,14 +1,15 @@
 // Bütün testler tek komutla: node testler/calistir.js
-//  1) Veritabanı: migration'lar (001 → 002 → 010) + seed + RLS testleri (gerçek Postgres ya da PGlite)
+//  1) Veritabanı: migration'lar (001 → 002 → 010 → 011 → 012) + seed + RLS testleri (gerçek Postgres ya da PGlite)
 //  2) Tarayıcı: Playwright ile uygulama sayfaları, sahte Supabase (ekran görüntüleri testler/ekran/)
 //  3) Reklam mantığı: node:test birim testleri (testler/reklam/mantik.test.mjs)
 //  4) Reklam SQL: gerçek uygulama şeması üzerinde RLS/RPC testleri (testler/reklam/sql.test.mjs, kurulu Postgres gerekir)
 //  5) Reklam tarayıcı: tam uygulamada uçtan uca reklam akışı + bileşen sağlamlığı (testler/reklam-tarayici-testleri.js)
 //  6) Görünüm: her sayfa 390/1280 px, açık/koyu tema; taşma, yazı tipi, şerit, reklam kartı, tema, amblem + ekran görüntüleri
+//  7) Uygulama birim: kurallar (kullanıcı adı, kapak, yorum sınırları), görsel küçültme hesabı, yayın hazırlama (testler/uygulama.test.mjs)
 // Çıkış kodu: hepsi geçerse 0, bir tane bile kalırsa 1.
 // Tek tek: node testler/sql-testleri.js | node testler/tarayici-testleri.js | node testler/reklam-tarayici-testleri.js
 //          node testler/ekran-testleri.js
-//          node --test testler/reklam/mantik.test.mjs | node --test testler/reklam/sql.test.mjs
+//          node --test testler/reklam/mantik.test.mjs | node --test testler/reklam/sql.test.mjs | node --test testler/uygulama.test.mjs
 const path = require('path');
 const { spawn } = require('child_process');
 const { sqlTestleri } = require('./sql-testleri');
@@ -46,13 +47,15 @@ function nodeTest(dosya) {
   const reklamSql = await kosu(() => nodeTest('reklam/sql.test.mjs'), 'Reklam SQL testleri');
   const reklamTarayici = await kosu(reklamTarayiciTestleri, 'Reklam tarayıcı testleri');
   const gorunum = await kosu(ekranTestleri, 'Görünüm testleri');
+  const uygulama = await kosu(() => nodeTest('uygulama.test.mjs'), 'Uygulama birim testleri');
   const gruplar = [
     ['SQL', sql, `(${sql.motor})`],
     ['Tarayıcı', tarayici, '(Playwright/Chromium)'],
     ['Reklam mantık', mantik, '(node:test)'],
-    ['Reklam SQL', reklamSql, '(node:test, 001+002+010 şeması)'],
+    ['Reklam SQL', reklamSql, '(node:test, 001+002+010+011+012 şeması)'],
     ['Reklam tarayıcı', reklamTarayici, '(Playwright/Chromium, tam uygulama ?sahte=1)'],
     ['Görünüm', gorunum, '(390/1280 px × açık/koyu, testler/ekran/)'],
+    ['Uygulama birim', uygulama, '(node:test: kurallar, görsel küçültme, yayın)'],
   ];
   const kalan = gruplar.flatMap(([ad, s]) => s.kalan.map((k) => ad + ': ' + k));
   if (kalan.length) { console.log('KALAN TESTLER:'); kalan.forEach((k) => console.log('  ✗ ' + k)); }

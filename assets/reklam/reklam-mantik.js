@@ -26,6 +26,10 @@ export const SINIRLAR = Object.freeze({
   oncelikEnCok: 100,
   gorselEnBuyukBayt: 2 * 1024 * 1024,
   gorselTurleri: ['image/jpeg', 'image/png', 'image/webp'],
+  // Sayım (SQL reklam_olay_kaydet ile aynı; 012_denetim_2.sql):
+  ziyaretTiklamaSiniri: 5,      // bir sayfa ziyaretinde en fazla 5 tıklama (bütün reklamlar)
+  gosterimDakikaSiniri: 120,    // bir reklama dakikada en fazla 120 gösterim (bütün ziyaretçiler); fazlası sayılmaz
+  tiklamaDakikaSiniri: 30,      // bir reklama dakikada en fazla 30 tıklama (bütün ziyaretçiler); fazlası sayılmaz
 });
 
 // ---------------------------------------------------------------------------
@@ -296,9 +300,11 @@ function csvHucre(v, metinMi) {
   return /[;"\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
-/** reklam_raporu satırlarından Excel'de düzgün açılan CSV metni (BOM dahil). */
+/** reklam_raporu satırlarından Excel'de düzgün açılan CSV metni (BOM dahil).
+ *  "Sınıra takılan dakika": reklamın dakika sınırına (SINIRLAR) takıldığı dakika sayısı; 0'dan büyükse o aralıkta sayı
+ *  şişirilmeye çalışılmış olabilir (fazlası zaten sayılmadı). */
 export function raporCsv(satirlar) {
-  const basliklar = ['Firma', 'Alan', 'Gösterim', 'Tıklama', 'Tıklama oranı (%)'];
+  const basliklar = ['Firma', 'Alan', 'Gösterim', 'Tıklama', 'Tıklama oranı (%)', 'Sınıra takılan dakika'];
   const satir = [basliklar.map((b) => csvHucre(b, true)).join(';')];
   for (const s of satirlar || []) {
     const oran = s.tiklama_orani != null ? Number(s.tiklama_orani) : tiklamaOrani(s.gosterim, s.tiklama);
@@ -308,6 +314,7 @@ export function raporCsv(satirlar) {
       csvHucre(Number(s.gosterim) || 0, false),
       csvHucre(Number(s.tiklama) || 0, false),
       csvHucre(oranBicimle(oran), false),
+      csvHucre(Number(s.supheli_dakika) || 0, false),
     ].join(';'));
   }
   return '﻿' + satir.join('\r\n') + '\r\n';

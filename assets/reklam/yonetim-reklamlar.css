@@ -108,3 +108,5 @@
 .ry-rapor-suzgec label { display: flex; flex-direction: column; font-size: 13px; font-weight: 600; gap: 4px; }
 .ry-rapor-suzgec input { width: auto; }
 .ry-rapor-tablo tfoot th, .ry-rapor-tablo tfoot td { font-weight: 700; border-bottom: 0; }
+/* Rapor: reklamın dakika sınırına takıldığı dakika (0'dan büyükse dikkat) */
+.ry-supheli { color: var(--ry-uyari); font-weight: 700; }

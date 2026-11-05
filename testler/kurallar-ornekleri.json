@@ -1,0 +1,35 @@
+{
+  "_aciklama": "Uygulama kuralları için ortak örnekler: JS (assets/kurallar.js) ve SQL (012_denetim_2.sql) aynı sonucu vermeli. Testler: testler/uygulama.test.mjs (JS) ve testler/reklam/sql.test.mjs (SQL ile karşılaştırma).",
+  "kullanici_adi": [
+    ["yonetici", true], ["Yönetici", true], ["YÖNETİCİ", true], ["yonetim", true], ["Yönetim_1", true], ["site.yonetimi", true],
+    ["admin", true], ["ADMİN", true], ["Admin_2", true], ["superadmin", true],
+    ["moderator", true], ["Moderatör", true], ["MODERATÖR", true],
+    ["corumfk", true], ["Çorum.FK", true], ["ÇORUM_FK", true], ["corum_fk_resmi", true], ["CorumFK_Resmi", true],
+    ["resmi", true], ["resmî", true], ["Resmi_Hesap", true],
+    ["kulup", true], ["Kulüp", true], ["kulüp.destek", true], ["yetkili", true],
+    ["destek", true], ["DESTEK.2", true], ["mod", true], ["sistem", true], ["corumspor", true], ["Çorumspor", true], ["support", true],
+    ["ayse_19", false], ["emre", false], ["kirmizi_simsek", false], ["destekci_ali", false], ["corumlu", false],
+    ["Çorumlu_Mert", false], ["modern_taraftar", false], ["sistematik", false], ["taraftar1a2b3c", false]
+  ],
+  "kapak": [
+    [null, true],
+    ["assets/img/ornek-kapak-1.svg", true],
+    ["assets/img/haber/kapak-2.webp", true],
+    ["https://abcd.supabase.co/storage/v1/object/public/haber-gorselleri/2f1c9a0e-1b2c-4d5e-8f90-123456789abc.webp", true],
+    ["https://ABCD.supabase.co/storage/v1/object/public/haber-gorselleri/x.jpg", true],
+    ["", false],
+    ["https://baska-site.com/kapak.jpg", false],
+    ["https://i.imgur.com/x.png", false],
+    ["http://abcd.supabase.co/storage/v1/object/public/haber-gorselleri/x.png", false],
+    ["https://abcd.supabase.co/storage/v1/object/public/reklam-gorselleri/x.png", false],
+    ["https://abcd.supabase.co/storage/v1/object/public/haber-gorselleri/../reklam-gorselleri/x.png", false],
+    ["https://abcd.supabase.co.kotu.com/storage/v1/object/public/haber-gorselleri/x.png", false],
+    ["https://abcd.supabase.co/storage/v1/object/public/haber-gorselleri/x y.png", false],
+    ["https://abcd.supabase.co/storage/v1/object/public/haber-gorselleri/x.png?v=\"><script>", false],
+    ["assets/vendor/x.svg", false],
+    ["assets/img/../ayar.js", false],
+    ["assets/img/x.gif", false],
+    ["javascript:alert(1)", false],
+    ["data:image/png;base64,iVBORw0KGgo=", false]
+  ]
+}

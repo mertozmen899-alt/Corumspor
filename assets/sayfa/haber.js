@@ -14,18 +14,28 @@ function bulunamadi() {
   document.querySelector('.reklam-yuvasi[data-reklam-alan="haber_sonu"]')?.remove();
 }
 
-if (oturum.hazir) {
+// Sunucuya ulaşılamadı (ağ hatası): "bulunamadı" demeyiz, haber aslında var olabilir
+function yuklenemedi() {
+  kok.replaceChildren(h('div', { class: 'kutu' }, h('h1', null, 'Haber yüklenemedi'),
+    h('p', null, 'Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edip sayfayı yenileyin.'), h('a', { class: 'dugme', href: 'index.html' }, 'Haberlere dön')));
+  document.querySelector('.reklam-yuvasi[data-reklam-alan="haber_sonu"]')?.remove();
+}
+
+if (!oturum.hazir) {
+  kok.replaceChildren(); // sayfaBaslat uyarıyı gösterdi; "yükleniyor" yazısı kalmasın
+} else {
   if (!kimlikGecerli(id)) bulunamadi();
   else {
     const { data: haber, error } = await supabase.from('haberler')
       .select('id, baslik, ozet, govde, kapak_url, yayin_tarihi, yayinda, created_at')
       .eq('id', id).maybeSingle();
-    if (error || !haber) bulunamadi();
+    if (error) yuklenemedi();
+    else if (!haber) bulunamadi();
     else {
       document.title = haber.baslik + ' · Çorumspor Taraftar';
       const kapak = guvenliGorsel(haber.kapak_url);
       kok.replaceChildren(h('article', { class: 'makale', id: 'makale' },
-        kapak ? h('img', { class: 'kapak', src: kapak, alt: '' }) : null,
+        kapak ? h('img', { class: 'kapak', src: kapak, alt: '', width: '1600', height: '900', fetchpriority: 'high' }) : null,
         h('div', { class: 'ic' },
           !haber.yayinda ? h('p', { class: 'mesaj bilgi' }, 'Bu haber taslak: sadece yöneticiler görebilir.') : null,
           h('h1', null, haber.baslik),

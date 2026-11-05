@@ -369,5 +369,7 @@ Uygulamada eklenen renk çiftleri (aynı formülle hesaplandı; hepsi eşiği ge
 | Her iki | logo alt yazısı / menü (koyu temada #000 bar) | #C9C6C0 | #000000 | 12.32:1 | 4.5 |
 | Her iki | boş kapak yazısı / koyu kırmızı çubuk | #FFFFFF | #A80000 | 7.88:1 | 4.5 |
 | Her iki | test modu şeridi | #111111 | #FDE047 | 14.32:1 | 4.5 |
+| Açık | rapor "Sınıra takılan dakika" > 0 (`--ry-uyari`) / kart | #7A5C00 | #F6F4F0 | 5.69:1 | 4.5 |
+| Koyu | rapor "Sınıra takılan dakika" > 0 (`--ry-uyari`) / kart | #E3BE55 | #161618 | 10.12:1 | 4.5 |
 
 `kontrast.py` aynı klasörde; rehberdeki tablo `python3 docs/kontrast.py` ile yeniden üretilir (0 başarısız).

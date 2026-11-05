@@ -1,6 +1,7 @@
 // Ortak yardımcılar: DOM üretimi (innerHTML yok), tarih, oturum, üst menü.
 import { supabase, sahteMod, ayarEksik } from './istemci.js';
 import { TAKIM_ADI, AMBLEM_DOSYASI } from './ayar.js';
+import { kapakAdresiGecerli } from './kurallar.js';
 
 export { supabase, sahteMod, TAKIM_ADI };
 
@@ -69,10 +70,11 @@ export function kimlikGecerli(id) {
   return typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 }
 
-// Görsel adresi sadece https:// ya da site içi assets/ olabilir
+// Haber kapağı yalnız projenin deposundan (haber-gorselleri) ya da sitenin assets/img/ klasöründen (SQL ile aynı kural:
+// assets/kurallar.js kapakAdresiGecerli). Başka adres hiç istenmez (ziyaretçinin IP'si üçüncü tarafa gitmesin).
 export function guvenliGorsel(url) {
-  if (typeof url !== 'string') return null;
-  if (/^https:\/\/[^\s"'<>]+$/.test(url) || /^assets\/[\w./-]+$/.test(url)) return url;
+  if (typeof url !== 'string' || !url) return null;
+  if (kapakAdresiGecerli(url)) return url;
   if (sahteMod && /^data:image\/(png|jpeg|webp|gif);base64,/.test(url)) return url;
   return null;
 }
@@ -190,6 +192,7 @@ export function hataMetni(e, varsayilan = 'Bir sorun oluştu. Lütfen tekrar den
   if (/Email not confirmed/i.test(m)) return 'E-posta adresinizi henüz onaylamadınız. Gelen kutunuzu kontrol edin.';
   if (/already registered|already exists/i.test(m)) return 'Bu e-posta adresiyle zaten bir hesap var.';
   if (/Password should be|weak password/i.test(m)) return 'Şifre en az 8 karakter olmalı.';
+  if (/haberler_kapak_kaynagi/.test(m)) return 'Kapak görseli yalnızca sitenin kendi deposundan olabilir: görseli "Kapak görseli" alanından yeniden yükleyin.';
   if (/[çğıöşüÇĞİÖŞÜ]/.test(m)) return m; // sunucunun Türkçe mesajları (tetikleyiciler)
   if (/row-level security|permission denied/i.test(m) || (e && e.code === '42501')) return 'Bu işlem için yetkiniz yok.';
   if (/rate limit|too many/i.test(m)) return 'Çok fazla deneme yapıldı. Biraz bekleyip tekrar deneyin.';
@@ -210,8 +213,9 @@ export function oturumAl() {
       const kullanici = (data && data.session && data.session.user) || null;
       let profil = null;
       if (kullanici) {
-        const r = await supabase.from('profiles').select('id, kullanici_adi, role').eq('id', kullanici.id).maybeSingle();
-        profil = r.data || null;
+        // Rol herkese açık değil (012: profiles.role sütun yetkisi kapalı); kişi kendi profilini benim_profilim() ile alır
+        const r = await supabase.rpc('benim_profilim');
+        profil = (r && Array.isArray(r.data) ? r.data[0] : r && r.data) || null;
       }
       return { kullanici, profil, admin: !!profil && profil.role === 'admin' };
     })();
@@ -220,8 +224,34 @@ export function oturumAl() {
 }
 
 export async function cikisYap() {
-  if (supabase) await supabase.auth.signOut();
+  if (supabase) {
+    // Sunucuya ulaşılamazsa supabase-js oturumu silmez: en azından bu tarayıcıdaki oturumu sil
+    let sonuc = null;
+    try { sonuc = await supabase.auth.signOut(); } catch (e) { sonuc = { error: e }; }
+    if (sonuc && sonuc.error) { try { await supabase.auth.signOut({ scope: 'local' }); } catch (e) { /* yok say */ } }
+  }
   location.href = 'index.html';
+}
+
+// ---------------------------------------------------------------- sekmeler (WAI-ARIA tabs)
+// role=tablist içindeki role=tab düğmeleri: seçili sekme tabindex 0, diğerleri -1 (roving tabindex);
+// ← → (başa/sona döner), Home, End odağı taşır ve sekmeyi seçer (otomatik etkinleştirme). sec(sekme) seçimi yapar.
+export function sekmeKlavyesi(liste, sec) {
+  const sekmeler = () => [...liste.querySelectorAll('[role="tab"]')];
+  const duzenle = () => sekmeler().forEach((t) => { t.tabIndex = t.getAttribute('aria-selected') === 'true' ? 0 : -1; });
+  liste.addEventListener('keydown', (e) => {
+    const l = sekmeler();
+    const i = l.indexOf(document.activeElement);
+    if (i < 0) return;
+    const hedef = { ArrowRight: (i + 1) % l.length, ArrowLeft: (i - 1 + l.length) % l.length, Home: 0, End: l.length - 1 }[e.key];
+    if (hedef === undefined) return;
+    e.preventDefault();
+    l[hedef].focus();
+    sec(l[hedef]);
+    duzenle();
+  });
+  duzenle();
+  return duzenle; // seçim başka yoldan değişince (tıklama, adres) tabindex'leri yeniden düzenlemek için
 }
 
 // ---------------------------------------------------------------- amblem

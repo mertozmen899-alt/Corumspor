@@ -1,21 +1,28 @@
 // Yorum bölümü (haber ve maç sayfalarında). Yorumlar sadece metin olarak gösterilir.
-// Asıl kurallar sunucuda: uzunluk 1-1000, dakikada 5 yorum, gizli yorumlar herkese kapalı.
+// Asıl kurallar sunucuda (001 + 012): uzunluk 1-1000, e-posta onayı, dakikada 5 / günde 50 yorum, aynı metin 10 dk içinde
+// tekrar yok, düzenleme yalnız 30 dk içinde ve dakikada en fazla 10; gizli yorumlar herkese kapalı. Sunucunun Türkçe
+// mesajları (hataMetni) formun altında gösterilir; buradaki denetimler yalnız kolaylıktır.
 import { supabase, h, mesaj, tarihYaz, hataMetni, girisAdresi } from './ortak.js';
+import { YORUM_SINIRLARI } from './kurallar.js';
 
-const EN_FAZLA = 1000;
+const EN_FAZLA = YORUM_SINIRLARI.enUzun;
+const LISTE_SINIRI = 200; // en yeni 200 yorum gösterilir
 
 export async function yorumlariKur(kok, { haberId = null, macId = null, oturum }) {
   const hedefAlan = haberId ? 'haber_id' : 'mac_id';
   const hedefId = haberId || macId;
   const benim = oturum && oturum.kullanici ? oturum.kullanici.id : null;
   const admin = !!(oturum && oturum.admin);
+  // E-postası onaylanmamış oturum (Supabase: user.email_confirmed_at boş; ör. anonim giriş): yorum yazamaz
+  const onayli = !!(oturum && oturum.kullanici && oturum.kullanici.email_confirmed_at);
 
   const baslik = h('h2', { id: 'yorum-baslik' }, 'Yorumlar');
   const uyari = h('div', { hidden: true, id: 'yorum-mesaj' });
   const liste = h('ol', { class: 'yorum-listesi', id: 'yorum-listesi', 'aria-live': 'polite' });
+  const sinirNotu = h('p', { class: 'soluk kucuk-yazi', id: 'yorum-sinir-notu', hidden: true }, `Son ${LISTE_SINIRI} yorum gösteriliyor.`);
   let form = null;
 
-  if (benim) {
+  if (benim && onayli) {
     const alan = h('textarea', { id: 'yorum-metni', name: 'metin', maxlength: String(EN_FAZLA), required: true, placeholder: 'Yorumunuzu yazın…', 'aria-label': 'Yorumunuz' });
     const sayac = h('span', { class: 'sayac', id: 'yorum-sayac' }, `0 / ${EN_FAZLA}`);
     const gonder = h('button', { type: 'submit', class: 'dugme' }, 'Gönder');
@@ -41,8 +48,13 @@ export async function yorumlariKur(kok, { haberId = null, macId = null, oturum }
 
   const girisNotu = benim ? null : h('p', { class: 'mesaj bilgi', id: 'yorum-giris-notu' },
     'Yorum yazmak için ', h('a', { href: girisAdresi() }, 'giriş yapın'), '.');
+  const onayNotu = benim && !onayli ? h('p', { class: 'mesaj bilgi', id: 'yorum-onay-notu' },
+    'Yorum yazmak için e-posta adresinizi onaylayın: hesap açarken gelen e-postadaki bağlantıya tıklayın, sonra çıkış yapıp yeniden girin.') : null;
 
-  kok.replaceChildren(h('section', { class: 'yorumlar', 'aria-labelledby': 'yorum-baslik' }, baslik, girisNotu, form, uyari, liste));
+  kok.replaceChildren(h('section', { class: 'yorumlar', 'aria-labelledby': 'yorum-baslik' }, baslik, girisNotu, onayNotu, form, uyari, sinirNotu, liste));
+
+  // Kendi yorumu yalnız yazıldıktan sonraki 30 dakika içinde düzenlenebilir (sunucu da denetler; yönetici muaf)
+  const duzenlenebilir = (y) => admin || Date.now() - Date.parse(y.created_at) < YORUM_SINIRLARI.duzenlemeSuresiDakika * 60000;
 
   function yorumOgesi(y) {
     const ad = (y.profiles && y.profiles.kullanici_adi) || 'taraftar';
@@ -57,9 +69,9 @@ export async function yorumlariKur(kok, { haberId = null, macId = null, oturum }
       metinP, eylem);
 
     if (y.kullanici_id === benim) {
-      eylem.append(
-        h('button', { type: 'button', class: 'dugme ikincil kucuk', onclick: () => duzenle(y, li, metinP) }, 'Düzenle'),
-        h('button', { type: 'button', class: 'dugme tehlike kucuk', onclick: () => sil(y) }, 'Sil'));
+      eylem.append(...[
+        duzenlenebilir(y) ? h('button', { type: 'button', class: 'dugme ikincil kucuk', onclick: () => duzenle(y, li, metinP) }, 'Düzenle') : null,
+        h('button', { type: 'button', class: 'dugme tehlike kucuk', onclick: () => sil(y) }, 'Sil')].filter(Boolean));
     } else if (admin) {
       eylem.append(
         h('button', { type: 'button', class: 'dugme ikincil kucuk', onclick: () => gizle(y) }, y.gizli ? 'Göster' : 'Gizle'),
@@ -105,9 +117,11 @@ export async function yorumlariKur(kok, { haberId = null, macId = null, oturum }
     const { data, error } = await supabase.from('yorumlar')
       .select('id, metin, created_at, duzenlendi, gizli, kullanici_id, profiles(kullanici_adi)')
       .eq(hedefAlan, hedefId)
-      .order('created_at', { ascending: true })
-      .limit(200);
+      .order('created_at', { ascending: false }) // en yeniler (201. yorumdan sonra yenisi kaybolmasın), sonra eskiden yeniye
+      .limit(LISTE_SINIRI);
     if (error) { liste.replaceChildren(h('li', { class: 'bos' }, 'Yorumlar yüklenemedi.')); return; }
+    data.reverse();
+    sinirNotu.hidden = data.length < LISTE_SINIRI;
     const gorunur = data.filter((y) => !y.gizli).length;
     baslik.textContent = `Yorumlar (${gorunur})`;
     liste.replaceChildren(...(data.length ? data.map(yorumOgesi) : [h('li', { class: 'bos' }, 'Henüz yorum yok. İlk yorumu siz yazın!')]));

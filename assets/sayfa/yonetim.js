@@ -2,11 +2,13 @@
 // her yazma işlemini sunucudaki RLS politikaları (public.is_admin()) ayrıca denetler.
 import {
   supabase, h, $, mesaj, sayfaBaslat, hataMetni, tarihYaz, yerelGirdi, girdidenIso, guvenliGorsel,
-  girisAdresi, DURUM_ADI, durumRozeti, skorMetni, evSahibiDeplasman, dakikaMetni, youtubeKimlik, mp4Mu,
+  girisAdresi, DURUM_ADI, durumRozeti, skorMetni, evSahibiDeplasman, dakikaMetni, youtubeKimlik, mp4Mu, sekmeKlavyesi,
 } from '../ortak.js';
+import { gorselKucult, ENCOK_GIRDI_BAYT } from '../gorsel-kucult.js';
 
 const KOVA = 'haber-gorselleri';
-const EN_BUYUK_GORSEL = 3 * 1024 * 1024;
+const EN_BUYUK_GORSEL = 3 * 1024 * 1024; // kova sınırı (002_depolama.sql); küçültülmüş dosya buna sığmalı
+const KAPAK_EN_UZUN = 1600;              // kapak yüklemeden önce en uzun kenarı 1600 px'e küçültülür (WebP)
 const GORSEL_TURLERI = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
 
 const oturum = await sayfaBaslat();
@@ -33,7 +35,7 @@ function haberlerSekmesi(kok) {
     alan('h-govde', 'Haber metni', h('textarea', { id: 'h-govde', maxlength: '20000', rows: '10' }),
       'Düz metin. Paragrafları boş bir satırla ayırın. HTML kullanılamaz.'),
     alan('h-kapak', 'Kapak görseli', h('input', { type: 'file', id: 'h-kapak', accept: Object.keys(GORSEL_TURLERI).join(',') }),
-      'JPEG, PNG, WebP ya da GIF; en fazla 3 MB.'),
+      'JPEG, PNG, WebP ya da GIF. Fotoğraf yüklemeden önce en uzun kenarı 1600 piksel olacak şekilde küçültülüp WebP yapılır (GIF olduğu gibi kalır, en fazla 3 MB).'),
     onizleme,
     h('div', { class: 'alan' }, h('label', { class: 'onay' }, h('input', { type: 'checkbox', id: 'h-yayinda' }), 'Yayında (herkes görebilir)')),
     h('div', { class: 'dugme-satir' },
@@ -72,13 +74,14 @@ function haberlerSekmesi(kok) {
   }
 
   $('#h-yeni').addEventListener('click', temizle);
+  let onizlemeAdresi = null;
   $('#h-kapak').addEventListener('change', (e) => {
     const f = e.target.files[0];
-    if (f && GORSEL_TURLERI[f.type] && f.size <= EN_BUYUK_GORSEL) {
+    if (f && GORSEL_TURLERI[f.type] && f.size <= ENCOK_GIRDI_BAYT) {
       kapakKaldir = false;
-      const okuyucu = new FileReader();
-      okuyucu.onload = () => onizleme.replaceChildren(h('img', { class: 'kapak-onizleme', src: okuyucu.result, alt: 'Yeni kapak önizleme' }));
-      okuyucu.readAsDataURL(f);
+      if (onizlemeAdresi) URL.revokeObjectURL(onizlemeAdresi);
+      onizlemeAdresi = URL.createObjectURL(f);
+      onizleme.replaceChildren(h('img', { class: 'kapak-onizleme', src: onizlemeAdresi, alt: 'Yeni kapak önizleme' }));
     }
   });
 
@@ -104,9 +107,12 @@ function haberlerSekmesi(kok) {
       const eski = duzenlenen && duzenlenen.kapak_url;
       if (dosya) {
         if (!GORSEL_TURLERI[dosya.type]) return bildir('Kapak görseli JPEG, PNG, WebP ya da GIF olmalı.', 'hata');
-        if (dosya.size > EN_BUYUK_GORSEL) return bildir('Kapak görseli en fazla 3 MB olabilir.', 'hata');
-        const yol = `${crypto.randomUUID()}.${GORSEL_TURLERI[dosya.type]}`;
-        const yukleme = await supabase.storage.from(KOVA).upload(yol, dosya, { contentType: dosya.type, cacheControl: '31536000', upsert: false });
+        if (dosya.size > ENCOK_GIRDI_BAYT) return bildir('Kapak görseli çok büyük: en fazla 25 MB bir fotoğraf seçin.', 'hata');
+        // Yüklemeden önce küçült (telefon fotoğrafı ziyaretçinin internetini yemesin); sunucu yine 3 MB / tür sınırı uygular
+        const kucuk = await gorselKucult(dosya, { enGenis: KAPAK_EN_UZUN, enYuksek: KAPAK_EN_UZUN });
+        if (kucuk.size > EN_BUYUK_GORSEL) return bildir('Kapak görseli küçültüldükten sonra da 3 MB\'tan büyük. Daha küçük bir görsel seçin.', 'hata');
+        const yol = `${crypto.randomUUID()}.${GORSEL_TURLERI[kucuk.type]}`;
+        const yukleme = await supabase.storage.from(KOVA).upload(yol, kucuk, { contentType: kucuk.type, cacheControl: '31536000', upsert: false });
         if (yukleme.error) return bildir(hataMetni(yukleme.error, 'Görsel yüklenemedi.'), 'hata');
         kayit.kapak_url = supabase.storage.from(KOVA).getPublicUrl(yol).data.publicUrl;
       } else if (kapakKaldir) {
@@ -453,6 +459,7 @@ const SEKMELER = {
   reklamlar: { panel: 'reklamlar-paneli', kur: reklamlarSekmesi },
 };
 const kurulan = new Set();
+let sekmeTabindex = () => {};
 
 function sekmeAc(ad) {
   if (!SEKMELER[ad]) ad = 'haberler';
@@ -460,6 +467,7 @@ function sekmeAc(ad) {
     $('#sekme-' + k).setAttribute('aria-selected', String(k === ad));
     $('#' + s.panel).hidden = k !== ad;
   }
+  sekmeTabindex();
   mesaj($('#panel-mesaj'), '');
   history.replaceState(null, '', '#' + ad);
   if (!kurulan.has(ad)) {
@@ -482,5 +490,7 @@ if (!oturum.hazir) {
 } else {
   $('#panel').hidden = false;
   document.querySelectorAll('[data-sekme]').forEach((b) => b.addEventListener('click', () => sekmeAc(b.dataset.sekme)));
+  // WAI-ARIA sekmeler: ← → Home End, seçili sekme tabindex 0
+  sekmeTabindex = sekmeKlavyesi($('.yonetim-sekmeler'), (t) => sekmeAc(t.dataset.sekme));
   sekmeAc(location.hash.slice(1));
 }

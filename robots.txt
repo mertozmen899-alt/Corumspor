@@ -1,0 +1,7 @@
+# Çorumspor Taraftar: arama motorları herkese açık sayfaları (haberler, maçlar, goller) dizine alabilir.
+# Giriş, yönetim ve taslak gizlilik sayfaları sayfanın içindeki <meta name="robots" content="noindex"> ile dizin dışıdır;
+# burada Disallow EDİLMEZLER (engellenen sayfanın noindex etiketini arama motoru göremez).
+# Yayına yalnız sitenin dosyaları çıkar (node araclar/yayin-hazirla.js): testler/, supabase/, docs/ yayında yoktur.
+# Alan adı belli olunca site haritası eklenebilir:  Sitemap: https://ALAN-ADINIZ/sitemap.xml
+User-agent: *
+Allow: /

@@ -25,15 +25,17 @@ const oturum = await sayfaBaslat();
 if (oturum.hazir) {
   const { data, error } = await supabase.from('maclar')
     .select('id, rakip, tarih, stadyum, ic_saha, organizasyon, corum_skor, rakip_skor, durum')
-    .order('tarih', { ascending: true })
+    .order('tarih', { ascending: false }) // en yeni 300 maç (eski sezonlar fikstürü ve son sonuçları kesmesin)
     .limit(300);
   if (error) {
     mesaj($('#mac-mesaj'), hataMetni(error, 'Maçlar yüklenemedi.'));
     $('#gelecek').replaceChildren();
   } else {
-    const gelecek = data.filter((m) => m.durum !== 'bitti');
-    const biten = data.filter((m) => m.durum === 'bitti').reverse();
+    const gelecek = data.filter((m) => m.durum !== 'bitti').reverse(); // yakından uzağa
+    const biten = data.filter((m) => m.durum === 'bitti');             // yeniden eskiye
     $('#gelecek').replaceChildren(...(gelecek.length ? gelecek.map(macSatiri) : [h('p', { class: 'bos' }, 'Planlanmış maç yok.')]));
     $('#sonuclar').replaceChildren(...(biten.length ? biten.map(macSatiri) : [h('p', { class: 'bos' }, 'Henüz oynanmış maç yok.')]));
   }
+} else {
+  $('#gelecek').replaceChildren(); // sayfaBaslat uyarıyı gösterdi; "yükleniyor" yazısı kalmasın
 }

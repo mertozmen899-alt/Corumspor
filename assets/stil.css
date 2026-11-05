@@ -337,6 +337,25 @@ textarea { min-height: 110px; resize: vertical; }
   .logo { margin-right: 8px; }
 }
 
+/* ---------- Gizlilik sayfası (gizlilik.html) ---------- */
+.gizlilik { max-width: 820px; line-height: 1.6; }
+.gizlilik h2 { font-size: var(--fs-lg); margin-top: 1.4em; }
+.gizlilik ul { padding-left: 1.2em; }
+.gizlilik li { margin-bottom: .4em; overflow-wrap: anywhere; }
+.taslak-notu { margin: 0 0 1em; }
+.tablo-kap { margin: 0 0 1em; }
+.gizlilik-tablo { border-collapse: collapse; width: 100%; font-size: var(--fs-sm); }
+.gizlilik-tablo th, .gizlilik-tablo td { border: 1px solid var(--kenar); padding: 6px 8px; text-align: left; vertical-align: top; }
+.gizlilik-tablo code { overflow-wrap: anywhere; }
+/* Dar ekranda tablo satırları kart gibi alt alta (sütun adı her hücrenin başında) */
+@media (max-width: 639px) {
+  .gizlilik-tablo thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .gizlilik-tablo, .gizlilik-tablo tbody, .gizlilik-tablo tr, .gizlilik-tablo td { display: block; }
+  .gizlilik-tablo tr { border: 1px solid var(--kenar); border-radius: var(--kose-m); margin-bottom: 10px; padding: 4px 0; }
+  .gizlilik-tablo td { border: 0; padding: 4px 10px; }
+  .gizlilik-tablo td::before { content: attr(data-baslik) ": "; font-weight: 700; }
+}
+
 .gorunmez-baslik { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---------- 17. Reklam modülü teması ----------

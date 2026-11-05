@@ -12,6 +12,7 @@ create table auth.users (
   id uuid primary key default gen_random_uuid(),
   email text unique,
   raw_user_meta_data jsonb not null default '{}'::jsonb,
+  email_confirmed_at timestamptz,   -- Supabase Auth: e-posta onay bağlantısına tıklanınca dolar ("Confirm email" kapalıysa kayıtta dolar)
   created_at timestamptz not null default now()
 );
 

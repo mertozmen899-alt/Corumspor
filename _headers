@@ -1,0 +1,21 @@
+# Cloudflare Pages yanıt başlıkları (bkz. README 5. bölüm). <meta> CSP'de çalışmayanlar burada:
+#  - frame-ancestors / X-Frame-Options: site (özellikle yönetim paneli) başka bir sitenin çerçevesine konamaz (tıklama hırsızlığı).
+#  - nosniff, Referrer-Policy, Permissions-Policy.
+# Sayfaların asıl CSP'si her HTML'deki <meta http-equiv="Content-Security-Policy"> satırıdır; buradaki CSP onunla birlikte uygulanır.
+/*
+  Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+
+# Geliştirici dosyaları yayına zaten çıkmaz (Cloudflare yapı komutu: node araclar/yayin-hazirla.js → yalnız site dosyaları).
+# Biri yapı komutu olmadan bütün klasörü yayınlarsa diye ikinci emniyet: arama motorlarında çıkmasınlar.
+/testler/*
+  X-Robots-Tag: noindex
+/supabase/*
+  X-Robots-Tag: noindex
+/docs/*
+  X-Robots-Tag: noindex
+/araclar/*
+  X-Robots-Tag: noindex

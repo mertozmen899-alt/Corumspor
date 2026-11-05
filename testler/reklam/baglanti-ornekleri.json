@@ -3,12 +3,19 @@
   "baglanti": [
     ["", true],
     ["https://corumdoner.com.tr", true],
-    ["https://www.corumdoner.com.tr/kampanya?kod=MAC20#menu", true],
-    ["https://CORUMDONER.COM.TR/Kampanya", true],
+    ["https://www.corumdoner.com.tr/menu?sayfa=2#icecekler", true],
+    ["https://CORUMDONER.COM.TR/Menu", true],
+    ["https://narcil.net", true],
+    ["https://narcil.net/?category=bitki-caylari", true],
+    ["https://narcil.net/?category=espresso-bazli-kahveler", true],
+    ["https://narcil.net?category=espresso-bazli-kahveler", true],
+    ["https://narcil.net/?category=espresso-bazli-kahveler&dil=tr#ustte", true],
+    ["https://narcil.net/?category=<script>", false],
+    ["https://xn--naril-0ra.net", true],
     ["https://ornek-firma.com.tr:8443/a/b", true],
     ["https://xn--orum-ipa.com/", true],
     ["https://wa.me/905321234567", true],
-    ["https://wa.me/905321234567?text=Merhaba%20ma%C3%A7%20indirimi", true],
+    ["https://wa.me/905321234567?text=Merhaba%20men%C3%BCn%C3%BCz%C3%BC%20g%C3%B6rebilir%20miyim", true],
     ["https://wa.me/903642123456/", true],
     ["whatsapp://send?phone=905321234567", true],
     ["whatsapp://send?phone=905321234567&text=Merhaba", true],
@@ -33,7 +40,8 @@
     ["//corumdoner.com", false],
     ["corumdoner.com", false],
     ["https://-kotu.com", false],
-    ["https://corumdoner.c", false]
+    ["https://corumdoner.c", false],
+    ["https://narçil.net", false]
   ],
   "telefon": [
     ["0532 123 45 67", "https://wa.me/905321234567"],

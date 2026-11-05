@@ -42,7 +42,7 @@ Dosya tekrar çalıştırılabilir. Oluşanlar:
 - `reklamlar` tablosu, `reklam_olaylari` tablosu (ikisinde de RLS açık)
 - `aktif_reklam(p_alan, p_mac_id)`: ziyaretçinin TEK okuma kapısı (SECURITY DEFINER, sadece şu an yayında olan 1 reklam)
 - `reklam_olay_kaydet(p_reklam_id, p_tur, p_sayfa_ziyaret_id, p_alan, p_mac_id, p_sekme_id)`: TEK yazma kapısı (**entegrasyon:** `p_sekme_id` eklendi, bkz. 6. bölüm)
-- `reklam_raporu(p_baslangic_tarih, p_bitis_tarih)`: sadece yönetici
+- `reklam_raporu(p_baslangic_tarih, p_bitis_tarih)`: sadece yönetici (012'den beri son sütun `supheli_dakika`)
 - `reklam_baglanti_gecerli(url)`, `reklam_gorsel_gecerli(url)`, `whatsapp_baglantisi(telefon)`, `reklam_mac_uuid(metin)` yardımcıları
 - `reklam-gorselleri` deposu (herkese açık kova: görsel public URL ile okunur; listeleme, yükleme, silme yalnız yönetici; en fazla 2 MB, jpeg/png/webp)
 
@@ -146,6 +146,8 @@ Asıl koruma veritabanındadır: panel atlatılsa bile RLS yönetici olmayanın 
 
 ## 6. Kararlar (bilerek yapılanlar)
 
+- **İndirim yok (Mert kararı, 5 Kasım 2026):** reklamlar dışarıdaki işletmelerden gelir; maça özel / maç günü indirim ya da
+  kupon kampanyası yapılmaz. "Maçın sponsoru" yerleşimi kalır (indirim teklifi olmadan). Örnek veride, testlerde ve belgelerde indirim metni yok.
 - **Seçim kuralı:** yayında ve `baslangic <= şimdi < bitis` (bitiş anında kalkar) → maç sponsorunda maça özel olan önce →
   yüksek `oncelik` → yeni `yayina_alinma` → yeni `created_at` → `id`. Süre dolumu için zamanlanmış iş yok; seçim her istekte `now()` ile süzer.
 - **`yayina_alinma`** istemciden alınmaz; durum her `yayinda` olduğunda sunucu yazar. Duraklatıp yeniden yayına almak sırayı tazeler.
@@ -160,12 +162,23 @@ Asıl koruma veritabanındadır: panel atlatılsa bile RLS yönetici olmayanın 
   (`where tur = 'gosterim'`). Tıklamada sonradan istenen "aynı ziyarette aynı reklama 30 dk içinde tekrar tıklama sayılmaz" kuralı
   tam tekil kısıtla çelişeceği için tıklama tekrarı `reklam_olay_kaydet` içinde süreyle bakılıyor (danışma kilidiyle sıraya sokuluyor).
 - **Sonuç kodları:** `reklam_olay_kaydet` `kaydedildi`, `tekrar` ya da `sinir` döner; reklam yayında değilse, alan/maç tutmuyorsa ya da tür geçersizse hata verir.
+- **(012) Dakika sınırı — sayılar YAKLAŞIKTIR:** sayım herkese açık bir RPC'dir ve kişisel veri (IP, kullanıcı, tarayıcı) tutulmadığı
+  için, biri her istekte yeni rastgele ziyaret kimliği üreterek gösterim/tıklama gönderirse bu gerçek ziyaretçiden **ayırt edilemez**.
+  `012_denetim_2.sql` bunu sınırlar ama tamamen önleyemez: **bir reklama dakikada en fazla 120 gösterim ve 30 tıklama** sayılır
+  (bütün ziyaretçiler toplamı; sabitler `reklam_olay_kaydet`'in başında ve `reklam-mantik.js` `SINIRLAR.gosterimDakikaSiniri` /
+  `tiklamaDakikaSiniri`'de, test ikisini karşılaştırır). Fazlası `sinir` döner ve **saklanmaz**; o dakika kişisel veri içermeyen
+  `reklam_sinir_dakikalari` tablosuna (reklam, dakika, tür, reddedilen sayı; yalnız yönetici okur) yazılır. `reklam_raporu` bunu
+  **`supheli_dakika`** (aralıkta sınıra takılan dakika sayısı) olarak verir; panel raporunda ve CSV'de **"Sınıra takılan dakika"** sütunu.
+  0'dan büyükse o aralıkta sayı bilerek şişirilmeye çalışılmış olabilir. Sınırın altında kalan sahte trafik (ör. dakikada 100 sahte
+  gösterim) yine sayılır: **reklam verene rakamları "yaklaşık" diye verin**, büyük anlaşmalarda rakamı tek başına fiyat esası yapmayın.
+  Sitenin gerçek trafiği bu sınırların çok altındadır (bir reklam dakikada 120 kez gerçekten görünmez); trafik büyürse sabitleri iki tarafta birlikte artırın.
+  Not: `010_reklamlar.sql` sonradan yeniden çalıştırılırsa bu iki fonksiyon 010'daki hâline döner; ardından `012`'yi de çalıştırın.
 - **Rapor:** tarih aralığı Türkiye takvim günüdür, iki gün de dahil. Aralıkta olayı olan ya da yayın tarihi aralıkla kesişen (taslak olmayan) her reklam listelenir.
   `tiklama_orani` yüzde, 2 basamak; gösterim yoksa boş. Rapor yalnız yöneticiye açık (service_role da `is_admin()` false döndüğü için çağıramaz).
-- **CSV:** UTF-8 BOM, `;` ayraç, CRLF, oran `2,50` biçiminde (Türkçe Excel sayı olarak okur), başlık `Tıklama oranı (%)`.
+- **CSV:** UTF-8 BOM, `;` ayraç, CRLF, oran `2,50` biçiminde (Türkçe Excel sayı olarak okur), başlık `Tıklama oranı (%)`, son sütun `Sınıra takılan dakika` (012).
   `sep=;` satırı bilerek yok (Excel o satırı görünce BOM'u yok sayıp Türkçe harfleri bozuyor). `=`, `+`, `-`, `@` ile başlayan metin hücrelerine `'` eklenir (formül enjeksiyonu).
 - **Bağlantılar:** sadece `https://` (alan adı + uzantı; IP, localhost, kullanıcı:şifre@ yok), `https://wa.me/<8-15 rakam>[?text=…]`,
-  `whatsapp://send?phone=<rakam>[&text=…]`. Türkçe karakterli alan adı panelde punycode'a çevrilir. Aynı desenler JS ve SQL'de;
+  `whatsapp://send?phone=<rakam>[&text=…]`. Türkçe karakterli alan adı panelde punycode'a çevrilir (ör. `narçil.net` → `https://xn--naril-0ra.net`); ç'li hâli doğrudan yazılırsa JS de SQL de reddeder. Aynı desenler JS ve SQL'de;
   `testler/reklam/baglanti-ornekleri.json` iki tarafta da denenir.
 - **WhatsApp numarası:** Türkiye cep (5xx) ve sabit hat (2xx-4xx, ör. Çorum 0364) kabul edilir; `0532…`, `+90…`, `0090…`, `90…` biçimleri `905…`'e çevrilir.
 - **(entegrasyon) Görsel adresi:** yalnız projenin kendi deposu:
@@ -182,8 +195,11 @@ Asıl koruma veritabanındadır: panel atlatılsa bile RLS yönetici olmayanın 
 - **KVKK:** olay tablosunda kullanıcı kimliği, IP, tarayıcı bilgisi yok; sadece rastgele sayfa ziyareti kimliği, alan, maç ve zaman
   (tıklamada ayrıca rastgele sekme kimliği: kişisel veri değildir, kimseyle eşleştirilemez, tarayıcı sekme kapanınca siler,
   çerez/localStorage kullanılmaz).
-  Bunun bedeli: kötü niyetli biri her istekte yeni ziyaret kimliği üreterek gösterim şişirebilir. Gerekirse IP'yi saklamadan
+  Bunun bedeli: kötü niyetli biri her istekte yeni ziyaret kimliği üreterek gösterim şişirebilir. 012'den beri reklam başına dakika
+  sınırı bunu sınırlar ve raporda görünür kılar (yukarıda "Dakika sınırı"); tam önlem değildir. Daha sıkı gerekirse IP'yi saklamadan
   bellek içi hız sınırı yapan bir Edge Function öne konabilir (bu modülde yok).
+- **(012) Görsel küçültme:** panel seçilen görseli yüklemeden önce tarayıcıda 1200×1200 kutuya sığdırır (en-boy oranı korunur) ve
+  WebP yapar (kalite 0.85; WebP yazamayan tarayıcıda JPEG). Kova sınırı (2 MB, jpeg/png/webp) sunucuda aynen geçerli. Kod: `assets/gorsel-kucult.js`.
 
 ## 7. Testler
 
@@ -191,7 +207,7 @@ Asıl koruma veritabanındadır: panel atlatılsa bile RLS yönetici olmayanın 
 
 ```bash
 node --test testler/reklam/mantik.test.mjs   # birim (bağımlılık yok)
-node --test testler/reklam/sql.test.mjs      # gerçek PostgreSQL; GERÇEK uygulama şeması: 00_supabase_taklit + 001 + 002 + 010
+node --test testler/reklam/sql.test.mjs      # gerçek PostgreSQL; GERÇEK uygulama şeması: 00_supabase_taklit + 001 + 002 + 010 + 011 + 012
 node testler/reklam-tarayici-testleri.js     # tam uygulama ?sahte=1: yönetim → yayın → yerleşimler → sayım → rapor/CSV → süre bitimi
 node testler/ekran-testleri.js               # görünüm: 390/1280 px, açık/koyu; ekran görüntüleri testler/ekran/
 ```
@@ -200,10 +216,14 @@ SQL testi artık modülün kendi `profiles`/`is_admin()`/`maclar` taklidini KULL
 Supabase taklidi (`testler/sql/00_supabase_taklit.sql`: roller, auth, storage) ve gerçek 001 + 002 + 010 uygulanır.
 Sahte istemcide (`testler/sahte-supabase.js`) `reklamlar`, `reklam_olaylari`, RPC'ler (`is_admin`, `aktif_reklam`,
 `reklam_olay_kaydet`, `reklam_raporu`) ve `reklam-gorselleri` kovası var; `localStorage` `sahte_saat_kayma` (ms) reklam
-tarafının saatini ileri alır. Reklam görselleri sahte modda `https://sahte.supabase.co/storage/...` adresiyle döner;
+tarafının saatini ileri alır. Sahte veri yayında bir **örnek reklamla** başlar: ilk reklam veren Narçil Cafe (ana_akis, haber_sonu
+ve M1 maçında "Maçın sponsoru"; görseller `docs/ilk-reklam/`). Boş durumla başlaması gereken testler veri ilk kurulmadan
+`localStorage.sahte_ornek_reklam = 'yok'` yazar. Reklam görselleri sahte modda `https://sahte.supabase.co/storage/...` adresiyle döner;
 tarayıcı testi bu adresi sahte depodan sunar (elle `?sahte=1` ile açılan bir tarayıcıda bu görseller görünmez).
 
 ## 8. Panelden ilk reklamı ekleme (yönetici için)
+
+İlk gerçek reklam (Narçil Cafe) için hazır görsel, metin ve adımlar: `docs/ilk-reklam/NASIL.md`.
 
 1. Yönetim sayfasında **Reklamlar** sekmesini açın, sağ üstteki **+ Yeni reklam** düğmesine basın.
 2. **Firma adı** ve **Kısa metin** yazın (metin en fazla 160 harf; altındaki sayaç gösterir).

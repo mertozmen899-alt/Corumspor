@@ -6,13 +6,12 @@
 // reklam kartı altın zeminli/kesikli kenarlı/etiketli ve videonun ya da yorumların üstüne binmiyor,
 // tema düğmesi çalışıyor ve seçim hatırlanıyor, AMBLEM_DOSYASI geri dönüş sırası, konsolda hata yok.
 const fs = require('fs'), path = require('path');
-const { sunucuAc } = require('./tarayici-testleri');
+const { sunucuAc, ornekReklamGorseli, gorselTuru } = require('./tarayici-testleri');
 
 const EKRAN = path.join(__dirname, 'ekran');
-const GORSEL = path.join(__dirname, 'reklam', 'gorseller');
 const H1 = '33333333-0000-4000-8000-000000000001';
 const M1 = '11111111-0000-4000-8000-000000000001';
-const DEPO = 'https://sahte.supabase.co/storage/v1/object/public/reklam-gorselleri/';
+const NARCIL_ANA_AKIS = 'aaaaaaaa-2222-4000-8000-000000000001'; // sahte-supabase.js örnek reklamı
 
 async function ekranTestleri() {
   let chromium;
@@ -24,7 +23,6 @@ async function ekranTestleri() {
   const kontrol = (ad, ok, detay) => (ok ? gecen.push('görünüm: ' + ad) : kalan.push(`görünüm: ${ad}` + (detay !== undefined ? ` -> ${String(detay).slice(0, 400)}` : '')));
   const guvenli = async (ad, f) => { try { await f(); } catch (e) { kalan.push(`görünüm: ${ad}: yarıda kaldı -> ${String(e.message || e).split('\n')[0]}`); } };
   const tarayici = await chromium.launch();
-  const resim = (ad) => 'data:image/png;base64,' + fs.readFileSync(path.join(GORSEL, ad)).toString('base64');
   const disIstek = [], hatalar = [];
 
   async function baglam(vp, tema, ekstra = {}) {
@@ -35,27 +33,16 @@ async function ekranTestleri() {
       const p = ctx.pages().find((x) => x.url().startsWith(ADRES));
       const veri = p ? await p.evaluate((k) => localStorage.getItem(k), 'sahte-depo-v1:' + yol).catch(() => null) : null;
       const m = veri && /^data:([^;,]+);base64,(.*)$/.exec(veri);
-      return m ? r.fulfill({ status: 200, contentType: m[1], body: Buffer.from(m[2], 'base64') }) : r.fulfill({ status: 404, body: '' });
+      if (m) return r.fulfill({ status: 200, contentType: m[1], body: Buffer.from(m[2], 'base64') });
+      const ornek = ornekReklamGorseli(yol);
+      return ornek ? r.fulfill({ status: 200, contentType: gorselTuru(yol), body: ornek }) : r.fulfill({ status: 404, body: '' });
     });
     ctx.on('page', (p) => { p.setDefaultTimeout(10000); p.on('pageerror', (e) => hatalar.push(p.url() + ': ' + e.message)); p.on('dialog', (d) => d.accept()); });
     const p = await ctx.newPage();
-    // Sahte veriye yayında 3 reklam ekle (ana akış, haber sonu, M1 maç sponsoru)
+    // Sahte verinin örnek reklamı: ilk reklam veren Narçil Cafe yayında (ana akış, haber sonu, M1 maçında "Maçın sponsoru").
+    // Görselleri docs/ilk-reklam/'dan sunulur (yukarıdaki depo taklidi).
     await p.goto(ADRES + '/index.html?sahte=1');
     await p.waitForSelector('#akis .haber-karti');
-    await p.evaluate(({ doner, optik, logo, DEPO, M1 }) => {
-      const d = JSON.parse(localStorage.getItem('sahte-db-v1'));
-      const s = new Date(Date.now() - 3600e3).toISOString(), b = new Date(Date.now() + 48 * 3600e3).toISOString();
-      const r = (id, firma, metin, gorsel, baglanti, alan, mac) => ({ id, firma_adi: firma, kisa_metin: metin, gorsel_url: DEPO + gorsel, baglanti_url: baglanti, alan, mac_id: mac, baslangic: s, bitis: b, durum: 'yayinda', oncelik: 0, yayina_alinma: s, created_at: s, updated_at: s });
-      d.reklamlar = [
-        r('aaaaaaaa-2222-4000-8000-000000000001', 'Çorum Döner Evi', 'Maç biletini göster, dönerde %20 indirim kazan.', '2026/11/doner.png', 'https://www.corum-doner-ornek.com.tr/kampanya', 'ana_akis', null),
-        r('aaaaaaaa-2222-4000-8000-000000000002', 'Hitit Optik', 'Taraftar kartına özel güneş gözlüğünde %15 indirim.', '2026/11/optik.png', 'https://wa.me/905321234567?text=Merhaba', 'haber_sonu', null),
-        r('aaaaaaaa-2222-4000-8000-000000000003', 'İskilip Sigorta', 'Bu maçın sponsoru. Kasko teklifi için tıklayın.', '2026/11/logo.png', 'https://www.corum-doner-ornek.com.tr/sigorta', 'mac_sponsoru', M1),
-      ];
-      localStorage.setItem('sahte-db-v1', JSON.stringify(d));
-      localStorage.setItem('sahte-depo-v1:reklam-gorselleri/2026/11/doner.png', doner);
-      localStorage.setItem('sahte-depo-v1:reklam-gorselleri/2026/11/optik.png', optik);
-      localStorage.setItem('sahte-depo-v1:reklam-gorselleri/2026/11/logo.png', logo);
-    }, { doner: resim('doner.png'), optik: resim('optik.png'), logo: resim('logo.png'), DEPO, M1 });
     return { ctx, p };
   }
 
@@ -110,6 +97,9 @@ async function ekranTestleri() {
         await genel(p, t('ana'));
         const k = await kartKontrol(p, t('ana'), '#akis .reklam-yuvasi', tema);
         kontrol(t('ana: etiket metni "Reklam" (CSS ile REKLAM)'), k.etiket === 'Reklam');
+        kontrol(t('ana: örnek reklam Narçil Cafe (ilk reklam veren)'), (await p.textContent('#akis .reklam-firma')) === 'Narçil Cafe');
+        const rg = await p.locator('#akis .reklam-gorsel').evaluate((i) => ({ src: i.getAttribute('src'), w: i.naturalWidth, gen: i.getAttribute('width'), yuk: i.getAttribute('height') }));
+        kontrol(t('ana (012): reklam görseli WebP, açılıyor, width/height var'), /\.webp$/.test(rg.src) && rg.w === 1200 && rg.gen === '1200' && rg.yuk === '628', JSON.stringify(rg));
         // tam sayfa görüntüde ekran dışındaki async görsel boş çıkmasın: önce göster, sonra başa dön
         await p.locator('#akis .reklam-kart').evaluate((e) => e.scrollIntoView({ block: 'center' }));
         await p.waitForTimeout(300);
@@ -145,7 +135,7 @@ async function ekranTestleri() {
         kontrol(t('maç: sponsor kartı skorun altında, video ve yorumlarla örtüşmüyor'), !mb.ortusme && mb.basAlti >= 0 && mb.videoUstu >= 0, JSON.stringify(mb));
         await foto(p, `mac-${gen}-${tema}`);
 
-        for (const [ad, url, bekle] of [['maclar', 'maclar.html', '#sonuclar .mac-satiri'], ['goller', 'goller.html', '#arsiv .arsiv-mac'], ['giris', 'giris.html', '#g-eposta']]) {
+        for (const [ad, url, bekle] of [['maclar', 'maclar.html', '#sonuclar .mac-satiri'], ['goller', 'goller.html', '#arsiv .arsiv-mac'], ['giris', 'giris.html', '#g-eposta'], ['gizlilik', 'gizlilik.html', '#taslak-notu']]) {
           await p.goto(ADRES + '/' + url);
           await p.waitForSelector(bekle);
           await genel(p, t(ad));
@@ -164,7 +154,7 @@ async function ekranTestleri() {
         await p.waitForSelector('#ry-reklamlar tr[data-reklam-id]');
         await genel(p, t('yönetim reklamlar'));
         await foto(p, `yonetim-reklamlar-${gen}-${tema}`);
-        await p.locator('#ry-reklamlar tr', { hasText: 'Çorum Döner Evi' }).getByRole('button', { name: 'Düzenle' }).click();
+        await p.locator(`#ry-reklamlar tr[data-reklam-id="${NARCIL_ANA_AKIS}"]`).getByRole('button', { name: 'Düzenle' }).click();
         await p.waitForFunction(() => document.querySelector('#ry-onizleme-telefon .reklam-gorsel')?.naturalWidth > 0);
         await genel(p, t('yönetim reklam önizleme'));
         await foto(p, `yonetim-reklam-onizleme-${gen}-${tema}`);
@@ -221,8 +211,9 @@ async function ekranTestleri() {
   });
 
   kontrol('görünüm testlerinde JavaScript hatası yok', !hatalar.length, hatalar.join(' | '));
-  const yabanci = disIstek.filter((u) => !/^https:\/\/(cdn\.jsdelivr\.net\/npm\/@supabase|www\.youtube-nocookie\.com|ornek\.test)/.test(u));
-  kontrol('dış istek yok (Google Fonts dahil); yalnız supabase-js CDN ve YouTube gömme denenir', !yabanci.length, [...new Set(yabanci)].join(' | '));
+  const yabanci = disIstek.filter((u) => !/^https:\/\/(www\.youtube-nocookie\.com|ornek\.test)/.test(u));
+  kontrol('dış istek yok (Google Fonts, jsDelivr dahil; supabase-js sitenin kendisinden); yalnız YouTube gömme ve örnek mp4 denenir', !yabanci.length, [...new Set(yabanci)].join(' | '));
+  kontrol('dış istek: jsDelivr\'e hiç istek gitmedi', !disIstek.some((u) => /jsdelivr/i.test(u)), [...new Set(disIstek)].join(' | '));
 
   await tarayici.close();
   sunucu.close();

@@ -1,16 +1,19 @@
 // Giriş / kayıt (Supabase e-posta + şifre)
-import { supabase, $, mesaj, sayfaBaslat, hataMetni, param, guvenliDonus, cikisYap } from '../ortak.js';
+import { supabase, $, mesaj, sayfaBaslat, hataMetni, param, guvenliDonus, cikisYap, sekmeKlavyesi } from '../ortak.js';
+import { kullaniciAdiHatasi } from '../kurallar.js';
 
 const kutu = $('#giris-mesaj');
 const donus = guvenliDonus(param('donus') || 'index.html');
 const oturum = await sayfaBaslat();
 
+let sekmeTabindex = () => {};
 function sekme(ad) {
   const giris = ad === 'giris';
   $('#sekme-giris').setAttribute('aria-selected', String(giris));
   $('#sekme-kayit').setAttribute('aria-selected', String(!giris));
   $('#giris-formu').hidden = !giris;
   $('#kayit-formu').hidden = giris;
+  sekmeTabindex();
   mesaj(kutu, '');
 }
 
@@ -24,6 +27,7 @@ if (!oturum.hazir) {
 } else {
   $('#sekme-giris').addEventListener('click', () => sekme('giris'));
   $('#sekme-kayit').addEventListener('click', () => sekme('kayit'));
+  sekmeTabindex = sekmeKlavyesi($('#formlar .sekme-dugmeleri'), (t) => sekme(t.id === 'sekme-kayit' ? 'kayit' : 'giris'));
   if (location.hash === '#kayit') sekme('kayit');
 
   $('#giris-formu').addEventListener('submit', async (ev) => {
@@ -44,7 +48,8 @@ if (!oturum.hazir) {
     const kullanici_adi = $('#k-ad').value.trim();
     const email = $('#k-eposta').value.trim();
     const password = $('#k-sifre').value;
-    if (!/^[A-Za-z0-9_.çğıöşüÇĞİÖŞÜ]{3,24}$/.test(kullanici_adi)) return mesaj(kutu, 'Kullanıcı adı 3-24 karakter olmalı; sadece harf, rakam, alt çizgi ve nokta.');
+    const adHatasi = kullaniciAdiHatasi(kullanici_adi); // biçim + ayrılmış adlar (yönetici, resmî, kulüp…; sunucu da denetler)
+    if (adHatasi) return mesaj(kutu, adHatasi);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return mesaj(kutu, 'Geçerli bir e-posta adresi yazın.');
     if (password.length < 8) return mesaj(kutu, 'Şifre en az 8 karakter olmalı.');
     const d = $('#k-gonder');
@@ -57,6 +62,6 @@ if (!oturum.hazir) {
     if (error) return mesaj(kutu, hataMetni(error, 'Hesap açılamadı.'));
     if (data && data.session) { location.href = donus; return; }
     sekme('giris');
-    mesaj(kutu, 'Hesabınız açıldı. E-posta adresinize gelen onay bağlantısına tıklayın, sonra buradan giriş yapın.', 'basari');
+    mesaj(kutu, 'Hesabınız açıldı. E-posta adresinize gelen onay bağlantısına tıklayın (yorum yazmak için e-posta onayı gerekir), sonra buradan giriş yapın.', 'basari');
   });
 }

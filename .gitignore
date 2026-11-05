@@ -26,3 +26,6 @@ reklam-raporu_*.csv
 
 # Test ekran görüntüleri her çalıştırmada yeniden üretilir (seçilmişler docs/ekran/ içinde)
 testler/ekran/
+
+# Yayın çıktısı (node araclar/yayin-hazirla.js; Cloudflare Pages "Build output directory": yayin)
+yayin/

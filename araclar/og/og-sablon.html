@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Paylaşım görseli şablonu (og:image, 1200×630)</title>
+<!--
+  Çorumspor Taraftar paylaşım görseli (WhatsApp, X, Facebook önizlemesi). ÖZGÜN çizim: kulüp renkleri (kırmızı #CC0000,
+  siyah #0B0B0B, altın #C9A227) ve uygulamanın kendi yedek işareti (assets/logo/amblem-yedek.svg). Çorum FK'nın resmî
+  amblemi, sponsor logoları ya da fotoğraf KULLANILMAZ; "Resmî değildir" uyarısı görselin üstünde.
+  PNG üretmek için: node araclar/og-olustur.js  (çıktı: assets/img/og-1200x630.png). Yazı tipleri sitenin kendi dosyaları.
+-->
+<link rel="stylesheet" href="../../assets/fonts/fontlar.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #333; }
+  #og { position: relative; width: 1200px; height: 630px; overflow: hidden; background: #0B0B0B; color: #FFFFFF;
+        font-family: "Source Sans 3", sans-serif; }
+  /* çapraz kırmızı-siyah şeritler (formadaki dikey şeritlerin özgün yorumu) */
+  .serit { position: absolute; top: -200px; bottom: -200px; width: 120px; background: #CC0000; transform: rotate(18deg); transform-origin: center; }
+  .s1 { left: 700px; } .s2 { left: 900px; } .s3 { left: 1100px; } .s4 { left: 1300px; }
+  .serit.ince { width: 10px; background: #C9A227; }
+  .s5 { left: 845px; } .s6 { left: 1045px; }
+  .golge { position: absolute; inset: 0; background: linear-gradient(90deg, #0B0B0B 0%, #0B0B0B 52%, rgba(11, 11, 11, .55) 70%, rgba(11, 11, 11, 0) 100%); }
+  .icerik { position: absolute; left: 72px; top: 0; bottom: 0; width: 760px; display: flex; flex-direction: column; justify-content: center; gap: 22px; }
+  .ust { display: flex; align-items: center; gap: 28px; }
+  .ust img { width: 150px; height: 180px; filter: drop-shadow(0 0 2px rgba(255, 255, 255, .55)) drop-shadow(0 6px 18px rgba(0, 0, 0, .6)); }
+  .ad { font-family: "Oswald", sans-serif; font-weight: 700; text-transform: uppercase; line-height: .95; letter-spacing: .01em; }
+  .ad .b1 { display: block; font-size: 104px; }
+  .ad .b2 { display: block; font-size: 72px; color: #CC0000; letter-spacing: .06em; margin-top: 22px; }
+  .alt { font-family: "Oswald", sans-serif; font-weight: 500; font-size: 36px; letter-spacing: .08em; text-transform: uppercase; color: #E9E6E0; display: flex; gap: 18px; align-items: center; }
+  .alt i { width: 10px; height: 10px; background: #C9A227; transform: rotate(45deg); display: inline-block; }
+  .resmi { display: inline-block; align-self: flex-start; font-size: 24px; font-weight: 600; color: #0B0B0B; background: #FFFFFF; padding: 8px 16px; border-radius: 6px; }
+  .cizgi { width: 120px; height: 6px; background: #CC0000; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="og">
+  <div class="serit s1"></div><div class="serit s2"></div><div class="serit s3"></div><div class="serit s4"></div>
+  <div class="serit ince s5"></div><div class="serit ince s6"></div>
+  <div class="golge"></div>
+  <div class="icerik">
+    <div class="ust">
+      <img src="../../assets/logo/amblem-yedek.svg" alt="">
+      <div class="ad"><span class="b1">Çorumspor</span><span class="b2">Taraftar</span></div>
+    </div>
+    <div class="cizgi"></div>
+    <div class="alt">Haberler <i></i> Maçlar <i></i> Goller <i></i> Yorumlar</div>
+    <div class="resmi">Gayriresmî taraftar uygulaması · Resmî Çorum FK uygulaması değildir</div>
+  </div>
+</div>
+</body>
+</html>

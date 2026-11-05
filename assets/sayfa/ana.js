@@ -7,10 +7,16 @@ let sayfa = 0;
 let gosterilen = 0;
 let reklamKondu = false;
 
+// Kapak 16:9 kutuda (CSS aspect-ratio + object-fit); width/height yer ayırır, görsel gelince sayfa kaymaz.
+// İlk kapak ekranın üstünde (LCP): hemen ve yüksek öncelikle; diğerleri tembel.
+let ilkKapakVerildi = false;
 function haberKarti(haber) {
   const kapak = guvenliGorsel(haber.kapak_url);
+  const ilk = !!kapak && !ilkKapakVerildi;
+  if (ilk) ilkKapakVerildi = true;
   return h('a', { class: 'haber-karti', href: 'haber.html?id=' + encodeURIComponent(haber.id), 'data-haber-id': haber.id },
-    kapak ? h('img', { class: 'kapak', src: kapak, alt: '', loading: 'lazy', decoding: 'async' }) : h('div', { class: 'kapak-yok', 'aria-hidden': 'true' }, 'ÇORUM'),
+    kapak ? h('img', { class: 'kapak', src: kapak, alt: '', width: '1600', height: '900', decoding: 'async', loading: ilk ? 'eager' : 'lazy', fetchpriority: ilk ? 'high' : null })
+      : h('div', { class: 'kapak-yok', 'aria-hidden': 'true' }, 'ÇORUM'),
     h('div', { class: 'govde' },
       h('time', { class: 'tarih', datetime: haber.yayin_tarihi }, tarihYaz(haber.yayin_tarihi, { saat: false })),
       h('h3', null, haber.baslik),
@@ -65,8 +71,8 @@ async function sonrakiMac() {
       h('span', null, mac.durum === 'canli' ? 'Şu an oynanıyor' : 'Sıradaki maç', mac.organizasyon ? ' · ' + mac.organizasyon : ''),
       durumRozeti(mac.durum)),
     h('div', { class: 'takimlar' },
-      h('span', { class: 'takim' + (ev === TAKIM_ADI ? ' biz' : '') }, ev),
-      h('span', { class: 'orta' }, skor || 'vs'),
+      h('span', { class: 'takim' + (ev === TAKIM_ADI ? ' biz' : '') }, ev), ' ',
+      h('span', { class: 'orta' }, skor || 'vs'), ' ',
       h('span', { class: 'takim' + (dep === TAKIM_ADI ? ' biz' : '') }, dep)),
     h('div', { class: 'alt-satir' },
       h('time', { datetime: mac.tarih }, tarihYaz(mac.tarih, { gun: true })),

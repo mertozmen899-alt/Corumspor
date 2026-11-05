@@ -5,18 +5,24 @@
 // başına 1) → tıklama (yeni sekme, rel sponsored; aynı sekmede 30 dk tekrar sayılmaz) → rapor + CSV → sahte saat ileri:
 // süre bitince boş kutu yok. Ayrıca bileşen sağlamlığı (yeniden çizim, SPA, akış yuvası, flex/grid) ve
 // CSP ihlali / 404 / JavaScript hatası olmadığı denenir. İnternete çıkmaz (127.0.0.1 dışı engellenir ya da taklit edilir).
+// Uçtan uca akış reklamsız başlar (sahte_ornek_reklam = 'yok'); sahte verinin örnek reklamı (Narçil Cafe) ayrıca denenir.
 const fs = require('fs'), path = require('path');
 const { pathToFileURL } = require('url');
-const { sunucuAc } = require('./tarayici-testleri');
+const { sunucuAc, ornekReklamGorseli, gorselTuru } = require('./tarayici-testleri');
 
 const KOK = path.resolve(__dirname, '..');
 const EKRAN = path.join(__dirname, 'ekran');
 const GORSEL = path.join(__dirname, 'reklam', 'gorseller');
+const ILK_REKLAM = path.join(KOK, 'docs', 'ilk-reklam'); // ilk gerçek reklam veren: Narçil Cafe (görseller + NASIL.md)
 const H1 = '33333333-0000-4000-8000-000000000001';
 const M1 = '11111111-0000-4000-8000-000000000001'; // Örnekköy Spor (golleri ve YouTube videosu var)
 const M2 = '11111111-0000-4000-8000-000000000002';
-const DONER_URL = 'https://www.corum-doner-ornek.com.tr/kampanya';
-const DEPO_DESENI = /^https:\/\/sahte\.supabase\.co\/storage\/v1\/object\/public\/reklam-gorselleri\/\d{4}\/\d{2}\/[0-9a-f-]+\.png$/;
+const NARCIL = 'Narçil Cafe';
+const NARCIL_URL = 'https://narcil.net/?category=espresso-bazli-kahveler'; // kahve bölümü (menünün başı nargile; tütün reklamı yasak)
+const NARCIL_METIN = "Espresso bazlı kahveler, Türk kahvesi, bitki çayları, taze sıkılmış meyve suları ve tatlılar. Menünün tamamı narcil.net'te.";
+const SIGORTA_URL = 'https://www.iskilip-sigorta-ornek.com.tr/kasko';
+// 012: panel görseli yüklemeden önce küçültüp WebP'ye çevirir (tarayıcı WebP yazamazsa JPEG)
+const DEPO_DESENI = /^https:\/\/sahte\.supabase\.co\/storage\/v1\/object\/public\/reklam-gorselleri\/\d{4}\/\d{2}\/[0-9a-f-]+\.webp$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 async function reklamTarayiciTestleri() {
@@ -36,11 +42,11 @@ async function reklamTarayiciTestleri() {
 
   // ------------------------------------------------------------ ortak bağlam
   const hatalar = [], ihlaller = [], bulunamayan = [];
-  async function baglamAc() {
+  async function baglamAc({ ornekReklam = false } = {}) {
     const ctx = await tarayici.newContext({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1, locale: 'tr-TR', timezoneId: 'America/New_York', acceptDownloads: true });
     await ctx.route((url) => !url.href.startsWith(ADRES), (r) => r.abort());
     // Firma sayfaları (yeni sekmede açılır): internete çıkmadan taklit
-    await ctx.route(/^https:\/\/(www\.corum-doner-ornek\.com\.tr|wa\.me)\//, (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: '<!doctype html><title>Firma sayfası</title><h1>Firma sayfası</h1>' }));
+    await ctx.route(/^https:\/\/(narcil\.net|www\.iskilip-sigorta-ornek\.com\.tr|wa\.me)\//, (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: '<!doctype html><title>Firma sayfası</title><h1>Firma sayfası</h1>' }));
     // Sahte Supabase deposu: reklam görselleri gerçekteki gibi https://<proje>.supabase.co/storage/... adresinden gelir
     await ctx.route(/^https:\/\/sahte\.supabase\.co\/storage\/v1\/object\/public\//, async (r) => {
       const yol = decodeURIComponent(new URL(r.request().url()).pathname.replace('/storage/v1/object/public/', ''));
@@ -50,9 +56,13 @@ async function reklamTarayiciTestleri() {
       let veri = null;
       for (const s of adaylar) { veri = await s.evaluate((k) => localStorage.getItem(k), 'sahte-depo-v1:' + yol).catch(() => null); if (veri) break; }
       const m = veri && /^data:([^;,]+);base64,(.*)$/.exec(veri);
+      const ornek = !m && ornekReklamGorseli(yol); // sahte verideki örnek Narçil reklamı: docs/ilk-reklam/
+      if (ornek) return r.fulfill({ status: 200, contentType: gorselTuru(yol), body: ornek });
       if (!m) return r.fulfill({ status: 404, body: 'yok' });
       return r.fulfill({ status: 200, contentType: m[1], body: Buffer.from(m[2], 'base64') });
     });
+    // Uçtan uca akış boş veriyle başlar (örnek Narçil reklamı olmadan); örnek veri ayrıca denenir (ornekReklam: true)
+    if (!ornekReklam) await ctx.addInitScript(() => { try { if (/\.html$/.test(location.pathname)) localStorage.setItem('sahte_ornek_reklam', 'yok'); } catch (e) {} });
     await ctx.addInitScript(() => {
       window.__csp = [];
       document.addEventListener('securitypolicyviolation', (e) => window.__csp.push(e.violatedDirective + ' ' + e.blockedURI));
@@ -81,7 +91,7 @@ async function reklamTarayiciTestleri() {
     await p.click('#ry-yeni');
     await p.fill('#ry-firma_adi', o.firma);
     await p.fill('#ry-kisa_metin', o.metin);
-    await p.setInputFiles('#ry-gorsel', path.join(GORSEL, o.gorsel));
+    await p.setInputFiles('#ry-gorsel', path.resolve(GORSEL, o.gorsel));
     await p.waitForFunction(() => document.querySelector('#ry-gorsel-durum')?.textContent === 'Görsel yüklendi.');
     if (o.web) {
       await p.check('input[name="baglanti_turu"][value="web"]');
@@ -129,16 +139,17 @@ async function reklamTarayiciTestleri() {
     kontrol('yönetim: sayfa adresi #reklamlar', yon.url().endsWith('#reklamlar'));
 
     // --- ana akış reklamı: önce hatalı (http) bağlantı
-    await reklamFormu(yon, { firma: 'Çorum Döner Evi', metin: 'Maç biletini göster, dönerde %20 indirim kazan.', gorsel: 'doner.png', web: 'http://www.corum-doner-ornek.com.tr/kampanya', alan: 'ana_akis', oncelik: 10 });
+    await reklamFormu(yon, { firma: NARCIL, metin: NARCIL_METIN, gorsel: path.join(ILK_REKLAM, 'narcil-1200x628.png'), web: 'http://narcil.net', alan: 'ana_akis', oncelik: 10 });
+    kontrol('form: Narçil metni sınırın içinde, sayaç "123/160"', (await yon.textContent('.ry-sayac')) === `${NARCIL_METIN.length}/160` && NARCIL_METIN.length === 123, await yon.textContent('.ry-sayac'));
     await yon.click('#ry-yayina-al');
     await yon.locator('#ry-baglanti_url-hata').filter({ hasText: 'https://' }).waitFor();
     kontrol('form: http:// bağlantı Türkçe uyarıyla reddedildi, kaydedilmedi', (await vt(yon)).reklamlar.length === 0);
-    await yon.fill('#ry-baglanti_url', 'www.corum-doner-ornek.com.tr/kampanya');
+    await yon.fill('#ry-baglanti_url', 'narcil.net/?category=espresso-bazli-kahveler'); // NASIL.md'deki gibi, https:// olmadan
     await yon.locator('#ry-baglanti_url').blur();
-    kontrol('form: şemasız adres https:// ile tamamlandı', (await yon.inputValue('#ry-baglanti_url')) === DONER_URL, await yon.inputValue('#ry-baglanti_url'));
+    kontrol('form: şemasız adres https:// ile tamamlandı', (await yon.inputValue('#ry-baglanti_url')) === NARCIL_URL, await yon.inputValue('#ry-baglanti_url'));
     kontrol('form: düzeltince hata özeti kalktı', (await yon.locator('.ry-hata-ozet li').count()) === 0);
     kontrol('form: yüklenen görsel adresi projenin Supabase deposu (reklam-gorselleri)', DEPO_DESENI.test(await yon.inputValue('#ry-gorsel_url')), await yon.inputValue('#ry-gorsel_url'));
-    kontrol('önizleme: masaüstü ve telefon kartı ("Reklam" etiketi, firma, görsel)', await onizlemeKontrol(yon, 'Çorum Döner Evi', 'Reklam'));
+    kontrol('önizleme: masaüstü ve telefon kartı ("Reklam" etiketi, firma, görsel)', await onizlemeKontrol(yon, NARCIL, 'Reklam'));
     const yonu = (s) => yon.locator(`${s} .reklam-govde`).evaluate((e) => getComputedStyle(e).flexDirection);
     const [ym, yt] = [await yonu('#ry-onizleme-masaustu'), await yonu('#ry-onizleme-telefon')];
     kontrol('önizleme: masaüstünde görsel solda (row), telefonda üstte (column)', ym === 'row' && yt === 'column', ym + '/' + yt);
@@ -156,16 +167,16 @@ async function reklamTarayiciTestleri() {
     await yon.evaluate(() => window.scrollTo(0, 0));
     await ekran(yon, 'reklam-yonetim-onizleme', true);
     await yon.click('#ry-yayina-al');
-    const satir = yon.locator('#ry-reklamlar tr', { hasText: 'Çorum Döner Evi' });
+    const satir = yon.locator('#ry-reklamlar tr', { hasText: NARCIL });
     await satir.locator('.ry-rozet-yayinda').waitFor();
     kontrol('yayın: listede "Yayında" ve "Şu an gösteriliyor"', (await satir.locator('.ry-rozet').textContent()) === 'Yayında' && await satir.getByText('Şu an gösteriliyor').isVisible());
     const r0 = (await vt(yon)).reklamlar[0];
-    kontrol('yayın: kayıt doğru (durum, yayina_alinma sunucuda, bağlantı, görsel)', r0.durum === 'yayinda' && !!r0.yayina_alinma && r0.baglanti_url === DONER_URL && DEPO_DESENI.test(r0.gorsel_url), JSON.stringify(r0).slice(0, 300));
+    kontrol('yayın: kayıt doğru (durum, yayina_alinma sunucuda, bağlantı, görsel)', r0.durum === 'yayinda' && !!r0.yayina_alinma && r0.baglanti_url === NARCIL_URL && r0.kisa_metin === NARCIL_METIN && DEPO_DESENI.test(r0.gorsel_url), JSON.stringify(r0).slice(0, 300));
     await yon.waitForFunction(() => { const i = document.querySelector('#ry-reklamlar .ry-firma img'); return i && i.complete && i.naturalWidth > 0; });
     kontrol('yayın: listedeki küçük görsel depodan yüklendi', true);
 
     // --- haber sonu: WhatsApp
-    await reklamFormu(yon, { firma: 'Hitit Optik', metin: 'Taraftar kartına özel güneş gözlüğünde %15 indirim.', gorsel: 'optik.png', telefon: '0532 123 45 67', mesaj: 'Merhaba, Çorumspor indirimi', alan: 'haber_sonu', oncelik: 5 });
+    await reklamFormu(yon, { firma: 'Hitit Optik', metin: "Güneş ve numaralı gözlük çeşitleri. Bilgi için WhatsApp'tan yazın.", gorsel: 'optik.png', telefon: '0532 123 45 67', mesaj: 'Merhaba, Çorumspor Taraftar uygulamasından yazıyorum', alan: 'haber_sonu', oncelik: 5 });
     kontrol('WhatsApp: numaradan wa.me bağlantısı oluştu', /https:\/\/wa\.me\/905321234567\?text=/.test(await yon.textContent('#ry-wa-sonuc')));
     kontrol('WhatsApp: önizleme kartı', await onizlemeKontrol(yon, 'Hitit Optik', 'Reklam'));
     kontrol('WhatsApp: düğme yazısı "WhatsApp\'tan yazın"', (await yon.textContent('#ry-onizleme-telefon .reklam-eylem')) === "WhatsApp'tan yazın");
@@ -173,7 +184,7 @@ async function reklamTarayiciTestleri() {
     await yon.locator('#ry-reklamlar tr', { hasText: 'Hitit Optik' }).locator('.ry-rozet-yayinda').waitFor();
 
     // --- maç sponsoru: belirli maça (M1)
-    await reklamFormu(yon, { firma: 'İskilip Sigorta', metin: 'Bu maçın sponsoru. Kasko teklifi için tıklayın.', gorsel: 'logo.png', web: 'https://www.corum-doner-ornek.com.tr/sigorta', alan: 'mac_sponsoru', mac: M1, oncelik: 1 });
+    await reklamFormu(yon, { firma: 'İskilip Sigorta', metin: 'Bu maçın sponsoru. Kasko teklifi için tıklayın.', gorsel: 'logo.png', web: SIGORTA_URL, alan: 'mac_sponsoru', mac: M1, oncelik: 1 });
     const secenekler = await yon.locator('#ry-mac_id option').allTextContents();
     kontrol('maç sponsoru: maç listesi uygulamanın maclar tablosundan (Örnekköy Spor, Çorum FK adıyla)', secenekler.some((x) => /Çorum FK – Örnekköy Spor/.test(x)), JSON.stringify(secenekler));
     kontrol('maç sponsoru: önizleme etiketi "Maçın sponsoru"', await onizlemeKontrol(yon, 'İskilip Sigorta', 'Maçın sponsoru'));
@@ -211,37 +222,37 @@ async function reklamTarayiciTestleri() {
     kontrol('ana: kart 3. haberden sonra, tek kart, yükleyici "tamam"', yer.once === 3 && yer.kart === 1 && yer.tum === 1 && yer.durum === 'tamam', JSON.stringify(yer));
     kontrol('ana: "Reklam" etiketi', (await kart.locator('.reklam-etiket').textContent()) === 'Reklam');
     const img = kart.locator('img');
-    kontrol('ana: görsel lazy ve açıklamalı (alt)', (await img.getAttribute('loading')) === 'lazy' && (await img.getAttribute('alt')) === 'Çorum Döner Evi reklam görseli');
+    kontrol('ana: görsel lazy ve açıklamalı (alt)', (await img.getAttribute('loading')) === 'lazy' && (await img.getAttribute('alt')) === NARCIL + ' reklam görseli');
     const a = kart.locator('a.reklam-baglanti');
-    kontrol('ana: bağlantı yeni sekmede, rel="sponsored noopener", doğru adres', (await a.getAttribute('rel')) === 'sponsored noopener' && (await a.getAttribute('target')) === '_blank' && (await a.getAttribute('href')) === DONER_URL);
+    kontrol('ana: bağlantı yeni sekmede, rel="sponsored noopener", doğru adres', (await a.getAttribute('rel')) === 'sponsored noopener' && (await a.getAttribute('target')) === '_blank' && (await a.getAttribute('href')) === NARCIL_URL);
     const kutu = await kart.boundingBox();
     kontrol('ana: kart ilk ekranın altında (henüz görünmüyor)', kutu.y > 844, kutu.y);
     await bekle(1800);
-    kontrol('ana: görünmeden gösterim sayılmadı', (await olaySay(ana, 'Çorum Döner Evi', 'gosterim')) === 0);
+    kontrol('ana: görünmeden gösterim sayılmadı', (await olaySay(ana, NARCIL, 'gosterim')) === 0);
     await kart.evaluate((e) => e.scrollIntoView({ block: 'center' }));
     await bekle(400);
     await ana.evaluate(() => window.scrollTo(0, 0));
     await bekle(1500);
-    kontrol('ana: 1 saniyeden kısa görünme sayılmadı', (await olaySay(ana, 'Çorum Döner Evi', 'gosterim')) === 0);
+    kontrol('ana: 1 saniyeden kısa görünme sayılmadı', (await olaySay(ana, NARCIL, 'gosterim')) === 0);
     await kart.evaluate((e) => e.scrollIntoView({ block: 'center' }));
     await ana.waitForFunction(() => document.querySelector('#akis .reklam-gorsel')?.naturalWidth > 0);
     await bekle(1700);
-    kontrol('ana: %50 görünür + 1 sn sonra tam 1 gösterim', (await olaySay(ana, 'Çorum Döner Evi', 'gosterim')) === 1);
+    kontrol('ana: %50 görünür + 1 sn sonra tam 1 gösterim', (await olaySay(ana, NARCIL, 'gosterim')) === 1);
     await ekran(ana, 'reklam-ana-akis-telefon');
     await ana.evaluate(() => window.scrollTo(0, 0));
     await bekle(300);
     await kart.evaluate((e) => e.scrollIntoView({ block: 'center' }));
     await bekle(1700);
-    kontrol('ana: aynı sayfa ziyaretinde ikinci kez sayılmadı', (await olaySay(ana, 'Çorum Döner Evi', 'gosterim')) === 1);
+    kontrol('ana: aynı sayfa ziyaretinde ikinci kez sayılmadı', (await olaySay(ana, NARCIL, 'gosterim')) === 1);
     const st = await ana.locator('#akis .reklam-yuvasi').evaluate((e) => { const c = getComputedStyle(e); const k = getComputedStyle(e.querySelector('.reklam-kart')); return [c.position, k.position, c.zIndex]; });
     kontrol('ana: yuva ve kart normal akışta (static, z-index yok)', st.join() === 'static,static,auto', st.join());
     await ana.reload();
     await ana.locator('#akis .reklam-kart').waitFor({ state: 'attached' });
     await ana.locator('#akis .reklam-kart').evaluate((e) => e.scrollIntoView({ block: 'center' }));
     await bekle(1700);
-    kontrol('ana: yeni sayfa yüklemesi = yeni ziyaret, yeniden 1 gösterim (toplam 2)', (await olaySay(ana, 'Çorum Döner Evi', 'gosterim')) === 2);
-    const gz = (await olaylar(ana, 'Çorum Döner Evi', 'gosterim')).map((o) => o.sayfa_ziyaret_id);
-    kontrol('ana: iki gösterimin sayfa ziyareti kimlikleri farklı, sekme kimliği gösterimde yok', gz.length === 2 && gz[0] !== gz[1] && (await olaylar(ana, 'Çorum Döner Evi', 'gosterim')).every((o) => o.sekme_id == null));
+    kontrol('ana: yeni sayfa yüklemesi = yeni ziyaret, yeniden 1 gösterim (toplam 2)', (await olaySay(ana, NARCIL, 'gosterim')) === 2);
+    const gz = (await olaylar(ana, NARCIL, 'gosterim')).map((o) => o.sayfa_ziyaret_id);
+    kontrol('ana: iki gösterimin sayfa ziyareti kimlikleri farklı, sekme kimliği gösterimde yok', gz.length === 2 && gz[0] !== gz[1] && (await olaylar(ana, NARCIL, 'gosterim')).every((o) => o.sekme_id == null));
   });
 
   // ============================================================ 3) tıklama: yeni sekme, kayıt, sekme içinde 30 dk tekrar yok
@@ -249,17 +260,17 @@ async function reklamTarayiciTestleri() {
     const adres0 = ana.url();
     const [sekme] = await Promise.all([ctx.waitForEvent('page'), ana.locator('#akis a.reklam-baglanti').click()]);
     await sekme.waitForLoadState();
-    kontrol('tıklama: firma sayfası yeni sekmede açıldı', sekme.url() === DONER_URL && (await sekme.title()) === 'Firma sayfası', sekme.url());
+    kontrol('tıklama: firma sayfası yeni sekmede açıldı', sekme.url() === new URL(NARCIL_URL).href && (await sekme.title()) === 'Firma sayfası', sekme.url());
     kontrol('tıklama: uygulama sayfası yerinde kaldı', ana.url() === adres0);
     await ana.waitForFunction(() => JSON.parse(localStorage.getItem('sahte-db-v1')).reklam_olaylari.some((o) => o.tur === 'tiklama'));
-    kontrol('tıklama: 1 tıklama kaydedildi', (await olaySay(ana, 'Çorum Döner Evi', 'tiklama')) === 1);
-    const t0 = (await olaylar(ana, 'Çorum Döner Evi', 'tiklama'))[0];
+    kontrol('tıklama: 1 tıklama kaydedildi', (await olaySay(ana, NARCIL, 'tiklama')) === 1);
+    const t0 = (await olaylar(ana, NARCIL, 'tiklama'))[0];
     const sekmeId = await ana.evaluate(() => sessionStorage.getItem('reklam-sekme-kimligi'));
     kontrol('tıklama: olayda rastgele sekme kimliği (sessionStorage) var, kişisel alan yok', UUID.test(sekmeId) && t0.sekme_id === sekmeId && Object.keys(t0).sort().join() === 'alan,created_at,id,mac_id,reklam_id,sayfa_ziyaret_id,sekme_id,tur', JSON.stringify(t0));
     const [sekme2] = await Promise.all([ctx.waitForEvent('page'), ana.locator('#akis a.reklam-baglanti').click()]);
     await sekme2.waitForLoadState();
     await bekle(400);
-    kontrol('tıklama: aynı sayfada hemen tekrar tıklama sayılmadı', (await olaySay(ana, 'Çorum Döner Evi', 'tiklama')) === 1);
+    kontrol('tıklama: aynı sayfada hemen tekrar tıklama sayılmadı', (await olaySay(ana, NARCIL, 'tiklama')) === 1);
     await sekme.close(); await sekme2.close();
     // aynı sekmede başka sayfaya gidip geri gel: yeni sayfa ziyareti ama aynı sekme kimliği
     await git(ana, 'haber.html?id=' + H1);
@@ -268,7 +279,7 @@ async function reklamTarayiciTestleri() {
     const [sekme3] = await Promise.all([ctx.waitForEvent('page'), ana.locator('#akis a.reklam-baglanti').click()]);
     await sekme3.waitForLoadState();
     await bekle(500);
-    kontrol('tıklama: aynı sekmede sayfa değişse de 30 dk içinde tekrar tıklama sayılmadı', (await olaySay(ana, 'Çorum Döner Evi', 'tiklama')) === 1);
+    kontrol('tıklama: aynı sekmede sayfa değişse de 30 dk içinde tekrar tıklama sayılmadı', (await olaySay(ana, NARCIL, 'tiklama')) === 1);
     kontrol('tıklama: sekme kimliği sayfalar arasında aynı kaldı', (await ana.evaluate(() => sessionStorage.getItem('reklam-sekme-kimligi'))) === sekmeId);
     await sekme3.close();
     // yeni sekme = yeni sekme kimliği: sayılır
@@ -280,7 +291,7 @@ async function reklamTarayiciTestleri() {
     await sekme4.waitForLoadState();
     await yeni.waitForFunction(() => JSON.parse(localStorage.getItem('sahte-db-v1')).reklam_olaylari.filter((o) => o.tur === 'tiklama').length >= 2);
     const yeniSekme = await yeni.evaluate(() => sessionStorage.getItem('reklam-sekme-kimligi'));
-    kontrol('tıklama: başka sekmeden tıklama sayıldı (toplam 2), sekme kimliği farklı', (await olaySay(yeni, 'Çorum Döner Evi', 'tiklama')) === 2 && UUID.test(yeniSekme) && yeniSekme !== sekmeId);
+    kontrol('tıklama: başka sekmeden tıklama sayıldı (toplam 2), sekme kimliği farklı', (await olaySay(yeni, NARCIL, 'tiklama')) === 2 && UUID.test(yeniSekme) && yeniSekme !== sekmeId);
     await sekme4.close(); await cspTopla(yeni); await yeni.close();
   });
 
@@ -351,26 +362,26 @@ async function reklamTarayiciTestleri() {
     await yon.reload();
     await yon.waitForSelector('#reklamlar-sekmesi #ry-yeni');
     await yon.click('button[data-sekme="rapor"]');
-    const satir = yon.locator('#ry-rapor-sonuc tbody tr', { hasText: 'Çorum Döner Evi' });
+    const satir = yon.locator('#ry-rapor-sonuc tbody tr', { hasText: NARCIL });
     await satir.waitFor();
-    const g = await olaySay(yon, 'Çorum Döner Evi', 'gosterim'), t = await olaySay(yon, 'Çorum Döner Evi', 'tiklama');
+    const g = await olaySay(yon, NARCIL, 'gosterim'), t = await olaySay(yon, NARCIL, 'tiklama');
     const oran = RM.tiklamaOrani(g, t);
     const hucre = await satir.locator('td').allTextContents();
-    kontrol(`rapor: gösterim/tıklama/oran (bu ay) = ${g}/${t}/%${RM.oranBicimle(oran)}`, JSON.stringify(hucre) === JSON.stringify(['Çorum Döner Evi', 'Ana sayfa akışı', String(g), String(t), `%${RM.oranBicimle(oran)}`]) && g >= 2 && t === 2, JSON.stringify(hucre));
+    kontrol(`rapor: gösterim/tıklama/oran (bu ay) = ${g}/${t}/%${RM.oranBicimle(oran)}`, JSON.stringify(hucre) === JSON.stringify([NARCIL, 'Ana sayfa akışı', String(g), String(t), `%${RM.oranBicimle(oran)}`, '0']) && g >= 2 && t === 2, JSON.stringify(hucre));
     const bugun = RM.istanbulGunu(new Date());
     await yon.fill('#ry-rapor-bas', bugun);
     await yon.fill('#ry-rapor-bit', bugun);
     await yon.click('#ry-rapor-goster');
     await yon.locator('#ry-rapor-sonuc tbody tr', { hasText: 'Hitit Optik' }).waitFor();
     const hitit = await yon.locator('#ry-rapor-sonuc tbody tr', { hasText: 'Hitit Optik' }).locator('td').allTextContents();
-    kontrol('rapor: bugün aralığında haber sonu reklamı 1 gösterim, 0 tıklama, %0,00', JSON.stringify(hitit) === JSON.stringify(['Hitit Optik', 'Haber sonu', '1', '0', '%0,00']), JSON.stringify(hitit));
+    kontrol('rapor: bugün aralığında haber sonu reklamı 1 gösterim, 0 tıklama, %0,00', JSON.stringify(hitit) === JSON.stringify(['Hitit Optik', 'Haber sonu', '1', '0', '%0,00', '0']), JSON.stringify(hitit));
     kontrol('rapor: taslak reklam raporda yok', !/Genel Sponsor Taslak/.test(await yon.textContent('#ry-rapor-sonuc')));
     const [indirme] = await Promise.all([yon.waitForEvent('download'), yon.click('#ry-csv')]);
     kontrol('CSV: dosya adı gösterilen aralık', indirme.suggestedFilename() === `reklam-raporu_${bugun}_${bugun}.csv`, indirme.suggestedFilename());
     const csv = fs.readFileSync(await indirme.path(), 'utf8');
     kontrol('CSV: UTF-8 BOM ile başlıyor', csv.charCodeAt(0) === 0xfeff);
-    kontrol('CSV: ";" ayraçlı Türkçe başlık, CRLF', csv.slice(1).startsWith('Firma;Alan;Gösterim;Tıklama;Tıklama oranı (%)\r\n'), JSON.stringify(csv.slice(0, 80)));
-    kontrol('CSV: satır "Çorum Döner Evi;Ana sayfa akışı;G;T;oran" (ondalık virgül)', csv.includes(`Çorum Döner Evi;Ana sayfa akışı;${g};${t};${RM.oranBicimle(oran)}\r\n`) && csv.includes('Hitit Optik;Haber sonu;1;0;0,00\r\n'), csv);
+    kontrol('CSV: ";" ayraçlı Türkçe başlık, CRLF', csv.slice(1).startsWith('Firma;Alan;Gösterim;Tıklama;Tıklama oranı (%);Sınıra takılan dakika\r\n'), JSON.stringify(csv.slice(0, 80)));
+    kontrol('CSV: satır "Narçil Cafe;Ana sayfa akışı;G;T;oran" (ondalık virgül)', csv.includes(`${NARCIL};Ana sayfa akışı;${g};${t};${RM.oranBicimle(oran)};0\r\n`) && csv.includes('Hitit Optik;Haber sonu;1;0;0,00;0\r\n'), csv);
     await yon.fill('#ry-rapor-bas', '2020-01-01');
     await yon.fill('#ry-rapor-bit', '2020-01-31');
     await yon.click('#ry-rapor-goster');
@@ -388,6 +399,38 @@ async function reklamTarayiciTestleri() {
     await yon.click('#ry-rapor-goster');
     await yon.getByText('Tarih aralığı geçersiz.').waitFor();
     kontrol('rapor: geçersiz aralıkta hata, eski satırlar CSV olarak inemez', await yon.locator('#ry-csv').isDisabled());
+    await yon.fill('#ry-rapor-bas', RM.buAyAraligi(new Date()).baslangic);
+    await yon.fill('#ry-rapor-bit', RM.buAyAraligi(new Date()).bitis);
+    await yon.click('#ry-rapor-goster');
+    await yon.locator('#ry-rapor-sonuc tbody tr').first().waitFor();
+    // 012: dakika sınırı. Biri her istekte yeni ziyaret kimliğiyle gösterim gönderirse 121. ve sonrası sayılmaz;
+    // rapordaki "Sınıra takılan dakika" sütunu ve CSV bunu gösterir (yönetici de reklam verene "yaklaşık" der).
+    const saniye = new Date().getUTCSeconds();
+    if (saniye > 48) await bekle((61 - saniye) * 1000); // 125 çağrı aynı takvim dakikasında kalsın
+    const sinir = await yon.evaluate(async (firma) => {
+      const { supabase } = await import('/assets/istemci.js');
+      const db = JSON.parse(localStorage.getItem('sahte-db-v1'));
+      const r = db.reklamlar.find((x) => x.firma_adi === firma);
+      const sonuc = {};
+      for (let i = 0; i < 125; i++) {
+        const { data } = await supabase.rpc('reklam_olay_kaydet', { p_reklam_id: r.id, p_tur: 'gosterim', p_sayfa_ziyaret_id: crypto.randomUUID(), p_alan: r.alan, p_mac_id: null, p_sekme_id: null });
+        sonuc[data] = (sonuc[data] || 0) + 1;
+      }
+      return sonuc;
+    }, 'Hitit Optik');
+    kontrol('dakika sınırı: bir reklama dakikada 120 gösterimden fazlası "sinir" (sahte istemci SQL\'in aynası)', sinir.sinir >= 5 && (sinir.kaydedildi || 0) <= RM.SINIRLAR.gosterimDakikaSiniri, JSON.stringify(sinir));
+    await yon.fill('#ry-rapor-bas', bugun);
+    await yon.fill('#ry-rapor-bit', bugun);
+    await yon.click('#ry-rapor-goster');
+    await yon.locator('#ry-rapor-sonuc tbody tr', { hasText: 'Hitit Optik' }).waitFor();
+    const basliklar = await yon.locator('#ry-rapor-sonuc thead th').allTextContents();
+    kontrol('rapor: "Sınıra takılan dakika" sütunu var', basliklar.includes('Sınıra takılan dakika'), JSON.stringify(basliklar));
+    const hitit2 = await yon.locator('#ry-rapor-sonuc tbody tr', { hasText: 'Hitit Optik' }).locator('td').allTextContents();
+    kontrol('rapor: Hitit Optik 1 dakika sınıra takıldı, gösterim sınırda kaldı', hitit2[5] === '1' && Number(hitit2[2].replace(/\./g, '')) <= RM.SINIRLAR.gosterimDakikaSiniri + 1, JSON.stringify(hitit2));
+    const [ind3] = await Promise.all([yon.waitForEvent('download'), yon.click('#ry-csv')]);
+    const csv3 = fs.readFileSync(await ind3.path(), 'utf8');
+    kontrol('CSV: "Sınıra takılan dakika" değeri satırda', /\r\nHitit Optik;Haber sonu;\d+;0;0,00;1\r\n/.test(csv3), csv3);
+    kontrol('rapor: yaklaşık sayım notu görünüyor', /yaklaşık/i.test(await yon.textContent('#ry-rapor')), await yon.textContent('#ry-rapor'));
     await yon.fill('#ry-rapor-bas', RM.buAyAraligi(new Date()).baslangic);
     await yon.fill('#ry-rapor-bit', RM.buAyAraligi(new Date()).bitis);
     await yon.click('#ry-rapor-goster');
@@ -477,11 +520,11 @@ async function reklamTarayiciTestleri() {
     }
     await yon.reload();
     await yon.waitForSelector('#reklamlar-sekmesi #ry-yeni');
-    const rozet = yon.locator('#ry-reklamlar tr', { hasText: 'Çorum Döner Evi' }).locator('.ry-rozet');
+    const rozet = yon.locator('#ry-reklamlar tr', { hasText: NARCIL }).locator('.ry-rozet');
     kontrol('süre bitimi: panelde "Süresi doldu"', (await rozet.textContent()) === 'Süresi doldu');
     const ol = await yon.evaluate(() => JSON.parse(localStorage.getItem('sahte-db-v1')).reklam_olaylari.length);
     const sonuc = await yon.evaluate(async (id) => { const { supabase } = await import('/assets/istemci.js'); return supabase.rpc('reklam_olay_kaydet', { p_reklam_id: id, p_tur: 'tiklama', p_sayfa_ziyaret_id: crypto.randomUUID(), p_alan: 'ana_akis', p_mac_id: null }); },
-      (await vt(yon)).reklamlar.find((x) => x.firma_adi === 'Çorum Döner Evi').id);
+      (await vt(yon)).reklamlar.find((x) => x.firma_adi === NARCIL).id);
     kontrol('süre bitimi: süresi dolmuş reklama olay yazılamaz', /yayında değil/.test(sonuc.error && sonuc.error.message) && ol === (await vt(yon)).reklam_olaylari.length, JSON.stringify(sonuc));
     await yon.evaluate(() => localStorage.removeItem('sahte_saat_kayma'));
   });
@@ -574,6 +617,40 @@ async function reklamTarayiciTestleri() {
     await p.close();
   });
   await c3.close();
+
+  // ============================================================ 10) örnek veri (?sahte=1): ilk reklam veren Narçil Cafe
+  await guvenli('örnek Narçil reklamı', async () => {
+    const c4 = await baglamAc({ ornekReklam: true });
+    const p = await c4.newPage();
+    await p.setViewportSize({ width: 390, height: 844 });
+    const kartBilgi = async (secici) => {
+      const k = p.locator(secici + ' .reklam-kart');
+      await k.waitFor();
+      await k.evaluate((e) => e.scrollIntoView({ block: 'center' }));
+      await p.waitForFunction((s) => { const i = document.querySelector(s + ' .reklam-gorsel'); return i && i.complete && i.naturalWidth > 0; }, secici);
+      return k.evaluate((e) => ({ etiket: e.querySelector('.reklam-etiket').textContent, firma: e.querySelector('.reklam-firma').textContent,
+        metin: e.querySelector('.reklam-metin')?.textContent, href: e.querySelector('a.reklam-baglanti')?.getAttribute('href'),
+        gorsel: e.querySelector('.reklam-gorsel').getAttribute('src'), en: e.querySelector('.reklam-gorsel').naturalWidth, boy: e.querySelector('.reklam-gorsel').naturalHeight }));
+    };
+    const beklenen = (k, etiket, en, boy) => k.etiket === etiket && k.firma === NARCIL && k.metin === NARCIL_METIN && k.href === NARCIL_URL && k.en === en && k.boy === boy && RM.gorselAdresiGecerli(k.gorsel);
+    await git(p, 'index.html?sahte=1');
+    const a = await kartBilgi('#akis .reklam-yuvasi[data-reklam-alan="ana_akis"]');
+    kontrol('örnek veri: ana sayfa akışında Narçil Cafe ("Reklam", metin, narcil.net kahve bölümü, 1200×628 depo görseli)', beklenen(a, 'Reklam', 1200, 628), JSON.stringify(a));
+    await git(p, 'haber.html?id=' + H1);
+    const hs = await kartBilgi('.reklam-yuvasi[data-reklam-alan="haber_sonu"]');
+    kontrol('örnek veri: haber sonunda Narçil Cafe', beklenen(hs, 'Reklam', 1200, 628), JSON.stringify(hs));
+    await git(p, 'mac.html?id=' + M1);
+    const ms = await kartBilgi('.reklam-yuvasi[data-reklam-alan="mac_sponsoru"]');
+    kontrol('örnek veri: M1 maçında "Maçın sponsoru" Narçil Cafe (600×600 kare görsel)', beklenen(ms, 'Maçın sponsoru', 600, 600), JSON.stringify(ms));
+    await git(p, 'mac.html?id=' + M2);
+    await p.waitForFunction(() => document.querySelector('.reklam-yuvasi[data-reklam-alan="mac_sponsoru"]')?.dataset.reklamDurum === 'tamam');
+    kontrol('örnek veri: başka maçta sponsor yok (Narçil yalnız M1 maçına bağlı)', (await p.locator('.reklam-kart').count()) === 0);
+    const d = await vt(p);
+    const metinler = d.reklamlar.map((r) => r.firma_adi + ' ' + r.kisa_metin).join(' | ');
+    kontrol('örnek veri: 3 reklam da Narçil, hepsi geçerli (SQL tetikleyicisinin kuralları), indirim/kupon yok',
+      d.reklamlar.length === 3 && d.reklamlar.every((r) => r.firma_adi === NARCIL && Object.keys(RM.reklamDogrula(r, { simdi: new Date() })).length === 0) && !/indirim|kupon|%/i.test(metinler), metinler);
+    await cspTopla(p); await c4.close();
+  });
 
   // ============================================================ genel
   kontrol('reklam akışında JavaScript hatası yok', !hatalar.length, hatalar.join(' | '));

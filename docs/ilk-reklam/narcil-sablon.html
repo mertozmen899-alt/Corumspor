@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Narçil reklam görseli şablonu</title>
+<!--
+  Narçil Cafe için ÖZGÜN reklam görseli şablonu (Çorumspor Taraftar, ilk reklam).
+  İki çizim var: #yatay (1200×628, ana sayfa akışı ve haber sonu) ve #kare (600×600, maçın sponsoru).
+  PNG üretmek için: node docs/ilk-reklam/olustur.js  (Playwright gerekir; yazı tipi: bilgisayarda kurulu Inter).
+  Renkler Narçil'in kendi videosundan (siyah zemin, beyaz yazı, gri alt yazı, kırmızı kalp #E3262F) ve narcil.net'in
+  koyu temasından alındı. Firma fotoğrafı, firma logosu dosyası ve Çorum FK amblemi KULLANILMADI: fincan çizimi ve
+  yazılar bu şablonda sıfırdan çizildi. Metinde indirim, nargile ya da alkol yok (bkz. NASIL.md).
+  Dış kaynak (yazı tipi, resim, betik) yüklenmez.
+-->
+<style>
+  :root {
+    --zemin: #060606;
+    --zemin-acik: #161616;
+    --yazi: #ffffff;
+    --gri: #9c9c9c;
+    --gri-acik: #bdbdbd;
+    --kirmizi: #E3262F;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #333; }
+  body { font-family: Inter, "Inter Display", "Liberation Sans", Arial, sans-serif; color: var(--yazi); padding: 20px; display: grid; gap: 20px; justify-content: start; }
+  .tuval { position: relative; overflow: hidden; background: radial-gradient(ellipse 80% 90% at 72% 50%, var(--zemin-acik) 0%, #0a0a0a 55%, #000 100%); }
+  #yatay { width: 1200px; height: 628px; }
+  #kare { width: 600px; height: 600px; background: radial-gradient(ellipse 75% 75% at 50% 42%, var(--zemin-acik) 0%, #0a0a0a 60%, #000 100%); }
+  .halkalar { position: absolute; inset: 0; }
+  .marka { font-weight: 800; letter-spacing: 0.1em; line-height: 1; }
+  .alt { font-weight: 300; letter-spacing: 0.32em; color: var(--gri); line-height: 1; }
+  .slogan { font-weight: 800; letter-spacing: 0.14em; line-height: 1; display: flex; align-items: center; }
+  .slogan svg { display: inline-block; margin: 0 0.04em; }
+  .satir { font-weight: 400; color: var(--gri-acik); line-height: 1.35; }
+  .cizgi { background: var(--kirmizi); height: 4px; border-radius: 2px; }
+
+  /* 1200×628 */
+  #yatay .sol { position: absolute; left: 84px; top: 0; bottom: 0; width: 640px; display: flex; flex-direction: column; justify-content: center; }
+  #yatay .marka { font-size: 132px; margin-left: -6px; }
+  #yatay .alt { font-size: 34px; margin-top: 22px; }
+  #yatay .cizgi { width: 88px; margin: 40px 0 34px; }
+  #yatay .slogan { font-size: 40px; }
+  #yatay .satir { font-size: 25px; margin-top: 34px; white-space: nowrap; }
+  #yatay .adres { position: absolute; left: 84px; bottom: 46px; font-size: 26px; font-weight: 600; letter-spacing: 0.04em; color: var(--yazi); }
+  #yatay .fincan { position: absolute; left: 820px; top: 150px; width: 300px; height: 330px; }
+
+  /* 600×600: maç sponsoru kartında 64-80 px'e küçülür, bu yüzden sade */
+  #kare .fincan { position: absolute; left: 210px; top: 74px; width: 180px; height: 198px; }
+  #kare .orta { position: absolute; left: 0; right: 0; top: 300px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  #kare .marka { font-size: 104px; padding-left: 0.1em; }
+  #kare .alt { font-size: 28px; margin-top: 18px; padding-left: 0.32em; }
+  #kare .slogan { font-size: 30px; margin-top: 30px; padding-left: 0.14em; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- kalp (slogandaki O harfi yerine, Narçil videosundaki gibi) -->
+    <symbol id="kalp" viewBox="0 0 32 30"><path fill="#E3262F" d="M16 29.2 13.7 27C5.6 19.7.3 14.9.3 9 .3 4.2 4.1.4 8.9.4c2.7 0 5.3 1.3 7.1 3.3C17.8 1.7 20.4.4 23.1.4c4.8 0 8.6 3.8 8.6 8.6 0 5.9-5.3 10.7-13.4 18L16 29.2z"/></symbol>
+    <!-- özgün fincan çizimi: tabak, fincan, kulp, buhar -->
+    <symbol id="fincan-cizim" viewBox="0 0 300 330">
+      <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M118 112c-16-20 16-30 0-52s14-30 2-46" stroke-width="7" opacity=".55"/>
+        <path d="M156 112c-16-20 16-30 0-52s14-30 2-46" stroke-width="7" opacity=".8"/>
+        <path d="M194 112c-16-20 16-30 0-52s14-30 2-46" stroke-width="7" opacity=".55"/>
+        <path d="M58 140h196l-14 104c-4 30-30 50-60 50h-48c-30 0-56-20-60-50L58 140z" stroke-width="9"/>
+        <path d="M252 166c26 0 40 14 40 34s-18 36-46 38" stroke-width="9"/>
+        <path d="M20 312h260" stroke-width="9"/>
+      </g>
+      <use href="#kalp" x="134" y="196" width="44" height="41"/>
+    </symbol>
+    <symbol id="halka-yatay" viewBox="0 0 1200 628">
+      <g fill="none" stroke="#ffffff">
+        <circle cx="970" cy="314" r="190" stroke-opacity=".10" stroke-width="2"/>
+        <circle cx="970" cy="314" r="262" stroke-opacity=".07" stroke-width="2"/>
+        <circle cx="970" cy="314" r="340" stroke-opacity=".05" stroke-width="2"/>
+        <circle cx="970" cy="314" r="424" stroke-opacity=".035" stroke-width="2"/>
+      </g>
+    </symbol>
+    <symbol id="halka-kare" viewBox="0 0 600 600">
+      <g fill="none" stroke="#ffffff">
+        <circle cx="300" cy="174" r="128" stroke-opacity=".10" stroke-width="2"/>
+        <circle cx="300" cy="174" r="186" stroke-opacity=".065" stroke-width="2"/>
+        <circle cx="300" cy="174" r="250" stroke-opacity=".04" stroke-width="2"/>
+      </g>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- 1200×628: ana sayfa akışı ve haber sonu -->
+<div class="tuval" id="yatay">
+  <svg class="halkalar" viewBox="0 0 1200 628" aria-hidden="true"><use href="#halka-yatay"/></svg>
+  <div class="sol">
+    <div class="marka">NARÇİL</div>
+    <div class="alt">CAFE</div>
+    <div class="cizgi"></div>
+    <div class="slogan">L<svg width="40" height="37" viewBox="0 0 32 30" aria-hidden="true"><use href="#kalp"/></svg>VES YOU</div>
+    <div class="satir">Espresso bazlı kahveler · Türk kahvesi<br>Bitki çayları · Taze sıkılmış meyve suları · Tatlılar</div>
+  </div>
+  <div class="adres">narcil.net</div>
+  <svg class="fincan" viewBox="0 0 300 330" aria-hidden="true"><use href="#fincan-cizim"/></svg>
+</div>
+
+<!-- 600×600: maçın sponsoru (kare logo yerine) -->
+<div class="tuval" id="kare">
+  <svg class="halkalar" viewBox="0 0 600 600" aria-hidden="true"><use href="#halka-kare"/></svg>
+  <svg class="fincan" viewBox="0 0 300 330" aria-hidden="true"><use href="#fincan-cizim"/></svg>
+  <div class="orta">
+    <div class="marka">NARÇİL</div>
+    <div class="alt">CAFE</div>
+    <div class="slogan">L<svg width="30" height="28" viewBox="0 0 32 30" aria-hidden="true"><use href="#kalp"/></svg>VES YOU</div>
+  </div>
+</div>
+
+</body>
+</html>
