@@ -686,8 +686,9 @@ async function tasarimTestleri() {
   await guvenli('fotoğraf atıfları', async () => {
     const { ctx, p } = await baglam({ width: 390, height: 844 });
     await git(p, 'index.html', '#akis[data-durum="tamam"]');
+    // 016: varsayılan hero özgün tribün çizimi: fotoğraf değil, atıf satırı gizli (manşet kapağı gelirse onun atfı görünür)
     const atif = await p.textContent('#hero-atif');
-    kontrol('hero (013): "Fotoğraf: <yazar>, <lisans>, Wikimedia Commons" atfı görünür', /^Fotoğraf: .+, CC BY(-SA)? \d\.\d, Wikimedia Commons$/.test(atif.trim()) && await p.isVisible('#hero-atif'), atif);
+    kontrol('hero (016): özgün tribün çiziminde fotoğraf atfı yok (#hero-atif gizli)', !(await p.isVisible('#hero-atif')) && /tribun-kirmizi-siyah\.svg$/.test(await p.$eval('#hero-gorsel', (i) => i.currentSrc)), atif);
     const alt = await p.$eval('#hero-gorsel', (i) => i.getAttribute('alt'));
     kontrol('hero: görselin alt özniteliği var (süs: boş) ve başlık DOM metni (T-20)', alt === '' && (await p.textContent('#hero-baslik')).trim().length > 5);
     kontrol('hero: en fazla bir bağlantı, adı başlığı içerir (T-22)', await p.evaluate(() => { const l = document.querySelectorAll('.hero a'); return l.length <= 1 && (!l.length || l[0].textContent.includes(document.getElementById('hero-baslik').textContent.trim())); }));

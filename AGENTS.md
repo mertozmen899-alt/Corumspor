@@ -9,7 +9,7 @@ Bu dosya bu depoda çalışan yapay zekâ ajanları ve geliştiriciler içindir.
 - `supabase-js` **sitenin kendisinden** (KVKK: CDN'e istek yok), sabit sürüm + SRI: `assets/vendor/supabase-js-2.45.4/supabase.js` (npm `@supabase/supabase-js@2.45.4` paketindeki `dist/umd/supabase.js` ile bayt bayt aynı; yanında `591.supabase.js` parçası ve `LICENSE.txt`). Her HTML'de `<script defer src="assets/vendor/supabase-js-2.45.4/supabase.js" integrity="sha384-…">`. Sürüm değişirse: npm tarball'ından al, integrity'yi yenile (`openssl dgst -sha384 -binary dosya | openssl base64 -A`), klasör adını ve testteki SRI'yi güncelle.
 - Tek ayar dosyası: `assets/ayar.js` (SUPABASE_URL, SUPABASE_ANON_KEY, SITE_ADI, TAKIM_ADI, AMBLEM_DOSYASI, SAHIP_ADI, ILETISIM_EPOSTA; son ikisi künye ve gizlilik sayfasında `data-ayar` ile yazılır).
 - Tek supabase istemcisi: `assets/istemci.js` (`import { supabase } from './istemci.js'`). Reklam modülü de bunu kullanır.
-- Migration'lar: `supabase/migrations/NNN_ad.sql`, sırayla: `001_temel_sema` → `002_depolama` → `010_reklamlar` → `011_denetim_duzeltmeleri` → `012_denetim_2` → `013_tasarim` → `014_inceleme_2` → `015_son_tur`. Örnek veri: `supabase/seed.sql`. Uygulanmış dosyalar (001/002/010/011/012/013/014) yeniden yazılmaz: değişiklik = yeni migration. 013 yeniden çalıştırılabilir; testler 010/012'yi yeniden uygular, bu yüzden 013 onların fonksiyonlarının dönüş tipini değiştirmez (yalnız `aktif_reklam`'ı drop/create eder ve 012'den sonra uygulanır). 014 de yeniden çalıştırılabilir; yeniden tanımladığı fonksiyonların gövdesinde `sürüm 014` işareti var ve test (20_rls_testleri.sql, reklam/sql.test.mjs) en son sürümün kurulu olduğunu denetler.
+- Migration'lar: `supabase/migrations/NNN_ad.sql`, sırayla: `001_temel_sema` → `002_depolama` → `010_reklamlar` → `011_denetim_duzeltmeleri` → `012_denetim_2` → `013_tasarim` → `014_inceleme_2` → `015_son_tur` → `016_mac_ozeti`. Örnek veri: `supabase/seed.sql`. Uygulanmış dosyalar (001/002/010/011/012/013/014/015/016) yeniden yazılmaz: değişiklik = yeni migration. 013 yeniden çalıştırılabilir; testler 010/012'yi yeniden uygular, bu yüzden 013 onların fonksiyonlarının dönüş tipini değiştirmez (yalnız `aktif_reklam`'ı drop/create eder ve 012'den sonra uygulanır). 014 de yeniden çalıştırılabilir; yeniden tanımladığı fonksiyonların gövdesinde `sürüm 014` işareti var ve test (20_rls_testleri.sql, reklam/sql.test.mjs) en son sürümün kurulu olduğunu denetler.
 - Saf kurallar (JS = SQL aynası): `assets/kurallar.js` (kullanıcı adı ayrılmış mı, haber kapağı adresi, yorum sınırları, `sezonAdi` Temmuz–Haziran, `SAKATLIK_DURUMLARI`, `sakatlikHatalari`) ↔ `012_denetim_2.sql` + `013_tasarim.sql`; ortak örnekler `testler/kurallar-ornekleri.json`. Reklam kuralları: `assets/reklam/reklam-mantik.js` ↔ `010`/`012`.
 - Görsel yükleme: `assets/gorsel-kucult.js` (yüklemeden önce canvas ile küçült + WebP). Haber/gol kapağı ve oyuncu fotoğrafı: `<uuid>-1600/-800/-480.webp` üç kopya (`kapakKaynagi()` `-1600.webp`'den srcset kurar; sitenin kendi `assets/img/` fotoğraflarında kopya genişlikleri `foto-kaynaklari.js` `genislikler`'den: olmayan dosya istenmez). `kapakKaynagi(url, { kutu })` `sizes`'ı etkin DPR ≤ 2 ile hesaplar; depodaki kapaklar `crossorigin="anonymous"`; `<img>`'i `kapakGorseli()` kurar (kırık görselde yer tutucu). Reklam: 1200 kutu + `-k.webp` küçük kopya (480 / kare 192).
 - Yayın: `node araclar/yayin-hazirla.js` → `yayin/` (yalnız HTML + `assets/` + `_headers` + `robots.txt` + `.nojekyll` + `sw.js` + `manifest.webmanifest`; geliştirici klasörü girerse durur; `ayar.js`'te yer tutucu kaldıysa **çıkış 1** (bilerek taslak: `YAYIN_TASLAK=1`; testler bunu kullanır); gerçek SUPABASE_URL varsa sayfalara `preconnect` ekler: kaynak HTML'de yok, tek ayar kuralı). Yalnız `yayin/` kopyasında: meta CSP `_headers`'a taşınır ve `*.supabase.co` proje adresine daraltılır, iç bağlantılar uzantısız olur (`goller.html` → `goller`, `index.html` → `./`; Cloudflare 308'i yok), `sw.js`'te `SURUM` içerik özeti ve `DOSYALAR` bütün kabuk. Paylaşım görseli: `node araclar/og-olustur.js` → `assets/img/og-1200x630.png`. Ana ekran simgeleri: `node araclar/simge-olustur.js` → `assets/logo/simge-*.png`, `apple-touch-icon-180.png`.
@@ -23,12 +23,13 @@ Bu dosya bu depoda çalışan yapay zekâ ajanları ve geliştiriciler içindir.
 ```
 index.html        ana sayfa: hero (MAÇ GÜNÜ / maçtan sonraki 36 saat MAÇ SONU skoru / manşet / en yeni haber) → "Sıradaki:" şeridi → Son dakika akışı (sayfalı, sponsor kartları) →
                   "Gol arşivinden" şeridi → Sıradaki maç kartı → "Kim yok?" kutusu
-goller.html       gol arşivi: Sezon (Temmuz–Haziran, "2026-27") ve Rakip filtreleri (fieldset/legend + radyo, ?sezon=&rakip=)
+goller.html       gol arşivi: Sezon (Temmuz–Haziran, "2026-27") ve Rakip filtreleri (fieldset/legend + radyo, ?sezon=&rakip=); maç grupları
+                  "N. Hafta · tarih" (016 maclar.hafta), özetli maçta "Özeti izle ▶" → mac.html?id=…#ozet (golsüz özetli maç da listelenir)
 gol.html?id=      gol: video facade (dokununca youtube-nocookie / mp4 preload=none), bilgi, WhatsApp paylaş, yorumlar (gol_id)
 takim.html        Takım: sekmeler #kadro | #sakatlik | #fikstur (paneller id="panel-<ad>": adres parçası öğeye denk gelmez)
 profil.html       misafir: giriş/kayıt; üye: yorumlarım, (yönetici) Yönetim paneli bağlantısı, onaylı çıkış (dialog); tema radyoları
 haber.html?id=    haber ayrıntısı (geri düğmesi) + haber_sonu reklamı + yorumlar
-mac.html?id=      maç ayrıntısı (geri düğmesi) + mac_sponsoru ("Maçın sponsoru" + "Uygulama sponsoru · Çorum FK'nın sponsoru değildir") + goller + yorumlar
+mac.html?id=      maç ayrıntısı (geri düğmesi) + mac_sponsoru + #ozet maç özeti (016 maclar.ozet_video_url, videoFasad: dokununca) ("Maçın sponsoru" + "Uygulama sponsoru · Çorum FK'nın sponsoru değildir") + goller + yorumlar
 maclar.html       eski adres: takim.html#fikstur'a yönlendirir (meta refresh)
 giris.html        giriş / kayıt (satır içi alan hataları, şifre göster, Şifremi unuttum, kayıttan sonra hoş geldin)
 sifre.html        yeni şifre (resetPasswordForEmail bağlantısı buraya döner; updateUser)
@@ -38,7 +39,7 @@ gizlilik.html     gizlilik / KVKK aydınlatma metni (veri sorumlusu ayar.js'ten;
 sw.js             service worker (yukarı bakın)
 _headers          Cloudflare Pages başlıkları + önbellek kuralları (bir yola tek Cache-Control; test denetler)
 robots.txt        herkese açık; noindex sayfalar Disallow EDİLMEZ (noindex görülsün diye)
-araclar/          yayin-hazirla.js (Cloudflare yapı komutu), og-olustur.js + og/og-sablon.html (paylaşım görseli); yayına çıkmaz
+araclar/          yayin-hazirla.js (Cloudflare/Netlify yapı komutu; netlify.toml), hero-olustur.js (ana sayfa tribün çizimi), og-olustur.js + og/og-sablon.html (paylaşım görseli); yayına çıkmaz
 assets/
   ayar.js           Supabase adresi + anon anahtar + AMBLEM_DOSYASI + SAHIP_ADI + ILETISIM_EPOSTA (TEK ayar dosyası)
   istemci.js        tek supabase istemcisi (+ localhost'ta ?sahte=1 test modu)
@@ -239,3 +240,11 @@ Yuvalar boştur; kendi dolgusu, kenarlığı, min-height'ı yoktur. Reklam yoksa
   olayı; .mp4 yalnız kendi depodan; 3 şikâyet, kelime listesi, ön onay; şikâyet ve ad değiştirme sınırları). kurallar.html aynısını ve
   "kaldırma taleplerine en geç 24 saat içinde dönülür" cümlesini taşır.
 - Atlanan: denetçi 8 (yonetim.js'i modüllere bölmek; SON-TUR kararı).
+
+## 016 — maç özeti ve hafta
+- Migration `supabase/migrations/016_mac_ozeti.sql` (yeniden çalıştırılabilir): `maclar.hafta` (1-60), `maclar.ozet_video_url`
+  (`gol_video_gecerli`: YouTube ya da gol-videolari kovasındaki .mp4), `maclar.ozet_video_kaynak` (videolu maçta zorunlu; tetikleyici
+  `mac_ozet_kontrol` boşlukları temizler, Türkçe mesaj). Panel maç formunda "Hafta", "Maç özeti videosu", "Özet videonun kaynağı".
+- Ana sayfa varsayılan hero: `assets/img/tribun-kirmizi-siyah.svg` (özgün çizim, `node araclar/hero-olustur.js`; atıf yok, `#hero-atif`
+  gizli). Saat Kulesi fotoğrafı haber kapağı olsa da hero'ya geçmez (`ana.js HERO_VARSAYILAN`). Kulüp arması (çift başlı kartal) kullanılmaz.
+- Yayın: Türk Telekom `*.pages.dev`'i engelliyor; test yayını Netlify (`netlify.toml`, aynı yapı komutu, `_headers` aynı biçim).

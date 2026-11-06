@@ -528,12 +528,12 @@ async function tarayiciTestleri() {
     const anaHtml = fs.readFileSync(path.join(KOK, 'index.html'), 'utf8');
     const ilkBaslik = (/<main[\s\S]*?<(h[1-6])\b/.exec(anaHtml) || [])[1];
     const hero = (/<img class="hero-gorsel"[^>]*>/.exec(anaHtml) || [''])[0];
-    kontrol('statik (013): hero görseli HTML\'de (önyükleme tarayıcısı bulur), fetchpriority=high, srcset/sizes, width/height, alt="", tek "high"',
-      /fetchpriority="high"/.test(hero) && /srcset="/.test(hero) && /sizes="100vw"/.test(hero) && /width="1280" height="720"/.test(hero) && / alt=""/.test(hero) && (anaHtml.match(/<img[^>]*fetchpriority="high"/g) || []).length === 1, hero);
+    kontrol('statik (013/016): hero görseli HTML\'de (önyükleme tarayıcısı bulur), fetchpriority=high, tribün çizimi, width/height, alt="", tek "high"',
+      /fetchpriority="high"/.test(hero) && /src="assets\/img\/tribun-kirmizi-siyah\.svg"/.test(hero) && /width="1280" height="720"/.test(hero) && / alt=""/.test(hero) && (anaHtml.match(/<img[^>]*fetchpriority="high"/g) || []).length === 1, hero);
     kontrol('statik (son tur, tasarımcı 7): hero etiketi HTML\'de iskelet, "Manşet" yazmaz (yüklenirken yanlış etiket yok)', /<p class="hero-etiket iskelet hero-etiket-iskelet" id="hero-etiket" aria-hidden="true"><\/p>/.test(anaHtml));
-    const heroDosyalari = [...new Set([...anaHtml.matchAll(/assets\/img\/(corum-saat-kulesi[^ "]+\.webp)/g)].map((m) => m[1]))];
-    const enBuyuk = Math.max(...heroDosyalari.map((d) => fs.statSync(path.join(KOK, 'assets/img', d)).size));
-    kontrol('statik (013): hero kopyalarının her biri ≤ 60 KB WebP', heroDosyalari.length >= 6 && enBuyuk <= 60 * 1024, `${heroDosyalari.length} dosya, en büyük ${enBuyuk} B`);
+    const heroBayt = fs.statSync(path.join(KOK, 'assets/img/tribun-kirmizi-siyah.svg')).size;
+    const heroSvg = fs.readFileSync(path.join(KOK, 'assets/img/tribun-kirmizi-siyah.svg'), 'utf8');
+    kontrol('statik (016): hero tribün çizimi ≤ 60 KB, betik ve dış kaynak yok', heroBayt <= 60 * 1024 && !/<script|href="http|xlink:href="http/i.test(heroSvg), `${heroBayt} B`);
     kontrol('statik: index.html ana içerikte ilk başlık h1', ilkBaslik === 'h1', ilkBaslik);
     const giris = fs.readFileSync(path.join(KOK, 'giris.html'), 'utf8');
     kontrol('statik: kayıt formunda aydınlatma metnine bağlantı (e-posta toplanırken)', /<form id="kayit-formu"[\s\S]*href="gizlilik\.html"[\s\S]*<\/form>/.test(giris));
@@ -1160,6 +1160,15 @@ async function tarayiciTestleri() {
     await p.waitForSelector('#arsiv[data-durum="tamam"] .arsiv-mac');
     const gs = await tekSatir('#arsiv .grup-baslik h2 .skor-blok');
     kontrol('son tur (taraftar 1): gol arşivi grup başlıklarında skor tek parça, tek satırda', gs.length >= 2 && gs.every((x) => x.satir === 1), JSON.stringify(gs));
+    // ---- 016: hafta numarası ve "Özeti izle" (maçın özet videosu); özet maç sayfasında dokunmadan yüklenmez
+    const m1 = await p.$eval(`#arsiv .arsiv-mac[data-mac-id="${M1}"]`, (s) => ({ ust: s.querySelector('.grup-ust').textContent, link: s.querySelector('.grup-baslik a').getAttribute('href'), ad: s.querySelector('.grup-baslik a').textContent }));
+    kontrol('016: gol arşivinde "2. Hafta" ve "Özeti izle" maçın #ozet bölümüne gider', /^2\. Hafta · /.test(m1.ust) && m1.link === `mac.html?id=${M1}#ozet` && /Özeti izle/.test(m1.ad), JSON.stringify(m1));
+    await git(p, `mac.html?sahte=1&id=${M1}#ozet`);
+    await p.waitForSelector('#ozet:not([hidden]) #ozet-video .video');
+    const oz = await p.evaluate(() => ({ iframe: document.querySelectorAll('#ozet iframe').length, kaynak: document.querySelector('#ozet-kaynak').textContent, ust: document.querySelector('#mac-basi .ust-satir').textContent }));
+    kontrol('016: maç sayfasında özet video kapağı, "Video: …" kaynağı, "2. Hafta"; iframe dokunmadan yok', oz.iframe === 0 && /^Video: .+/.test(oz.kaynak) && /2\. Hafta/.test(oz.ust), JSON.stringify(oz));
+    await git(p, 'goller.html?sahte=1');
+    await p.waitForSelector('#arsiv[data-durum="tamam"] .arsiv-mac');
     // ---- performans 2: gol arşivinin ilk kart kapağı (LCP) fetchpriority=high; başka high yok
     const yuksek = await p.$$eval('img[fetchpriority="high"]', (l) => l.map((i) => i.closest('.video-kart')?.dataset.golId || i.id));
     const ilkKart = await p.$eval('#arsiv .video-kart', (a) => a.dataset.golId);
@@ -1266,9 +1275,9 @@ async function tarayiciTestleri() {
       if (gecikme) await ctx.route(/hattusa-aslanli-kapi-\d+\.webp/, async (r) => { await new Promise((c) => setTimeout(c, gecikme)); await r.continue(); });
       await git(p, 'index.html?sahte=1');
       await p.waitForSelector('#hero[data-kapak]', { timeout: 10000 });
-      const d = await p.evaluate(() => ({ kapak: document.querySelector('#hero').dataset.kapak, src: document.querySelector('#hero-gorsel').currentSrc, atif: document.querySelector('#hero-atif').textContent }));
+      const d = await p.evaluate(() => ({ kapak: document.querySelector('#hero').dataset.kapak, src: document.querySelector('#hero-gorsel').currentSrc, atif: document.querySelector('#hero-atif').textContent, atifGizli: document.querySelector('#hero-atif').hidden }));
       kontrol(`son tur (performans 4): manşet kapağı ${gecikme ? 'geç (3,5 sn) gelince varsayılan hero kalır' : 'çözülünce tek seferde hero olur (atfıyla)'}`,
-        d.kapak === beklenen && (beklenen === 'haber' ? /hattusa-aslanli-kapi-\d+\.webp$/.test(d.src) && /Hattuşa|Hattusa|CC BY/.test(d.atif) : /corum-saat-kulesi/.test(d.src) && /Alienatedplus/.test(d.atif)), JSON.stringify(d));
+        d.kapak === beklenen && (beklenen === 'haber' ? /hattusa-aslanli-kapi-\d+\.webp$/.test(d.src) && /Hattuşa|Hattusa|CC BY/.test(d.atif) : /tribun-kirmizi-siyah\.svg$/.test(d.src) && d.atifGizli), JSON.stringify(d));
       await ctx.close();
     }
   });

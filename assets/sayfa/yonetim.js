@@ -252,6 +252,11 @@ function maclarSekmesi(kok) {
       alan('m-organizasyon', 'Organizasyon (lig, kupa…)', h('input', { type: 'text', id: 'm-organizasyon', maxlength: '80' }))),
     alan('m-durum', 'Durum', h('select', { id: 'm-durum' }, Object.entries(DURUM_ADI).map(([v, ad]) => h('option', { value: v }, ad)))),
     h('div', { class: 'iki-sutun' }, sayi('m-corum-skor', 'Çorum golü'), sayi('m-rakip-skor', 'Rakip golü')),
+    // 016: lig haftası ve maç özeti videosu (gol arşivinde "N. Hafta · …" ve "Özeti izle ▶")
+    h('div', { class: 'iki-sutun' }, sayi('m-hafta', 'Hafta (lig; kupada boş)'),
+      alan('m-ozet-kaynak', 'Özet videonun kaynağı', h('input', { type: 'text', id: 'm-ozet-kaynak', maxlength: '120', placeholder: 'ör. beIN SPORTS Türkiye YouTube kanalı' }))),
+    alan('m-ozet', 'Maç özeti videosu (YouTube bağlantısı; isteğe bağlı)', h('input', { type: 'url', id: 'm-ozet', maxlength: '2000', placeholder: 'https://www.youtube.com/watch?v=…' }),
+      'Yalnız hak sahibinin (yayıncı ya da kulüp) kendi kanalındaki video. Maç sayfasında dokununca açılır.'),
     // 014 (taraftar 7): bilet / yayın / kapı saati notu; (başkan 4) maç günü yorum ön onayı
     alan('m-not', 'Maç notu (bilet, yayın, kapı saati; isteğe bağlı)', h('textarea', { id: 'm-not', maxlength: '280', rows: '2', placeholder: 'ör. Biletler kulübün resmî satış noktalarında. Kapılar 17.00\'de açılır.' }),
       'Maç sayfasında küçük bir bilgi kutusunda görünür. En fazla 280 karakter. Yalnız resmî duyurudaki bilgiyi yazın.'),
@@ -279,6 +284,9 @@ function maclarSekmesi(kok) {
     $('#m-rakip-skor').value = mac.rakip_skor ?? '';
     $('#m-not').value = mac.mac_notu || '';
     $('#m-on-onay').checked = !!mac.on_onay;
+    $('#m-hafta').value = mac.hafta ?? '';
+    $('#m-ozet').value = mac.ozet_video_url || '';
+    $('#m-ozet-kaynak').value = mac.ozet_video_kaynak || '';
     form.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -302,7 +310,13 @@ function maclarSekmesi(kok) {
       rakip_skor: skorOku('#m-rakip-skor'),
       mac_notu: $('#m-not').value.trim() || null,
       on_onay: $('#m-on-onay').checked,
+      hafta: $('#m-hafta').value.trim() === '' ? null : Number($('#m-hafta').value),
+      ozet_video_url: $('#m-ozet').value.trim() || null,
+      ozet_video_kaynak: $('#m-ozet-kaynak').value.trim() || null,
     };
+    if (kayit.hafta != null && !(Number.isInteger(kayit.hafta) && kayit.hafta >= 1 && kayit.hafta <= 60)) return bildir('Hafta 1-60 arasında tam sayı olmalı.', 'hata');
+    if (kayit.ozet_video_url && !(youtubeKimlik(kayit.ozet_video_url) && golVideoGecerli(kayit.ozet_video_url))) return bildir('Maç özeti bir YouTube bağlantısı olmalı.', 'hata');
+    if (kayit.ozet_video_url && (!kayit.ozet_video_kaynak || kayit.ozet_video_kaynak.length < 3)) return bildir('Özet videonun kaynağını yazın (ör. "beIN SPORTS Türkiye YouTube kanalı").', 'hata');
     if (kayit.mac_notu && (kayit.mac_notu.length < 2 || kayit.mac_notu.length > 280)) return bildir('Maç notu 2-280 karakter olmalı.', 'hata');
     if (kayit.rakip.length < 2) return bildir('Rakip adı en az 2 karakter olmalı.', 'hata');
     if (!kayit.tarih) return bildir('Tarih ve saat seçin.', 'hata');

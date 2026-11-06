@@ -1,6 +1,7 @@
 // Gol arşivi: Sezon (Temmuz–Haziran, "2026-27") ve Rakip filtreleri (fieldset/legend + yerel radyo düğmeleri; rakip çoksa
 // <select>), sonuç sayısı #durum'a duyurulur, seçim adrese yazılır (?sezon=&rakip=). Goller maç maç gruplanır; her gol
-// gol.html?id= sayfasına giden TEK bağlantı. Video bu sayfada yüklenmez (YouTube'a istek yok).
+// gol.html?id= sayfasına giden TEK bağlantı. Video bu sayfada yüklenmez (YouTube'a istek yok). 016: grup başlığında
+// "N. Hafta"; maçın özet videosu varsa "Özeti izle ▶" (mac.html?id=…#ozet), golsüz ama özetli maç da listelenir.
 import { supabase, hazir, h, $, sayfaBaslat, hataMetni, duyur, cevrimdisiKutusu, eslesmeOgeleri } from '../ortak.js';
 import { sezonAdi } from '../kurallar.js';
 import { golKarti, macEtiketi, kartTarihi } from '../gol-kart.js';
@@ -66,13 +67,18 @@ function ozetYaz(liste, duyurulsun) {
 
 function macGrubu(mac) {
   const goller = [...mac.goller].sort(golSirasi);
+  const adres = 'mac.html?id=' + encodeURIComponent(mac.id);
+  // 016: maçın özet videosu varsa grup bağlantısı doğrudan özete gider (maç sayfasında dokununca yüklenir)
+  const ozet = !!mac.ozet_video_url;
   return h('section', { class: 'arsiv-mac', 'data-mac-id': mac.id, 'aria-labelledby': 'mac-' + mac.id },
     h('div', { class: 'grup-baslik' },
-      h('span', { class: 'grup-ust' }, kartTarihi(mac.tarih), ' · ', mac.ic_saha ? 'İç saha' : 'Deplasman'),
+      h('span', { class: 'grup-ust' }, mac.hafta ? `${mac.hafta}. Hafta · ` : '', kartTarihi(mac.tarih), ' · ', mac.ic_saha ? 'İç saha' : 'Deplasman'),
       h('h2', { id: 'mac-' + mac.id }, eslesmeOgeleri(mac)),
-      h('a', { href: 'mac.html?id=' + encodeURIComponent(mac.id), 'aria-label': `Maç ayrıntısı: ${macEtiketi(mac)}` }, 'Maç →')),
+      ozet ? h('a', { href: adres + '#ozet', 'aria-label': `Maç özetini izle: ${macEtiketi(mac)}` }, 'Özeti izle ▶')
+        : h('a', { href: adres, 'aria-label': `Maç ayrıntısı: ${macEtiketi(mac)}` }, 'Maç →')),
     // Grup başlığı maçı zaten söylüyor: kartta maç satırı tekrar edilmez (tasarımcı 5)
-    h('ul', { class: 'gol-listesi' }, goller.map((g, i) => h('li', { class: 'gol' }, golKarti(g, mac, { ilk: gosterilenMac === 0 && i === 0, macSatiri: false, kutu: Math.min(innerWidth, 720) - 32 })))));
+    goller.length ? h('ul', { class: 'gol-listesi' }, goller.map((g, i) => h('li', { class: 'gol' }, golKarti(g, mac, { ilk: gosterilenMac === 0 && i === 0, macSatiri: false, kutu: Math.min(innerWidth, 720) - 32 }))))
+      : h('p', { class: 'soluk' }, 'Bu maçta golümüz yok; özeti izleyebilirsin.'));
 }
 
 function listeyiCiz({ duyurulsun = false } = {}) {
@@ -119,8 +125,10 @@ dugme.addEventListener('click', () => {
 
 async function yukle() {
   const { data, error } = await supabase.from('maclar')
-    .select('id, rakip, tarih, ic_saha, corum_skor, rakip_skor, durum, goller!inner(id, oyuncu, dakika, ek_dakika, penalti, video_url, aciklama, kapak_url, sure_sn)')
+    .select('id, rakip, tarih, ic_saha, corum_skor, rakip_skor, durum, hafta, ozet_video_url, goller(id, oyuncu, dakika, ek_dakika, penalti, video_url, aciklama, kapak_url, sure_sn)')
     .order('tarih', { ascending: false }).limit(300);
+  // Golü ya da özet videosu olan maçlar (golsüz maçın özeti de izlenebilsin; oynanmamış maç listelenmez)
+  const dolu = (data || []).filter((m) => (m.goller || []).length || m.ozet_video_url);
   if (error) {
     const eski = sonVeri('goller');
     if (eski) { maclar = eski.veri; filtreleriCiz(); listeyiCiz(); arsiv.prepend(cevrimdisiKutusu('Bağlantı yok; son görülen goller gösteriliyor.', () => location.reload(), { sonGuncelleme: eski.zaman })); arsiv.dataset.durum = 'onbellek'; return; }
@@ -130,9 +138,9 @@ async function yukle() {
     arsiv.dataset.durum = 'hata';
     return;
   }
-  maclar = data;
+  maclar = dolu;
   $('#sezon-formu').hidden = false; $('#filtreler').hidden = false;
-  sonVeriYaz('goller', data.slice(0, 12));
+  sonVeriYaz('goller', dolu.slice(0, 12));
   const p = new URLSearchParams(location.search);
   secim.sezon = p.get('sezon');
   secim.rakip = p.get('rakip') || '';

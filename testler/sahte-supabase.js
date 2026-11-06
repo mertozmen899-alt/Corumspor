@@ -128,7 +128,7 @@ function baslangicVerisi() {
     ].map((p) => ({ engelli: false, ...p })),
     haberler: [
       haber(1, 'Test haberi 1: Sahada üç puan', 'Örnekköy Spor karşısında 2-1 galibiyet.', 1, 'corum-ulu-camii'),
-      // 013: manşet (ana sayfanın açılış görseli). Kapağı sitenin varsayılan hero fotoğrafı (Saat Kulesi)
+      // 013: manşet (ana sayfanın açılış görseli). Kapağı Saat Kulesi: 016'dan beri hero'ya geçmez (tribün çizimi kalır), haber sayfasında görünür
       haber(2, 'Test haberi 2: Deplasmanda bir puan', 'Kurgu Gençlik ile 1-1.', 2, 'corum-saat-kulesi-gece-yatay', true, true),
       { ...haber(3, 'Test haberi 3: Biletler satışta', 'Deneme FK maçının biletleri.', 3, null), kaynak: 'Kulüp açıklaması', kaynak_url: 'https://ornek.test/biletler', kaynak_gerekli: true }, // 014: kaynaklı haber; 015: bilet haberi (kaynak zorunlu)
       haber(4, 'Test haberi 4: Antrenman notları', 'Hazırlıklar sürüyor.', 4, null),
@@ -139,13 +139,14 @@ function baslangicVerisi() {
       haber(9, 'Test haberi 8: Belediye ile stat görüşmesi', 'Şehir yönetimiyle ulaşım planı konuşuldu.', 8, 'corum-belediye-binasi'),
     ],
     maclar: [
-      { id: M(1), rakip: 'Örnekköy Spor', tarih: gunOnce(14, 16), stadyum: 'Çorum Şehir Stadyumu', ic_saha: true, organizasyon: 'Lig (örnek)', corum_skor: 2, rakip_skor: 1, durum: 'bitti' },
+      { id: M(1), rakip: 'Örnekköy Spor', tarih: gunOnce(14, 16), stadyum: 'Çorum Şehir Stadyumu', ic_saha: true, organizasyon: 'Lig (örnek)', corum_skor: 2, rakip_skor: 1, durum: 'bitti', hafta: 2,
+        ozet_video_url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ', ozet_video_kaynak: 'Örnek yayıncının YouTube kanalı' },
       { id: M(2), rakip: 'Kurgu Gençlik', tarih: gunOnce(7, 13), stadyum: 'Kurgu Arena', ic_saha: false, organizasyon: 'Lig (örnek)', corum_skor: 1, rakip_skor: 1, durum: 'bitti' },
       { id: M(3), rakip: 'Deneme FK', tarih: gunOnce(-5, 16), stadyum: 'Çorum Şehir Stadyumu', ic_saha: true, organizasyon: 'Lig (örnek)', corum_skor: null, rakip_skor: null, durum: 'planlandi',
         mac_notu: 'Biletler kulübün resmî satış noktalarında. Kapılar maçtan 2 saat önce açılır (örnek).' },
       { id: M(4), rakip: 'Hayal Belediyespor', tarih: gunOnce(-12, 11), stadyum: 'Hayal İlçe Stadı', ic_saha: false, organizasyon: 'Kupa (örnek)', corum_skor: null, rakip_skor: null, durum: 'planlandi' },
       { id: M(5), rakip: 'Eski Rakip', tarih: gunOnce(21, 16), stadyum: 'Eski Stat', ic_saha: false, organizasyon: 'Lig (örnek)', corum_skor: 0, rakip_skor: 2, durum: 'bitti' },
-    ].map((m) => ({ mac_notu: null, on_onay: false, ...m, created_at: gunOnce(40), updated_at: gunOnce(40) })),
+    ].map((m) => ({ mac_notu: null, on_onay: false, hafta: null, ozet_video_url: null, ozet_video_kaynak: null, ...m, created_at: gunOnce(40), updated_at: gunOnce(40) })),
     goller: [
       { id: G(1), mac_id: M(1), oyuncu: 'Ali Örnek', dakika: 23, ek_dakika: null, penalti: false, video_url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ', video_kaynak: 'Blender Foundation, CC BY 3.0 (örnek video)', altyazi_url: null, aciklama: 'Ceza sahası dışından sert vuruş.', kapak_url: IMG('siklik-kapilari-tabiat-parki'), sure_sn: 42, created_at: gunOnce(14) },
       { id: G(2), mac_id: M(1), oyuncu: 'Mehmet Deneme', dakika: 90, ek_dakika: 2, penalti: true, video_url: null, video_kaynak: null, altyazi_url: null, aciklama: null, kapak_url: null, sure_sn: null, created_at: gunOnce(14) },
@@ -572,6 +573,11 @@ function golDogrula(r, eski) {
   if (r.altyazi_url && !/\.mp4$/i.test(r.video_url || '')) throw gecersiz("Altyazı yalnız siteye yüklenen .mp4 videoya eklenir (YouTube altyazısı YouTube'da açılır).");
 }
 function macDogrula(r) {
+  // 016: hafta 1-60, özet videosu gol videosu kuralıyla, videolu maçta kaynak zorunlu
+  for (const k of ['ozet_video_url', 'ozet_video_kaynak']) if (typeof r[k] === 'string') r[k] = r[k].trim() || null;
+  if (r.hafta != null && !(Number.isInteger(r.hafta) && r.hafta >= 1 && r.hafta <= 60)) throw kisitHatasi('maclar', 'maclar_hafta');
+  if (!K.golVideoGecerli(r.ozet_video_url ?? null)) throw kisitHatasi('maclar', 'maclar_ozet_video');
+  if (r.ozet_video_url && !r.ozet_video_kaynak) throw gecersiz('Özet videonun kaynağını yazın (ör. "beIN SPORTS Türkiye YouTube kanalı").');
   if (r.mac_notu != null && (String(r.mac_notu).trim().length < 2 || String(r.mac_notu).trim().length > 280)) throw kisitHatasi('maclar', 'maclar_mac_notu');
 }
 /** 014 yorum_onay_gerekli: kelime listesi ya da maçın (gol yorumunda golün maçının) ön onay penceresi. */

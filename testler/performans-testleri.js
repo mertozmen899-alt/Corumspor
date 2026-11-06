@@ -271,15 +271,15 @@ async function performansTestleri() {
   // ------------------------------------------------------------------ hero, service worker, _headers
   await guvenli('hero ve önbellek', async () => {
     const img = path.join(KOK, 'assets', 'img');
-    const heroDosyalari = fs.readdirSync(img).filter((f) => /^corum-saat-kulesi-gece-(yatay|dikey)-\d+\.webp$/.test(f));
-    const buyuk = heroDosyalari.filter((f) => fs.statSync(path.join(img, f)).size > 60 * 1024);
-    kontrol('hero: Saat Kulesi WebP kopyaları ≤ 60 KB', heroDosyalari.length >= 4 && !buyuk.length, buyuk.join(' ') || heroDosyalari.join(' '));
+    // 016: varsayılan hero özgün tribün çizimi (tek vektör dosya: her ekran boyunda aynı, srcset gerekmez)
+    const heroBayt = fs.statSync(path.join(img, 'tribun-kirmizi-siyah.svg')).size;
+    kontrol('hero (016): tribün SVG ≤ 60 KB', heroBayt <= 60 * 1024, heroBayt + ' B');
     const { ctx, p, istekler } = await baglam();
     await p.goto(adres('index.html'));
     await p.waitForSelector('#akis[data-durum="tamam"]');
-    const h = await p.$eval('#hero-gorsel', (i) => ({ cur: i.currentSrc, sizes: i.getAttribute('sizes'), srcset: i.getAttribute('srcset') || '', kaynak: [...i.closest('picture').querySelectorAll('source')].map((s) => s.getAttribute('srcset')).join(' | '), w: i.getAttribute('width'), hh: i.getAttribute('height'), oncelik: i.getAttribute('fetchpriority') }));
-    kontrol('hero: picture + srcset/sizes, 390 px telefonda ≤ 828 px kopya iner, width/height ve fetchpriority=high', /-(480|828)\.webp$/.test(h.cur) && !!h.sizes && /\d+w/.test(h.srcset + h.kaynak) && h.w && h.hh && h.oncelik === 'high', JSON.stringify(h));
-    kontrol('hero: tek hero görseli indirildi (srcset seçimi; iki boy birden değil)', istekler.filter((u) => /corum-saat-kulesi-gece/.test(u)).length === 1, istekler.filter((u) => /saat-kulesi/.test(u)).join(' '));
+    const h = await p.$eval('#hero-gorsel', (i) => ({ cur: i.currentSrc, w: i.getAttribute('width'), hh: i.getAttribute('height'), oncelik: i.getAttribute('fetchpriority') }));
+    kontrol('hero (016): tribün çizimi, width/height ve fetchpriority=high', /tribun-kirmizi-siyah\.svg$/.test(h.cur) && h.w && h.hh && h.oncelik === 'high', JSON.stringify(h));
+    kontrol('hero (016): tek hero görseli indirildi', istekler.filter((u) => /tribun-kirmizi-siyah\.svg/.test(u)).length === 1, istekler.filter((u) => /\/img\//.test(u)).join(' '));
     const sw = await p.evaluate(async () => ('serviceWorker' in navigator ? (await navigator.serviceWorker.getRegistrations()).length : 0));
     kontrol('service worker test modunda (localhost / ?sahte=1) kayıtlı değil', sw === 0, sw);
     await ctx.close();

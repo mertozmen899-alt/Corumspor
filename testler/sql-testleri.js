@@ -76,9 +76,16 @@ function gercekPostgres(bin) {
 
 async function pglite() {
   let modul;
-  try { modul = await import(require.resolve('@electric-sql/pglite', { paths: [__dirname, KOK] })); }
+  // Windows'ta "E:\…" yolu import()'a dosya adresi (file://) olarak verilmeli
+  try { modul = await import(require('url').pathToFileURL(require.resolve('@electric-sql/pglite', { paths: [__dirname, KOK] })).href); }
   catch (e) { return null; }
-  const db = new modul.PGlite();
+  // 010 "create extension pgcrypto" ister: PGlite'ın kendi eklentisi (paket sürümünde varsa)
+  let extensions;
+  try {
+    const kok = path.dirname(require.resolve('@electric-sql/pglite', { paths: [__dirname, KOK] }));
+    extensions = { pgcrypto: (await import(require('url').pathToFileURL(path.join(kok, 'contrib', 'pgcrypto.js')).href)).pgcrypto };
+  } catch (e) { extensions = undefined; }
+  const db = new modul.PGlite(extensions ? { extensions } : undefined);
   for (const d of dosyalar()) {
     try { await db.exec(fs.readFileSync(d, 'utf8')); }
     catch (e) { throw new Error(path.relative(KOK, d) + ' çalıştırılamadı: ' + e.message); }

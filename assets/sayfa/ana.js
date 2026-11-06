@@ -15,7 +15,9 @@ const SAYFA_BOYU = 6;
 const SPONSOR_ILK = 3;      // ilk sponsor kartı 3. haberden sonra
 const SPONSOR_ARALIK = 8;   // sonra en sık 8 haberde bir
 const SPONSOR_EN_COK = 3;
-const HERO_VARSAYILAN = /^assets\/img\/corum-saat-kulesi-gece-(yatay|dikey)-\d+\.webp$/;
+// Varsayılan hero: özgün kırmızı-siyah tribün çizimi (vektör, tek dosya; fotoğraf değil, atıf gerekmez). Eski varsayılan
+// Saat Kulesi fotoğrafı bir haberin kapağı olsa da hero'ya geçmez (ana sayfada şehir değil tribün; haber sayfasında görünür).
+const HERO_VARSAYILAN = /^assets\/img\/(tribun-kirmizi-siyah\.svg|corum-saat-kulesi-gece-(yatay|dikey)-\d+\.webp)$/;
 const HABER_SUTUNLARI = 'id, baslik, ozet, kapak_url, kapak_kaynak, kapak_alt, yayin_tarihi, manset';
 const MAC_SUTUNLARI = 'id, rakip, tarih, stadyum, ic_saha, organizasyon, corum_skor, rakip_skor, durum';
 const MAC_SURESI = 2 * 3600e3;          // başlama → bitiş (yaklaşık; uzatmalar dahil)
@@ -44,7 +46,7 @@ function etiketYaz(metin) {
 let heroKapak = null; // şu an gösterilen / çözülmekte olan kapak adresi (önbellek + ağ iki kez çağırır: tek indirme)
 
 /**
- * Manşetin kendi kapağı: varsayılan fotoğrafın (Saat Kulesi) yerine ancak tamamen ÇÖZÜLDÜKTEN sonra, tek seferde geçilir
+ * Manşetin kendi kapağı: varsayılan görselin (tribün çizimi) yerine ancak tamamen ÇÖZÜLDÜKTEN sonra, tek seferde geçilir
  * (yarım çizilen ikinci görsel / çift değişim görünmez; performans 3. tur 4). Varsayılan fotoğraf zaten ekrandaysa ve kapak
  * açılıştan HERO_GEC ms sonra hâlâ hazır değilse bu ziyarette varsayılan kalır (kapak HTTP önbelleğinde: sonraki açılışta
  * son görülen veriyle hemen çizilir).

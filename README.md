@@ -23,9 +23,9 @@ Yazı tipleri sitenin kendisinden yüklenir (Google'a istek gitmez).
 2. Proje adı: `corumspor`. Bölge: **Central EU (Frankfurt)** (Türkiye'ye yakın). Veritabanı şifresini bir yere not edin.
 3. Proje hazır olunca (1-2 dakika) devam edin.
 
-## 2. Veritabanını kurun (migration'lar) — SIRAYLA: 001 → 002 → 010 → 011 → 012 → 013 → 014 → 015
+## 2. Veritabanını kurun (migration'lar) — SIRAYLA: 001 → 002 → 010 → 011 → 012 → 013 → 014 → 015 → 016
 
-Sekiz dosya var ve **bu sırayla, her biri bir kez** çalıştırılır:
+Dokuz dosya var ve **bu sırayla, her biri bir kez** çalıştırılır:
 
 | Sıra | Dosya | Ne kurar |
 |---|---|---|
@@ -37,6 +37,7 @@ Sekiz dosya var ve **bu sırayla, her biri bir kez** çalıştırılır:
 | 6 | `supabase/migrations/013_tasarim.sql` | Mobil tasarım: kadro (`oyuncular`) ve kaynaklı sakatlık (`sakatliklar`) tabloları, haberde **manşet** ve kapak fotoğrafı kaynağı, gole kapak görseli ve süre, **gole yorum**, yorum **şikâyeti** (`yorum_sikayetleri`) ve **yorumdan men** (`profiles.engelli`), reklamda düğme yazısı / "Ara" telefonu / görseldeki yazı / küçük görsel / yasaklı sektör onayı, akışta farklı firmalar (`aktif_reklamlar`), **yöneticinin bakışları sayılmaz**, daha fazla ayrılmış kullanıcı adı (başkan, kaptan, Çorumspor…) |
 | 7 | `supabase/migrations/014_inceleme_2.sql` | 2. tur inceleme: reklam sayımı sıkı sınırlar (dakikada 30 gösterim / 6 tıklama, sekme başına saatlik sınır, yalnız gösterilen reklama olay), tıklama türü (web / WhatsApp / ara), sayfa açılışı ve görünürlük oranı, **günlük toplam + 90 gün saklama** (pg_cron varsa her gece), gün gün rapor; **yasaklı sektör onayı sunucuda**; ortak firma anahtarı; yorum **moderasyonu** (3 farklı şikâyette kendiliğinden gizleme, kelime listesi, maç başına ön onay), yasaklı hesap düzenleyemez/şikâyet edemez; rakamlı benzer ayrılmış adlar (Adm1n, Y0netici) ve "kirmizisimsek"; haberde kaynak / düzeltme notu / kapak alt metni; gol videosu kaynağı, .mp4 ve Türkçe altyazı (.vtt) yalnız sitenin deposundan (`gol-videolari`); maç notu; sakatlıkta kaynak bağlantısı ve tarihi, iç not yalnız yöneticiye |
 | 8 | `supabase/migrations/015_son_tur.sql` | Son tur: reklam sayımı dakikada 120 gösterim / 20 tıklama (maç günü zirvesi eksik sayılmaz; sekme sınırları aynı) ve **ham satır alarmı**; tıklama oranı %100'ü aşmaz (tıklanan farklı sayfa açılışı ÷ gösterim); rapor dönemi bugünü aşmaz ("devam ediyor"); elle yeniden toplama eski günleri silmez; **şikâyet sınırı** (saatte 10 / günde 30), kendiliğinden gizlemede yalnız 24 saatlik hesaplar, yönetici yorumu gizlenmez; kelime listesi "s.a.l.a.k" gibi yazımları da yakalar; görsel/düğme yazısı değişince sektör onayı sıfırlanır; daha fazla benzer ad (Adrnin, Moder8or, ÇFK, Sistem0) + **uygulama sahibinin adı ayrılmış** (`ayrilmis_adlar`), kullanıcı adı 7 günde bir değişir; haberde "kadro / transfer / sakatlık / bilet haberi" işaretliyse kaynak zorunlu |
+| 9 | `supabase/migrations/016_mac_ozeti.sql` | Maç özeti: maça **özet videosu** (YouTube ya da sitenin deposundaki .mp4) ve kaynağı, **lig haftası**; gol arşivinde "N. Hafta" ve "Özeti izle ▶" |
 
 **En kolayı: SQL Editor**
 

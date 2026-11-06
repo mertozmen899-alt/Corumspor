@@ -1,7 +1,7 @@
 // Maç ayrıntısı: başlık/skor (planlıda "4 gün kaldı" / "Bugün maç var!" rozeti; ortada dev "VS" yerine başlama saati kutusu),
 // maç notu (bilet / yayın / kapı saati: maclar.mac_notu; yalnız maç bitmeden, altında "resmî duyuruya bak" satırı), Paylaş, "Maçın sponsoru" yuvası (alt satırı: Çorum FK'nın sponsoru değildir), goller (gol sayfasına
 // bağlantılı kartlar; video burada YÜKLENMEZ), yorumlar (tembel yüklenir).
-import { supabase, hazir, h, $, sayfaBaslat, param, kimlikGecerli, tarihYaz, saatYaz, evSahibiDeplasman, skorMetni, macRozeti, sonucBilgisi, cevrimdisiKutusu, paylasDugmesi, TAKIM_ADI } from '../ortak.js';
+import { supabase, hazir, h, $, sayfaBaslat, param, kimlikGecerli, tarihYaz, saatYaz, evSahibiDeplasman, skorMetni, macRozeti, sonucBilgisi, cevrimdisiKutusu, paylasDugmesi, videoFasad, TAKIM_ADI } from '../ortak.js';
 import { reklamYuvalariniDoldur } from '../reklam-yukle.js';
 import { golKarti } from '../gol-kart.js';
 
@@ -44,7 +44,7 @@ async function yukle() {
     : mac.durum === 'canli' ? h('span', { class: 'orta', id: 'skor' }, '–')
       : h('span', { class: 'orta saat-kutu mac-saat', id: 'skor' }, h('time', { datetime: mac.tarih }, saatYaz(mac.tarih)), h('span', { class: 'gorunmez' }, ' (TSİ) başlama saati'));
   kok.replaceChildren(...[h('header', { class: 'mac-basi gunes-motif', id: 'mac-basi' },
-    h('div', { class: 'ust-satir' }, macRozeti(mac), mac.organizasyon ? h('span', null, mac.organizasyon) : null, sonuc ? h('span', { class: 'sonuc-rozet ' + sonuc.sinif, title: sonuc.ad }, h('span', { 'aria-hidden': 'true' }, sonuc.harf), h('span', { class: 'gorunmez' }, sonuc.ad)) : null),
+    h('div', { class: 'ust-satir' }, macRozeti(mac), mac.organizasyon ? h('span', null, mac.organizasyon + (mac.hafta ? ` · ${mac.hafta}. Hafta` : '')) : mac.hafta ? h('span', null, `${mac.hafta}. Hafta`) : null, sonuc ? h('span', { class: 'sonuc-rozet ' + sonuc.sinif, title: sonuc.ad }, h('span', { 'aria-hidden': 'true' }, sonuc.harf), h('span', { class: 'gorunmez' }, sonuc.ad)) : null),
     h('h1', { class: 'takimlar' },
       h('span', { class: 'takim-ad' + (ev === TAKIM_ADI ? ' biz' : '') }, ev), ' ',
       orta, ' ',
@@ -64,6 +64,17 @@ async function yukle() {
   $('#mac-sponsoru').replaceWith(yuva);
   // Yorumlar, yukarıdaki reklam yuvası yerleşince (en çok 1,5 sn) kurulur: geç gelen kart yorumları aşağı itmesin (CLS)
   const reklamYerlesti = Promise.race([reklamYuvalariniDoldur().catch(() => {}), new Promise((r) => setTimeout(r, 1500))]);
+
+  // 016: maç özeti (iframe/video YALNIZ dokununca; kaynak "Video: …"). Gol arşivinden #ozet ile gelinirse oraya kayar.
+  const ozet = mac.ozet_video_url ? videoFasad(mac.ozet_video_url, { baslik: `${ev} - ${dep} maç özeti`, tur: 'Maç özeti videosu' }) : null;
+  if (ozet) {
+    $('#ozet-video').replaceChildren(ozet);
+    const kaynak = typeof mac.ozet_video_kaynak === 'string' && mac.ozet_video_kaynak.trim();
+    $('#ozet-kaynak').replaceChildren(...(kaynak ? [h('span', { class: 'video-kaynak' }, 'Video: ', kaynak, '.')] : []));
+    $('#ozet').hidden = false;
+    // sponsor kartı yerleştikten sonra kaydır (geç gelen kart özeti aşağı itmesin)
+    if (location.hash === '#ozet') reklamYerlesti.then(() => $('#ozet').scrollIntoView({ block: 'start' }));
+  }
 
   const goller = golS.data || [];
   if (goller.length) {

@@ -923,3 +923,22 @@ select test.dogru('yetki (015): yeni tablo RLS açık; ham satır alarmı ve şi
   and not has_function_privilege('anon', 'public.reklam_ham_satir_alarmi(integer)', 'EXECUTE')
   and not has_function_privilege('anon', 'public.sikayet_hakki()', 'EXECUTE')
   and not has_table_privilege('anon', 'public.ayrilmis_adlar', 'SELECT'));
+
+-- ================================================================ 016: maç özeti videosu ve hafta
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.hata_bekle('maç özeti (016): videolu maçta kaynak zorunlu',
+  $q$update public.maclar set ozet_video_url = 'https://www.youtube.com/watch?v=abcdefghijk' where id = '11111111-0000-4000-8000-000000000001'$q$, 'kaynağını yazın');
+select test.hata_bekle('maç özeti (016): başka sitedeki .mp4 kabul edilmez',
+  $q$update public.maclar set ozet_video_url = 'https://ornek.test/ozet.mp4', ozet_video_kaynak = 'Örnek' where id = '11111111-0000-4000-8000-000000000001'$q$, 'maclar_ozet_video');
+select test.hata_bekle('maç özeti (016): hafta 1-60', $q$update public.maclar set hafta = 0 where id = '11111111-0000-4000-8000-000000000001'$q$, 'maclar_hafta');
+select test.esit('maç özeti (016): yönetici YouTube özeti, kaynağı ve haftayı yazar',
+  test.satir($q$update public.maclar set hafta = 3, ozet_video_url = ' https://www.youtube.com/watch?v=abcdefghijk ', ozet_video_kaynak = 'beIN SPORTS Türkiye YouTube kanalı' where id = '11111111-0000-4000-8000-000000000001'$q$)::text, '1');
+reset role;
+set role anon;
+select test.esit('maç özeti (016): ziyaretçi özeti ve haftayı okur (boşluklar temizlenmiş)',
+  (select hafta || '|' || ozet_video_url from public.maclar where id = '11111111-0000-4000-8000-000000000001'), '3|https://www.youtube.com/watch?v=abcdefghijk');
+select test.esit('maç özeti (016): ziyaretçi özeti değiştiremez (0 satır)',
+  test.satir($q$update public.maclar set ozet_video_url = null, ozet_video_kaynak = null where id = '11111111-0000-4000-8000-000000000001'$q$)::text, '0');
+reset role;
+update public.maclar set hafta = null, ozet_video_url = null, ozet_video_kaynak = null where id = '11111111-0000-4000-8000-000000000001';
