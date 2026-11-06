@@ -51,8 +51,10 @@ const AYRILMIS_TAM = ['destek', 'mod', 'sistem', 'corumsportaraftar', 'support',
 
 /** Ek ayrılmış adın anahtarı (SQL: ayrilmis_ad_anahtari): parantez içi atılır, katlanır, yalnız harf. "Mert (uygulama sahibi)" → "mert". */
 export function sahipAnahtari(ad) { return metinKatla(String(ad ?? '').replace(/\([^)]*\)/g, '')).replace(/[^a-z]/g, ''); }
-/** Uygulama sahibinin adı (ayar.js SAHIP_ADI); 3 harften kısaysa yok. SQL'de ayrilmis_adlar tablosundadır. */
-export const SAHIP_ANAHTARLARI = Object.freeze([sahipAnahtari(SAHIP_ADI)].filter((k) => /^[a-z]{3,40}$/.test(k)));
+/** Uygulama sahibinin adı (ayar.js SAHIP_ADI) ve ilk adı ("Mert Özmen" → mertozmen, mert); 3 harften kısaysa yok.
+ *  SQL'de ikisi de ayrilmis_adlar tablosundadır (README 2. bölüm, 015 adımı). */
+export const SAHIP_ANAHTARLARI = Object.freeze([...new Set([sahipAnahtari(SAHIP_ADI), sahipAnahtari(String(SAHIP_ADI ?? '').trim().split(/\s+/)[0])])]
+  .filter((k) => /^[a-z]{3,40}$/.test(k)));
 
 /** Yanıltıcı / ayrılmış ad mı (yönetici, admin, resmî, kulüp, Çorum FK, destek…)? Harf büyüklüğü, Türkçe harf, _ ve . fark etmez;
  *  rakam/simge benzerleri de yakalanır. Denenen biçimler (SQL kullanici_adi_ayrilmis ile AYNI, 015):

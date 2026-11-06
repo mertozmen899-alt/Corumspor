@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Depodaki ayar.js yer tutucu içerir: yayın testleri bilerek taslak derler (gerçek yayında yer tutucu varsa derleme durur)
+// Yayın testleri bilerek taslak derler (gerçek yayında yer tutucu varsa derleme durur; o durum geçici kökte denenir)
 process.env.YAYIN_TASLAK = '1';
 const BURASI = path.dirname(fileURLToPath(import.meta.url));
 const KOK = path.resolve(BURASI, '..');
@@ -155,17 +155,25 @@ test('yayın: SITE_ADRESI verilirse og:image tam adres olur, og:url eklenir; kom
 // ---------------------------------------------------------------------------- 2. tur: yayın kopyasında yapılanlar
 test('yayın (2. tur): ayar.js yer tutucuysa derleme DURUR (çıkış 1), YAYIN_TASLAK=1 ile taslak çıkar', () => {
   const Y = require('../araclar/yayin-hazirla.js');
+  // Depodaki ayar.js gerçek proje ayarı: yer tutucu durumu geçici kökte denenir (betik kökü kendi klasöründen bulur)
+  const kok = mkdtempSync(path.join(tmpdir(), 'yayin-kok-'));
   const hedef = mkdtempSync(path.join(tmpdir(), 'yayin-'));
   try {
-    assert.throws(() => Y.hazirla({ kok: KOK, hedef, taslak: false }), /yer tutucu.*PROJE-KODUNUZ.*ANON-ANAHTARINIZ.*iletisim@ornek\.com.*YAYIN_TASLAK=1/s);
+    mkdirSync(path.join(kok, 'assets'));
+    mkdirSync(path.join(kok, 'araclar'));
+    writeFileSync(path.join(kok, 'assets', 'ayar.js'), "export const SUPABASE_URL = 'https://PROJE-KODUNUZ.supabase.co';\nexport const SUPABASE_ANON_KEY = 'ANON-ANAHTARINIZ';\nexport const ILETISIM_EPOSTA = 'iletisim@ornek.com';\n");
+    for (const ad of ['index.html', 'goller.html', '_headers']) writeFileSync(path.join(kok, ad), readFileSync(path.join(KOK, ad), 'utf8'));
+    const betik = path.join(kok, 'araclar', 'yayin-hazirla.js');
+    writeFileSync(betik, readFileSync(path.join(KOK, 'araclar', 'yayin-hazirla.js'), 'utf8'));
+    assert.throws(() => Y.hazirla({ kok, hedef, taslak: false }), /yer tutucu.*PROJE-KODUNUZ.*ANON-ANAHTARINIZ.*iletisim@ornek\.com.*YAYIN_TASLAK=1/s);
     const env = { ...process.env }; delete env.YAYIN_TASLAK;
-    const r = spawnSync(process.execPath, [path.join(KOK, 'araclar', 'yayin-hazirla.js'), hedef], { encoding: 'utf8', env });
+    const r = spawnSync(process.execPath, [betik, hedef], { encoding: 'utf8', env });
     assert.equal(r.status, 1, 'yer tutucuyla komut satırı çıkış 1');
     assert.match(r.stderr, /YAYIN DURDU: assets\/ayar\.js hâlâ yer tutucu/);
-    const r2 = spawnSync(process.execPath, [path.join(KOK, 'araclar', 'yayin-hazirla.js'), hedef], { encoding: 'utf8', env: { ...env, YAYIN_TASLAK: '1' } });
+    const r2 = spawnSync(process.execPath, [betik, hedef], { encoding: 'utf8', env: { ...env, YAYIN_TASLAK: '1' } });
     assert.equal(r2.status, 0, r2.stderr);
     assert.match(r2.stdout, /TASLAK/);
-  } finally { rmSync(hedef, { recursive: true, force: true }); }
+  } finally { rmSync(hedef, { recursive: true, force: true }); rmSync(kok, { recursive: true, force: true }); }
 });
 
 test('yayın (2. tur): gerçek ayarla CSP sayfadan _headers\'a taşınır, tam Supabase adresi; HSTS; preconnect', () => {

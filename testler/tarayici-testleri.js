@@ -584,6 +584,11 @@ async function tarayiciTestleri() {
   // ------------------------------------------------ ayar yapılmamışsa (sahte mod yok): uyarı
   await guvenli('ayar', async () => {
     const { ctx, p, hatalar } = await baglam({ width: 390, height: 844 });
+    // Depodaki ayar.js gerçek proje ayarı: doldurulmamış hâl yer tutucularla taklit edilir
+    const bosAyar = fs.readFileSync(path.join(KOK, 'assets/ayar.js'), 'utf8')
+      .replace(/SUPABASE_URL = '[^']*'/, "SUPABASE_URL = 'https://PROJE-KODUNUZ.supabase.co'")
+      .replace(/SUPABASE_ANON_KEY = '[^']*'/, "SUPABASE_ANON_KEY = 'ANON-ANAHTARINIZ'");
+    await ctx.route('**/assets/ayar.js', (r) => r.fulfill({ contentType: 'text/javascript', body: bosAyar }));
     await git(p, 'index.html?sahte=0');
     await p.waitForSelector('.uyari');
     kontrol('ayar: ayar.js doldurulmamışsa Türkçe uyarı gösteriliyor', /assets\/ayar\.js/.test(await metin(p, '.uyari')));
