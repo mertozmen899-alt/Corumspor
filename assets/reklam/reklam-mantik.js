@@ -1,5 +1,5 @@
 // Çorumspor reklam modülü: saf mantık (DOM yok, ağ yok). Tarayıcıda ve Node'da aynı dosya çalışır.
-// Buradaki kurallar veritabanındaki kuralların AYNASIDIR (supabase/migrations/010_reklamlar.sql, 012, 013, 014_inceleme_2.sql).
+// Buradaki kurallar veritabanındaki kuralların AYNASIDIR (supabase/migrations/010_reklamlar.sql, 012, 013, 014_inceleme_2.sql, 015_son_tur.sql).
 // Birini değiştirirseniz ötekini de değiştirin; testler/baglanti-ornekleri.json iki tarafta da denenir.
 
 export const SAAT_DILIMI = 'Europe/Istanbul';
@@ -26,11 +26,13 @@ export const SINIRLAR = Object.freeze({
   oncelikEnCok: 100,
   gorselEnBuyukBayt: 2 * 1024 * 1024,
   gorselTurleri: ['image/jpeg', 'image/png', 'image/webp'],
-  // Sayım (SQL reklam_olay_kaydet ile aynı; 014_inceleme_2.sql, test karşılaştırır):
+  // Sayım (SQL reklam_olay_kaydet ile aynı; 015_son_tur.sql, test karşılaştırır):
   ziyaretTiklamaSiniri: 5,      // bir sayfa ziyaretinde en fazla 5 tıklama (bütün reklamlar)
-  gosterimDakikaSiniri: 30,     // bir reklama dakikada en fazla 30 gösterim (bütün ziyaretçiler); fazlası sayılmaz (012'de 120)
-  tiklamaDakikaSiniri: 6,       // bir reklama dakikada en fazla 6 tıklama (bütün ziyaretçiler); fazlası sayılmaz (012'de 30)
-  yerlesimDakikaSiniri: 60,     // bir reklama dakikada en fazla 60 yerleşim (kartın konduğu sayfa açılışı)
+  gosterimDakikaSiniri: 120,    // bir reklama dakikada en fazla 120 gösterim (bütün ziyaretçiler; maç günü zirvesi eksik sayılmasın); fazlası sayılmaz
+  tiklamaDakikaSiniri: 20,      // bir reklama dakikada en fazla 20 tıklama (bütün ziyaretçiler); fazlası sayılmaz
+  yerlesimDakikaSiniri: 240,    // bir reklama dakikada en fazla 240 yerleşim (kartın konduğu sayfa açılışı)
+  hamSatirAlarmi: 20000,        // 015: bir reklamın bir günde bundan fazla ham satırı (olay + yerleşim) panelde alarm (reklam_ham_satir_alarmi)
+  bakimGecikmeGun: 2,           // 015: son gece bakımı (reklam_gunluk_toplanan) bundan eskiyse panel uyarır (pg_cron çalışmıyor olabilir)
   sekmeSaatGosterimSiniri: 20,  // bir sekmede bir reklama saatte en fazla 20 gösterim
   sekmeSaatTiklamaSiniri: 10,   // bir sekmede saatte en fazla 10 tıklama (bütün reklamlar)
   akisYuvaSayisi: 3,            // akışta en fazla 3 farklı firma (ana.js 3 yuva açar; sunucu yalnız bunlara olay yazar)
@@ -278,6 +280,12 @@ export function akisReklamlari(reklamlar, adet = SINIRLAR.akisYuvaSayisi, simdi 
   return sonuc;
 }
 
+/** 015 (reklamveren 4): akış yuvasının ne kadar görüldüğü. Ana sayfa ilk anda 6 haber açar (assets/sayfa/ana.js SAYFA_BOYU);
+ *  1. yuva 3. haberden sonra (ilk sayfada), 2. ve 3. yuva 11. ve 19. haberden sonra (yalnız "Daha fazla haber" açılınca). */
+export function akisYuvaNotu(sira) {
+  return sira === 1 ? 'Akışta 1. sponsor: ilk sayfada' : `Akışta ${sira}. sponsor: yalnız "Daha fazla haber" açılınca`;
+}
+
 /** Bu reklam şu an yuvasında gösteriliyor mu? (SQL reklam_su_an_gosterilen) Akışta: { sira: 1..3 }; öteki alanlarda { sira: 1 } ya da null. */
 export function gosterimSirasi(reklamlar, r, simdi = new Date()) {
   if (!r || !reklamSunulabilir(r, simdi)) return null;
@@ -393,11 +401,69 @@ export function reklamDogrula(r, { simdi = new Date(), yayinaAliniyor = false } 
 // ---------------------------------------------------------------------------
 const ORAN_BICIMI = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-/** Tıklama oranı yüzdesi (2 basamak) ya da gösterim yoksa null. */
-export function tiklamaOrani(gosterim, tiklama) {
+/** Tıklama oranı yüzdesi (2 basamak) ya da gösterim yoksa null. 015: pay = tıklama yapılan FARKLI sayfa açılışı (tiklayan_ziyaret;
+ *  bir kişi aynı kartta birden çok düğmeye basabilir), oran %100'ü aşmaz (SQL reklam_raporu ile aynı). */
+export function tiklamaOrani(gosterim, tiklayan) {
   const g = Number(gosterim) || 0;
   if (g <= 0) return null;
-  return Math.round(((Number(tiklama) || 0) * 10000) / g) / 100;
+  return Math.round((Math.min(Number(tiklayan) || 0, g) * 10000) / g) / 100;
+}
+
+/**
+ * 015 (performans 7): haber sonu görselinin sizes değeri. Kart içerik sütununda (en çok 720 px) yaklaşık 58 px dolgu/kenar payıyla
+ * çizilir; kart 560 px'ten genişse görsel %44'tür (stil.css @container). Etkin piksel oranı 2 ile sınırlanır (ortak.js boyutlar() gibi):
+ * 360 px telefonda ~302 px kutu, DPR 3'te de 480 kopyası seçilir (1200 değil).
+ */
+export function haberSonuBoyutu(ekranGenisligi, dpr = 1) {
+  const g = Number(ekranGenisligi) > 0 ? Number(ekranGenisligi) : 360;
+  const kart = Math.max(120, Math.min(g, 720) - 58);
+  const kutu = kart >= 560 ? Math.round(kart * 0.44) : kart;
+  const d = Number(dpr) > 0 ? Number(dpr) : 1;
+  return Math.max(1, Math.round((kutu * Math.min(d, 2)) / d)) + 'px';
+}
+
+/** "YYYY-MM-DD" → "GG.AA.YYYY" (015: CSV'de TEK tarih biçimi; Excel tr-TR tarih olarak okur). */
+export function gunNoktali(gun) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(gun ?? ''));
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : '';
+}
+/** An → "GG.AA.YYYY SS:DD" (İstanbul). */
+export function anNoktali(an) {
+  if (an == null || an === '') return '';
+  const p = istanbulParcalari(an);
+  return `${iki(p.gun)}.${iki(p.ay)}.${p.yil} ${iki(p.saat)}:${iki(p.dakika)}`;
+}
+
+/**
+ * 015 (reklamveren 2): rapor dönemi = istenen aralığın reklamın yayınıyla kesişen günleri, BUGÜNÜ (TSİ) aşmaz (SQL reklam_raporu aynası).
+ * Döner { donem_baslangic, donem_bitis, yayin_gun, devam_ediyor } (kesişme yoksa dönem null, gün 0).
+ * devam_ediyor: reklam yayında, bitmedi ve dönem bugünde kesildi ("(devam ediyor)").
+ */
+export function raporDonemi(istenenBas, istenenBit, r, simdi = new Date()) {
+  const bugun = istanbulGunu(simdi);
+  const db = [istenenBas, istanbulGunu(r.baslangic)].sort().pop();
+  const ds = [istenenBit, istanbulGunu(new Date(ms(r.bitis) - 1)), bugun].sort()[0];
+  if (!(ds >= db)) return { donem_baslangic: null, donem_bitis: null, yayin_gun: 0, devam_ediyor: false };
+  const gun = Math.round((Date.parse(ds + 'T00:00:00Z') - Date.parse(db + 'T00:00:00Z')) / 864e5) + 1;
+  return { donem_baslangic: db, donem_bitis: ds, yayin_gun: gun, devam_ediyor: ds === bugun && r.durum === 'yayinda' && ms(r.bitis) > ms(simdi) };
+}
+
+/** Dönemi yazar: "6 Kasım 2026 – 18 Kasım 2026 (devam ediyor)" (bicim: gün yazma işlevi). */
+export function donemMetni(s, bicim = gunNoktali) {
+  if (!s || !s.donem_baslangic || !s.donem_bitis) return '';
+  return `${bicim(s.donem_baslangic)} – ${bicim(s.donem_bitis)}${s.devam_ediyor ? ' (devam ediyor)' : ''}`;
+}
+
+/**
+ * 015 (reklamveren 5): "1 hafta" / "1 ay" düğmesinin bitişi: başlangıç gününden 7 gün / 1 ay sonraki günün 23:59'u (TSİ).
+ * Döner <input type="datetime-local"> değeri. Ay sonunda taşmaz (31 Ocak + 1 ay = 28/29 Şubat).
+ */
+export function sureBitisi(baslangic, { gun = 0, ay = 0 } = {}) {
+  const p = istanbulParcalari(baslangic);
+  const hedefAy = new Date(Date.UTC(p.yil, p.ay - 1 + ay, 1));
+  const ayinSonGunu = new Date(Date.UTC(hedefAy.getUTCFullYear(), hedefAy.getUTCMonth() + 1, 0)).getUTCDate();
+  const t = new Date(Date.UTC(hedefAy.getUTCFullYear(), hedefAy.getUTCMonth(), Math.min(p.gun, ayinSonGunu) + gun));
+  return `${t.toISOString().slice(0, 10)}T23:59`;
 }
 
 /** Oranı Türkçe yazar: 2.5 -> "2,50". null -> "". */
@@ -420,7 +486,7 @@ export function firmaSuz(satirlar, firma) {
   return (satirlar || []).filter((s) => (s.firma_anahtar || firmaAnahtari(s.firma_adi)) === k);
 }
 
-const tarihYaz = (an) => (an ? istanbulBicimle(an) : '');
+const tarihYaz = (an) => anNoktali(an);
 const sayiBicimi = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 1 });
 
 /** reklam_raporu satırlarından Excel'de düzgün açılan CSV metni (BOM dahil). Reklam verene giden dosya TEK firmalık olmalı
@@ -432,13 +498,16 @@ const sayiBicimi = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 1 });
 export function raporCsv(satirlar, { donem = '', macAdi = () => '' } = {}) {
   const liste = satirlar || [];
   const supheliVar = liste.some((s) => Number(s.supheli_dakika) > 0);
+  // 015: tek tarih biçimi (GG.AA.YYYY, saatli alanlarda GG.AA.YYYY SS:DD); ISO verilen yedek dönem de çevrilir
+  const yedekDonem = String(donem || '').replace(/(\d{4})-(\d{2})-(\d{2})/g, '$3.$2.$1');
   const basliklar = ['Firma', 'Alan', 'Maç', 'Dönem', 'Yayın başlangıç', 'Yayın bitiş', 'Yayın günü', 'Sayfa açılışı', 'Gösterim', 'Görünürlük oranı (%)',
-    'Günlük ortalama gösterim', 'Tıklama', 'Web tıklaması', 'WhatsApp tıklaması', 'Arama', 'Tıklama oranı (%)'];
+    'Günlük ortalama gösterim', 'Tıklama', 'Web tıklaması', 'WhatsApp tıklaması', 'Arama', 'Tıklama yapılan sayfa açılışı', 'Tıklama oranı (%)'];
   if (supheliVar) basliklar.push('Şüpheli trafik (sayılmadı, dk)');
   const satir = [basliklar.map((b) => csvHucre(b, true)).join(';')];
   for (const s of liste) {
-    const oran = s.tiklama_orani != null ? Number(s.tiklama_orani) : tiklamaOrani(s.gosterim, s.tiklama);
-    const d = s.donem_baslangic && s.donem_bitis ? `${s.donem_baslangic} – ${s.donem_bitis}` : donem;
+    const tiklayan = s.tiklayan_ziyaret != null ? Number(s.tiklayan_ziyaret) : Number(s.tiklama) || 0;
+    const oran = s.tiklama_orani != null ? Number(s.tiklama_orani) : tiklamaOrani(s.gosterim, tiklayan);
+    const d = donemMetni(s) || yedekDonem;
     const hucreler = [
       csvHucre(s.firma_adi, true),
       csvHucre(ALANLAR[s.alan] || s.alan, true),
@@ -455,6 +524,7 @@ export function raporCsv(satirlar, { donem = '', macAdi = () => '' } = {}) {
       csvHucre(Number(s.tiklama_web) || 0, false),
       csvHucre(Number(s.tiklama_whatsapp) || 0, false),
       csvHucre(Number(s.tiklama_ara) || 0, false),
+      csvHucre(tiklayan, false),
       csvHucre(oranBicimle(oran), false),
     ];
     if (supheliVar) hucreler.push(csvHucre(Number(s.supheli_dakika) || 0, false));
@@ -463,20 +533,28 @@ export function raporCsv(satirlar, { donem = '', macAdi = () => '' } = {}) {
   return '\ufeff' + satir.join('\r\n') + '\r\n';
 }
 
-/** Günlük rapor satırlarından (reklam_gunluk_raporu) en yoğun gün: { gun, gosterim } ya da null. */
+/** Günlük rapor satırlarından (reklam_gunluk_raporu) en yoğun gün: { gun, gosterim, mac } ya da null.
+ *  015: eşitlikte maç günü öne geçer (sonra en erken gün). */
 export function enYogunGun(gunluk) {
   const t = new Map();
-  for (const g of gunluk || []) t.set(g.gun, (t.get(g.gun) || 0) + (Number(g.gosterim) || 0));
+  for (const g of gunluk || []) {
+    const x = t.get(g.gun) || { gun: g.gun, gosterim: 0, mac: false };
+    x.gosterim += Number(g.gosterim) || 0; x.mac = x.mac || !!g.mac_gunu;
+    t.set(g.gun, x);
+  }
   let en = null;
-  for (const [gun, gosterim] of t) if (gosterim > 0 && (!en || gosterim > en.gosterim)) en = { gun, gosterim };
+  for (const x of [...t.values()].sort((a, b) => a.gun.localeCompare(b.gun))) {
+    if (x.gosterim > 0 && (!en || x.gosterim > en.gosterim || (x.gosterim === en.gosterim && x.mac && !en.mac))) en = x;
+  }
   return en;
 }
 
 /**
- * Sekme kimliği: SADECE tıklama tekrarını (aynı reklama 30 dk içinde tekrar tıklama) sayfalar arasında yakalamak için.
+ * Sekme kimliği: tıklama tekrarını (aynı reklama 30 dk içinde tekrar tıklama) sayfalar arasında yakalamak için.
  * Rastgele bir uuid; kişisel veri değildir, kimseyle eşleştirilemez. sessionStorage'da durur: yalnız bu sekmeye aittir,
  * sekme kapanınca tarayıcı siler (localStorage/çerez YOK). sessionStorage kapalıysa (gizli mod, engelli depolama)
- * bellekte tutulur, yani sayfa yüklemesiyle sınırlı kalır. Gösterimler bu kimliği KULLANMAZ (sayfa ziyareti başına).
+ * bellekte tutulur, yani sayfa yüklemesiyle sınırlı kalır. 014'ten beri gösterimle de gönderilir: sunucu yalnız sekme başına
+ * saatlik sınır için en çok 2 saat sayaçta tutar (gösterim kaydına yazılmaz; tekillik sayfa ziyareti başına).
  */
 export const SEKME_ANAHTARI = 'reklam-sekme-kimligi';
 const KIMLIK_DESENI = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;

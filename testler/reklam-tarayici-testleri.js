@@ -196,7 +196,7 @@ async function reklamTarayiciTestleri() {
     await yon.click('#ry-yayina-al');
     const satir = yon.locator('#ry-reklamlar tr', { hasText: NARCIL });
     await satir.locator('.ry-rozet-yayinda').waitFor();
-    kontrol('yayın: listede "Yayında" ve "Şu an gösteriliyor" (014: akışta "Akışta 1. sponsor")', (await satir.locator('.ry-rozet').textContent()) === 'Yayında' && await satir.getByText('Şu an gösteriliyor').isVisible() && /Akışta 1\. sponsor/.test(await satir.textContent()));
+    kontrol('yayın: listede "Yayında" ve akışta "Akışta 1. sponsor: ilk sayfada" (015)', (await satir.locator('.ry-rozet').textContent()) === 'Yayında' && await satir.getByText('Akışta 1. sponsor: ilk sayfada').isVisible());
     const r0 = (await vt(yon)).reklamlar[0];
     kontrol('yayın: kayıt doğru (durum, yayina_alinma sunucuda, bağlantı, görsel)', r0.durum === 'yayinda' && !!r0.yayina_alinma && r0.baglanti_url === NARCIL_URL && r0.kisa_metin === NARCIL_METIN && DEPO_DESENI.test(r0.gorsel_url), JSON.stringify(r0).slice(0, 300));
     await yon.waitForFunction(() => { const i = document.querySelector('#ry-reklamlar .ry-firma img'); return i && i.complete && i.naturalWidth > 0; });
@@ -229,7 +229,7 @@ async function reklamTarayiciTestleri() {
     // --- 014: form varsayılanları, "alan dolu" uyarısı, bağlantısız reklamda adres uyarısı, alan değişince küçük kopya
     await yon.click('#ry-yeni');
     const v = await yon.evaluate(() => ({ hemen: document.querySelector('#ry-hemen').checked, bas: document.querySelector('#ry-baslangic').value, bit: document.querySelector('#ry-bitis').value }));
-    kontrol('form (014): yeni reklam "Hemen başlasın" işaretli, bitiş 1 hafta sonra', v.hemen && Math.abs(Date.parse(RM.yerelGiristenIso(v.bas)) - Date.now()) < 120e3 && Math.round((Date.parse(RM.yerelGiristenIso(v.bit)) - Date.parse(RM.yerelGiristenIso(v.bas))) / 864e5) === 7, JSON.stringify(v));
+    kontrol('form (014/015): yeni reklam "Hemen başlasın" işaretli, bitiş 1 hafta sonraki günün 23:59\'u (TSİ)', v.hemen && Math.abs(Date.parse(RM.yerelGiristenIso(v.bas)) - Date.now()) < 120e3 && v.bit === RM.sureBitisi(new Date(), { gun: 7 }) && v.bit.endsWith('T23:59'), JSON.stringify(v));
     // maç sponsorunda maç seçilince tarihler maça göre kendiliğinden önerilir (yönetici tarihe dokunmadıysa)
     await yon.selectOption('#ry-alan', 'mac_sponsoru');
     await yon.selectOption('#ry-mac_id', M1);
@@ -243,7 +243,9 @@ async function reklamTarayiciTestleri() {
     await yon.click('#ry-sure-ay');
     const ay = await yon.evaluate(() => [document.querySelector('#ry-baslangic').value, document.querySelector('#ry-bitis').value]);
     const ayGun = (Date.parse(RM.yerelGiristenIso(ay[1])) - Date.now()) / 864e5;
-    kontrol('form (014): "1 ay" düğmesi bitişi bir ay sonraya alır', ayGun >= 27.9 && ayGun <= 31.1, JSON.stringify(ay));
+    kontrol('form (014/015): "1 ay" düğmesi bitişi bir ay sonraki günün 23:59\'una alır', ayGun >= 27.9 && ayGun <= 32.1 && ay[1] === RM.sureBitisi(new Date(), { ay: 1 }), JSON.stringify(ay));
+    await yon.click('#ry-sure-hafta');
+    kontrol('form (015): "1 hafta" düğmesi 7 gün sonraki günün 23:59\'u', (await yon.inputValue('#ry-bitis')) === RM.sureBitisi(new Date(), { gun: 7 }), await yon.inputValue('#ry-bitis'));
     await yon.check('input[name="baglanti_turu"][value="whatsapp"]');
     kontrol('form (014): WhatsApp hazır mesajı dolu gelir', (await yon.inputValue('#ry-wa-mesaj')) === 'Merhaba, Çorumspor Taraftar uygulamasındaki reklamınızı gördüm.', await yon.inputValue('#ry-wa-mesaj'));
     await yon.check('input[name="baglanti_turu"][value="yok"]');
@@ -511,7 +513,9 @@ async function reklamTarayiciTestleri() {
     const satir = yon.locator('#ry-rapor-sonuc tbody tr', { hasText: NARCIL });
     await satir.waitFor();
     const g = await olaySay(yon, NARCIL, 'gosterim'), t = await olaySay(yon, NARCIL, 'tiklama');
-    const oran = RM.tiklamaOrani(g, t);
+    // 015: oran = tıklama yapılan farklı sayfa açılışı ÷ gösterim
+    const tz = new Set((await olaylar(yon, NARCIL, 'tiklama')).map((o) => RM.istanbulGunu(o.created_at) + '|' + o.sayfa_ziyaret_id)).size;
+    const oran = RM.tiklamaOrani(g, tz);
     const hucre = await satir.locator('td').allTextContents();
     // 014: Firma, Alan, Dönem (yayında), Sayfa açılışı, Gösterim, Görünürlük, Tıklama, Web / WhatsApp / Ara, Oran, Günlük ort., Şüpheli trafik
     const dbr = await vt(yon);
@@ -531,28 +535,43 @@ async function reklamTarayiciTestleri() {
     kontrol('rapor: taslak reklam raporda yok', !/Genel Sponsor Taslak/.test(await yon.textContent('#ry-rapor-sonuc')));
     // 013: CSV reklam verene gider: YALNIZ seçilen firmanın satırları; firma seçilmeden indirilemez
     kontrol('CSV (013): firma seçilmeden CSV indirilemez (not görünür)', (await yon.locator('#ry-csv').isDisabled()) && await yon.isVisible('#ry-csv-not'));
-    const donem = `${bugun} – ${bugun}`;
+    const donem = `${RM.gunNoktali(bugun)} – ${RM.gunNoktali(bugun)} \\(devam ediyor\\)`; // 015: tek tarih biçimi, yayın sürüyor
     await yon.selectOption('#ry-rapor-firma', NARCIL);
     const [indirme] = await Promise.all([yon.waitForEvent('download'), yon.click('#ry-csv')]);
     kontrol('CSV: dosya adı firma + gösterilen aralık', indirme.suggestedFilename() === `reklam-raporu_narcil-cafe_${bugun}_${bugun}.csv`, indirme.suggestedFilename());
     const csv = fs.readFileSync(await indirme.path(), 'utf8');
     kontrol('CSV: UTF-8 BOM ile başlıyor', csv.charCodeAt(0) === 0xfeff);
-    kontrol('CSV (014): ";" ayraçlı Türkçe başlık (yayın günleri, sayfa açılışı, görünürlük, eylemler; şüpheli trafik 0 iken yok), CRLF', csv.slice(1).startsWith('Firma;Alan;Maç;Dönem;Yayın başlangıç;Yayın bitiş;Yayın günü;Sayfa açılışı;Gösterim;Görünürlük oranı (%);Günlük ortalama gösterim;Tıklama;Web tıklaması;WhatsApp tıklaması;Arama;Tıklama oranı (%)\r\n'), JSON.stringify(csv.slice(0, 120)));
+    kontrol('CSV (014): ";" ayraçlı Türkçe başlık (yayın günleri, sayfa açılışı, görünürlük, eylemler; şüpheli trafik 0 iken yok), CRLF', csv.slice(1).startsWith('Firma;Alan;Maç;Dönem;Yayın başlangıç;Yayın bitiş;Yayın günü;Sayfa açılışı;Gösterim;Görünürlük oranı (%);Günlük ortalama gösterim;Tıklama;Web tıklaması;WhatsApp tıklaması;Arama;Tıklama yapılan sayfa açılışı;Tıklama oranı (%)\r\n'), JSON.stringify(csv.slice(0, 120)));
     kontrol('CSV (013/014): yalnız Narçil satırı (başka firmanın rakamı yok), dönem (yayınla kesişen) satırda, ondalık virgül',
-      new RegExp(`\\r\\n${NARCIL};Ana sayfa akışı;;${donem};[^;]+;[^;]+;1;\\d+;${g};[^;]*;[^;]*;${t};${t};0;0;${RM.oranBicimle(oran)}\\r\\n`).test(csv) && !/Hitit|İskilip|Şüpheli/.test(csv) && csv.trim().split('\r\n').length === 2, csv);
+      new RegExp(`\\r\\n${NARCIL};Ana sayfa akışı;;${donem};\\d\\d\\.\\d\\d\\.\\d{4} \\d\\d:\\d\\d;\\d\\d\\.\\d\\d\\.\\d{4} \\d\\d:\\d\\d;1;\\d+;${g};[^;]*;[^;]*;${t};${t};0;0;${tz};${RM.oranBicimle(oran)}\\r\\n`).test(csv) && !/Hitit|İskilip|Şüpheli/.test(csv) && csv.trim().split('\r\n').length === 2, csv);
     // 014 (reklamveren 5): yazdırılabilir tek sayfa özet
     await yon.click('#ry-ozet');
     await yon.locator('#ry-ozet-sayfa').waitFor();
     const oz = await yon.evaluate(() => ({ metin: document.querySelector('#ry-ozet-sayfa').textContent, gorsel: !!document.querySelector('#ry-ozet-sayfa img'), odak: document.activeElement.id }));
     kontrol('özet (014): firma özeti (yerleşim, gösterim/tıklama/oran, en yoğun gün, "gösterim kişi sayısı değildir", kart görseli), şüpheli sütunu yok',
       /Reklam özeti · Narçil Cafe/.test(oz.metin) && /Ana sayfa akışı/.test(oz.metin) && /En yoğun gün/.test(oz.metin) && /kişi sayısı değildir/.test(oz.metin) && oz.gorsel && !/Şüpheli/.test(oz.metin) && !/Hitit/.test(oz.metin) && oz.odak === 'ry-ozet-baslik', JSON.stringify(oz).slice(0, 400));
+    // 015 (reklamveren 3, 5): telefonda her hücre etiketli; toplamda tıklama dağılımı; tıklama oranı tanımı
+    const ozBas = await yon.$$eval('#ry-ozet-sayfa tbody td, #ry-ozet-sayfa tfoot td', (l) => l.map((x) => x.dataset.baslik || ''));
+    kontrol('özet (015): bütün hücrelerde data-baslik (telefonda sütun adı görünür)', ozBas.length >= 12 && ozBas.every(Boolean), JSON.stringify(ozBas));
+    kontrol('özet (015): toplam satırında tıklama dağılımı "N (web / WhatsApp / ara)"', /^\d+ \(\d+ \/ \d+ \/ \d+\)$/.test(await yon.textContent('#ry-ozet-toplam-tiklama')), await yon.textContent('#ry-ozet-toplam-tiklama'));
+    kontrol('özet (015): tanımlarda tıklama oranı "%100\'ü aşmaz" ve dönem "devam ediyor"', /%100'ü aşmaz/.test(oz.metin) && /devam ediyor/.test(oz.metin));
+    // 015 (reklamveren 5): yazdırınca tek A4 sayfası (boş 2. sayfa yok)
+    await yon.evaluate(() => document.documentElement.classList.add('ry-yazdir'));
+    const pdf = await yon.pdf({ format: 'A4' });
+    await yon.evaluate(() => document.documentElement.classList.remove('ry-yazdir'));
+    const sayfaSayisi = (pdf.toString('latin1').match(/\/Type\s*\/Page(?![s\w])/g) || []).length;
+    kontrol('özet (015): yazdır / PDF tek sayfa (boş 2. sayfa yok)', sayfaSayisi === 1, String(sayfaSayisi));
+    await yon.setViewportSize({ width: 360, height: 740 });
+    const ozMobil = await yon.evaluate(() => { const td = document.querySelector('#ry-ozet-sayfa tbody td[data-baslik="Gösterim"]'); return { etiket: getComputedStyle(td, '::before').content, tasma: document.documentElement.scrollWidth <= innerWidth + 1 }; });
+    kontrol('özet (015): 360 px\'te hücre etiketi görünür ("Gösterim"), taşma yok', /Gösterim/.test(ozMobil.etiket) && ozMobil.tasma, JSON.stringify(ozMobil));
+    await yon.setViewportSize({ width: 1280, height: 900 });
     await yon.click('#ry-ozet-kapat');
     kontrol('özet (014): kapatınca kalkar, odak düğmeye döner', (await yon.locator('#ry-ozet-sayfa').count()) === 0 && (await yon.evaluate(() => document.activeElement.id)) === 'ry-ozet');
     await yon.selectOption('#ry-rapor-firma', 'Hitit Optik');
     kontrol('rapor (013): firma süzgeci tabloyu da süzüyor', (await yon.locator('#ry-rapor-sonuc tbody tr').count()) === 1 && !/Narçil/.test(await yon.textContent('#ry-rapor-sonuc tbody')));
     const [indH] = await Promise.all([yon.waitForEvent('download'), yon.click('#ry-csv')]);
     const csvH = fs.readFileSync(await indH.path(), 'utf8');
-    kontrol('CSV (013): Hitit dosyasında yalnız Hitit', new RegExp(`\\r\\nHitit Optik;Haber sonu;;${donem};[^;]+;[^;]+;1;\\d+;1;[^;]*;[^;]*;0;0;0;0;0,00\\r\\n`).test(csvH) && !/Narçil/.test(csvH), csvH);
+    kontrol('CSV (013): Hitit dosyasında yalnız Hitit', new RegExp(`\\r\\nHitit Optik;Haber sonu;;${donem};[^;]+;[^;]+;1;\\d+;1;[^;]*;[^;]*;0;0;0;0;0;0,00\\r\\n`).test(csvH) && !/Narçil/.test(csvH), csvH);
     const toplam = await yon.$$eval('#ry-rapor-sonuc tfoot td', (l) => l.map((x) => x.dataset.baslik));
     kontrol('rapor (013): telefonda Toplam satırı da etiketli (data-baslik)', JSON.stringify(toplam) === JSON.stringify(['Sayfa açılışı', 'Gösterim', 'Görünürlük', 'Tıklama', 'Web / WhatsApp / Ara', 'Oran', 'Günlük ort. gösterim', 'Şüpheli trafik (sayılmadı, dk)']), JSON.stringify(toplam));
     await yon.selectOption('#ry-rapor-firma', NARCIL);
@@ -594,7 +613,7 @@ async function reklamTarayiciTestleri() {
       await supabase.auth.signInWithPassword({ email: 'yonetici@ornek.test', password: 'sifre1234' });
       return sonuc;
     }, 'Hitit Optik');
-    kontrol('dakika sınırı (014): bir reklama dakikada 30 gösterimden fazlası "sinir" (sahte istemci SQL\'in aynası)', sinir.sinir >= 5 && (sinir.kaydedildi || 0) <= RM.SINIRLAR.gosterimDakikaSiniri, JSON.stringify(sinir));
+    kontrol('dakika sınırı (015): bir reklama dakikada 120 gösterimden fazlası "sinir" (sahte istemci SQL\'in aynası)', sinir.sinir >= 5 && (sinir.kaydedildi || 0) <= RM.SINIRLAR.gosterimDakikaSiniri, JSON.stringify(sinir));
     await yon.selectOption('#ry-rapor-firma', '');
     await yon.fill('#ry-rapor-bas', bugun);
     await yon.fill('#ry-rapor-bit', bugun);
@@ -607,7 +626,7 @@ async function reklamTarayiciTestleri() {
     await yon.selectOption('#ry-rapor-firma', 'Hitit Optik');
     const [ind3] = await Promise.all([yon.waitForEvent('download'), yon.click('#ry-csv')]);
     const csv3 = fs.readFileSync(await ind3.path(), 'utf8');
-    kontrol('CSV (014): şüpheli trafik varsa firma CSV\'sinde son sütun', /;Şüpheli trafik \(sayılmadı, dk\)\r\n/.test(csv3) && new RegExp(`\\r\\nHitit Optik;Haber sonu;;${bugun} – ${bugun};(?:[^;\\r\\n]*;){12}1\\r\\n`).test(csv3), csv3);
+    kontrol('CSV (014): şüpheli trafik varsa firma CSV\'sinde son sütun', /;Şüpheli trafik \(sayılmadı, dk\)\r\n/.test(csv3) && new RegExp(`\\r\\nHitit Optik;Haber sonu;;${RM.gunNoktali(bugun)} – ${RM.gunNoktali(bugun)} \\(devam ediyor\\);(?:[^;\\r\\n]*;){13}1\\r\\n`).test(csv3), csv3);
     await yon.selectOption('#ry-rapor-firma', '');
     kontrol('rapor: yaklaşık sayım notu görünüyor', /yaklaşık/i.test(await yon.textContent('#ry-rapor')), await yon.textContent('#ry-rapor'));
     await yon.fill('#ry-rapor-bas', RM.buAyAraligi(new Date()).baslangic);
@@ -836,14 +855,28 @@ async function reklamTarayiciTestleri() {
     await git(p, 'haber.html?id=' + H1);
     await p.waitForSelector('#yorum-metni');
     kontrol('yorum (014): ipucu hedefe göre (haber)', (await p.getAttribute('#yorum-metni', 'placeholder')) === 'Bu haber hakkında ne düşünüyorsun?');
+    kontrol('yorum (015): 2\'den az yorumda sıralama grubu gizli', await p.locator('#yorum-siralama').isHidden());
     await p.fill('#yorum-metni', 'Hakem bugün SAL4K gibiydi');
     await p.click('#yorum-formu button[type=submit]');
     await p.waitForFunction(() => /onaylayınca/.test(document.getElementById('yorum-mesaj').textContent));
     const ilk = await p.evaluate(() => { const li = document.querySelector('#yorum-listesi > li'); return { metin: li.querySelector('.yorum-metni').textContent, rozet: li.textContent.includes('Onay bekliyor'), baslik: document.getElementById('yorum-baslik').textContent }; });
-    kontrol('yorum (014): kelime listesine takılan yorum "Onay bekliyor" rozetiyle en üstte (en yeni), sayıya katılmaz', ilk.metin === 'Hakem bugün SAL4K gibiydi' && ilk.rozet && ilk.baslik === 'Yorumlar (1)', JSON.stringify(ilk));
+    kontrol('yorum (014/015): kelime listesine takılan yorum "Onay bekliyor" rozetiyle en üstte (en yeni); başlık "Yorumlar (1 · 1 onay bekliyor)"', ilk.metin === 'Hakem bugün SAL4K gibiydi' && ilk.rozet && ilk.baslik === 'Yorumlar (1 · 1 onay bekliyor)', JSON.stringify(ilk));
+    // 015 (erişilebilirlik 1, tasarımcı 1): görünür "Sırala:" etiketi grubun adı; seçili düğmede ✓ ve farklı stil
+    const sirala = await p.evaluate(() => {
+      const g = document.getElementById('yorum-siralama');
+      const [yeni, eski] = ['yeni', 'eski'].map((d) => g.querySelector(`[data-sira="${d}"]`));
+      const st = (b) => { const c = getComputedStyle(b); return [c.color, c.backgroundColor, c.boxShadow].join('|'); };
+      const etiket = document.getElementById(g.getAttribute('aria-labelledby'));
+      return { gorunur: !g.hidden && g.getBoundingClientRect().height > 0, etiket: etiket && etiket.textContent, etiketGorunur: !!etiket && etiket.getBoundingClientRect().width > 0,
+        yeniMetin: yeni.textContent, eskiMetin: eski.textContent, yeniStil: st(yeni), eskiStil: st(eski), isaretGizli: yeni.querySelector('.sira-isaret').getAttribute('aria-hidden') };
+    });
+    kontrol('yorum (015): sıralama grubunun adı görünür "Sırala:" (aria-labelledby), 2 yorumda görünür', sirala.gorunur && sirala.etiket === 'Sırala:' && sirala.etiketGorunur, JSON.stringify(sirala));
+    kontrol('yorum (015): seçili "En yeni" ✓ önekli ve stili seçili olmayandan farklı (renk/zemin/çizgi)', sirala.yeniMetin === '✓ En yeni' && sirala.eskiMetin === 'En eski' && sirala.yeniStil !== sirala.eskiStil && sirala.isaretGizli === 'true', JSON.stringify(sirala));
+    kontrol('yorum (015): liste adı da bekleyen yorumu söyler', (await p.evaluate(() => document.getElementById(document.getElementById('yorum-listesi').getAttribute('aria-labelledby')).textContent)) === 'Yorumlar (1 · 1 onay bekliyor)');
     await p.click('#yorum-siralama button[data-sira="eski"]');
     const eski = await p.evaluate(() => ({ ilk: document.querySelector('#yorum-listesi > li .yorum-metni').textContent, basili: document.querySelector('#yorum-siralama [data-sira="eski"]').getAttribute('aria-pressed') }));
     kontrol('yorum (014): "En eski" seçilince eskiden yeniye (en eski üstte), düğme aria-pressed', eski.ilk !== 'Hakem bugün SAL4K gibiydi' && eski.basili === 'true', JSON.stringify(eski));
+    kontrol('yorum (015): ✓ seçilen düğmeye geçer', (await p.textContent('#yorum-siralama [data-sira="eski"]')) === '✓ En eski' && (await p.textContent('#yorum-siralama [data-sira="yeni"]')) === 'En yeni');
     await git(p, 'gol.html?id=22222222-0000-4000-8000-000000000001');
     await p.waitForSelector('#yorum-metni');
     kontrol('yorum (014): ipucu hedefe göre (gol)', (await p.getAttribute('#yorum-metni', 'placeholder')) === 'Bu gol hakkında ne düşünüyorsun?');
@@ -863,6 +896,10 @@ async function reklamTarayiciTestleri() {
     await p.click('#sekme-yorumlar');
     await p.waitForSelector('#y-kuyruk-sayisi:not([hidden])');
     kontrol('yönetim (014): "1 yorum onay bekliyor" bildirimi ve kelime listesi', /1 yorum onay bekliyor/.test(await p.textContent('#y-kuyruk-sayisi')) && /salak/.test(await p.textContent('#y-kelimeler')));
+    // 015 (denetçi 2): kuyruk sekmenin en üstünde ve sekme düğmesinde sayı
+    kontrol('yönetim (015): kuyruk kutusu Yorumlar sekmesinin ilk öğesi, "Kuyruğu göster" düğmeli; sekmede sayı',
+      (await p.evaluate(() => document.getElementById('yorumlar-sekmesi').firstElementChild.id)) === 'y-kuyruk-sayisi'
+      && await p.locator('#y-kuyruk-ac').isVisible() && (await p.textContent('#sekme-yorumlar-sayac')) === '1');
     await p.selectOption('#y-filtre', 'kuyruk');
     const satir = p.locator('#yorum-moderasyon li', { hasText: 'SAL4K' });
     await satir.waitFor();
@@ -873,6 +910,38 @@ async function reklamTarayiciTestleri() {
     await p.click('#y-kelime-ekle');
     await p.locator('#y-kelimeler li[data-kelime="serefsiz"]').waitFor();
     kontrol('yönetim (014): kelime katlanmış eklendi ("Şerefsiz" → serefsiz)', true);
+    // 015 (denetçi 2): şikâyetle kendiliğinden gizlenen yorum da kuyruk kutusunda sayılır
+    await p.evaluate(() => { const d = JSON.parse(localStorage.getItem('sahte-db-v1')); const y = d.yorumlar.find((x) => x.metin === 'Tribünler muhteşemdi.'); Object.assign(y, { gizli: true, gizleme_nedeni: 'sikayet' }); localStorage.setItem('sahte-db-v1', JSON.stringify(d)); });
+    await p.selectOption('#y-filtre', 'hepsi');
+    await p.waitForFunction(() => /3 şikâyetle kendiliğinden gizlendi/.test(document.getElementById('y-kuyruk-sayisi').textContent));
+    kontrol('yönetim (015): "1 yorum 3 şikâyetle kendiliğinden gizlendi" kutusu', /1 yorum 3 şikâyetle kendiliğinden gizlendi/.test(await p.textContent('#y-kuyruk-sayisi')));
+    // 015 (başkan 2): "Kadro / transfer / sakatlık / bilet haberi" işaretliyse kaynak zorunlu
+    await p.click('#sekme-haberler');
+    await p.fill('#h-baslik', 'Transfer: yeni forvet geldi');
+    await p.check('#h-kaynak-gerekli');
+    await p.click('#h-kaydet');
+    await p.waitForFunction(() => /kaynak zorunlu/.test(document.getElementById('panel-mesaj').textContent));
+    kontrol('yönetim (015): bilet/transfer haberi kaynaksız kaydedilmez (istemci), alan işaretli', (await p.getAttribute('#h-kaynak', 'aria-invalid')) === 'true'
+      && !(await vt(p)).haberler.some((x) => x.baslik === 'Transfer: yeni forvet geldi'));
+    await p.fill('#h-kaynak', 'Kulüp açıklaması');
+    await p.click('#h-kaydet');
+    await p.waitForFunction(() => /Haber eklendi/.test(document.getElementById('panel-mesaj').textContent));
+    kontrol('yönetim (015): kaynakla kaydedilir, haberler.kaynak_gerekli yazılır', (await vt(p)).haberler.some((x) => x.baslik === 'Transfer: yeni forvet geldi' && x.kaynak_gerekli === true && x.kaynak === 'Kulüp açıklaması'));
+    // 015 (erişilebilirlik 4): altyazısız ve anlatımsız .mp4 önce uyarır, ikinci "Kaydet" kaydeder
+    await p.click('#sekme-goller');
+    await p.waitForFunction(() => document.querySelectorAll('#g-mac option').length > 1);
+    await p.selectOption('#g-mac', M1);
+    await p.fill('#g-oyuncu', 'Altyazı Deneme');
+    await p.fill('#g-dakika', '77');
+    await p.fill('#g-video', 'https://abcd.supabase.co/storage/v1/object/public/gol-videolari/2026/deneme.mp4');
+    await p.fill('#g-video-kaynak', 'Kulübün kendi çekimi');
+    await p.click('#g-kaydet');
+    await p.locator('#g-altyazi-uyari').waitFor();
+    kontrol('yönetim (015): .mp4 + altyazı yok + anlatım boş → uyarı, kayıt yok, odak anlatım alanında',
+      /altyazı/.test(await p.textContent('#g-altyazi-uyari')) && !(await vt(p)).goller.some((x) => x.oyuncu === 'Altyazı Deneme') && (await p.evaluate(() => document.activeElement.id)) === 'g-aciklama');
+    await p.click('#g-kaydet');
+    await p.waitForFunction(() => /Gol eklendi/.test(document.getElementById('panel-mesaj').textContent));
+    kontrol('yönetim (015): ikinci "Kaydet" ile yine de kaydedilir, uyarı kalkar', (await vt(p)).goller.some((x) => x.oyuncu === 'Altyazı Deneme') && await p.locator('#g-altyazi-uyari').isHidden());
     await p.evaluate(async () => { const { supabase } = await import('/assets/istemci.js'); await supabase.auth.signOut(); });
     await git(p, 'haber.html?id=' + H1);
     await p.waitForSelector('#yorum-listesi .yorum');
@@ -902,6 +971,9 @@ async function reklamTarayiciTestleri() {
     await git(p, 'haber.html?id=' + H1);
     const hs = await kartBilgi('.reklam-yuvasi[data-reklam-alan="haber_sonu"]');
     kontrol('örnek veri: haber sonunda Narçil Cafe', beklenen(hs, 'Reklam', 'narcil-480x251.webp', 0), JSON.stringify(hs));
+    // 015 (performans 7): haber sonu sizes = boyutlar(yuva clientWidth − 27) (DPR 1'de aynı genişlik; 390 px'te kart < 560 → görsel tam genişlik)
+    const hsBoy = await p.evaluate(() => { const y = document.querySelector('.reklam-yuvasi[data-reklam-alan="haber_sonu"]'); return { sizes: y.querySelector('.reklam-gorsel').sizes, yuva: y.clientWidth, dpr: devicePixelRatio }; });
+    kontrol('örnek veri (015): haber sonu görseli sizes yuvanın gerçek genişliğinden (clientWidth − 27, etkin DPR ≤ 2)', hsBoy.dpr === 1 && hsBoy.sizes === `${hsBoy.yuva - 27}px`, JSON.stringify(hsBoy));
     await git(p, 'mac.html?id=' + M1);
     const ms = await kartBilgi('.reklam-yuvasi[data-reklam-alan="mac_sponsoru"]');
     kontrol('örnek veri: M1 maçında "Maçın sponsoru" Narçil Cafe (kare görselin 192 px kopyası: yuvasına göre srcset)', beklenen(ms, 'Maçın sponsoru', 'narcil-192x192.webp', 0), JSON.stringify(ms));

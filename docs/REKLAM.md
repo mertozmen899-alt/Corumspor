@@ -8,13 +8,60 @@
 
 > Uygulamanın her sayfasında üstteki şeritte ve alt bilgide **"Resmî Çorum FK uygulaması değildir."** yazar.
 
+## 000. 015 — son tur (6 Kasım 2026)
+
+Migration: `supabase/migrations/015_son_tur.sql` (014'ten sonra; tekrar çalıştırılabilir; gövdelerde "sürüm 015"). Testler:
+`testler/reklam/sql.test.mjs` ("015:" ile başlayanlar), `testler/sql/20_rls_testleri.sql` (015 bölümü), `testler/reklam/mantik.test.mjs`,
+`testler/reklam-tarayici-testleri.js`. Aşağıdaki 014 bölümünün 015'te değişen yerleri:
+
+**Sayım sınırları (SON-TUR kararı, denetçi 1)**
+- Reklam başına dakikada **120 gösterim / 20 tıklama / 240 yerleşim** (014'te 30 / 6 / 60): maç günü zirvesi (ör. maç sonu akın) eksik
+  sayılmasın. Sekme başına saatlik sınırlar **aynı** (bir sekmede bir reklama saatte 20 gösterim, saatte toplam 10 tıklama).
+  `SINIRLAR` (`reklam-mantik.js`) ve SQL sabitleri test karşılaştırır.
+- **Ham satır alarmı:** `reklam_ham_satir_alarmi(p_gun_sayisi = 7)` (yalnız yönetici): son N günde bir reklamın bir TSİ gününde
+  **20.000**'den fazla ham satırı (olay + yerleşim) varsa listeler (`SINIRLAR.hamSatirAlarmi`). Olağan bir günde reklam başına birkaç bin
+  satır beklenir; eşiği aşan gün otomatik trafik (ya da çok büyük bir maç) demektir. Panelin **Reklamlar** sekmesinde kırmızı kutu.
+- **Son bakım:** Reklamlar sekmesi `reklam_gunluk_toplanan`'ın en yeni `toplandi` anını "Son bakım: …" diye yazar; 2 günden eskiyse
+  (`SINIRLAR.bakimGecikmeGun`; hiç bakım yoksa en eski ham olay 2 günden eskiyse) pg_cron uyarısı çıkar. **pg_cron artık zorunlu kurulum
+  adımı** (README 2. bölüm, kontrol sorgusu `select * from cron.job where jobname = 'reklam-bakim'`).
+- Cloudflare Pages Function hız sınırı yine **yalnız belgede** (aşağıda "Sonraki adım"; SON-TUR kararı: yapılmadı).
+
+**Rapor (reklamveren 1, 2, 5)**
+- **Tıklama oranı = tıklama yapılan farklı sayfa açılışı ÷ gösterim**, en çok %100. Eskiden toplam tıklama ÷ gösterimdi: bir gösterimde
+  WhatsApp + "Ara" = %200 çıkıyordu. Pay `reklam_raporu.tiklayan_ziyaret` (yeni sütun); günlük toplamda `reklam_gunluk.tur = 'tiklayan'`
+  (o gün en az bir tıklama yapılan farklı sayfa açılışı). Toplam tıklama ve web / WhatsApp / ara dağılımı ayrı sütunlarda kalır.
+  014'te toplanmış günlere 015 `tiklayan` ekler: ham olay duruyorsa ondan, silinmişse üst sınır olarak tıklama sayısı (oran yine ≤ %100).
+- **Dönem ve yayın günü bugünü (TSİ) aşmaz:** `donem_bitis = least(istenen bitiş, yayın bitişi, bugün)`; ay ortasında alınan "bu ay"
+  raporunda 25 gün değil geçen günler sayılır, günlük ortalama sulanmaz. `devam_ediyor` = reklam yayında, bitmedi ve dönem bugünde kesildi:
+  panelde, özette ve CSV'de "(devam ediyor)". JS aynası: `raporDonemi()` (sahte istemci de kullanır).
+- **Elle yeniden toplama geçmişi silmez:** `reklam_gunluk_topla(gün)` o gün toplanmış ve ham olayları silinmişse hiçbir şey yapmaz (0 döner).
+- Özet: telefonda her hücre `data-baslik` taşır (sütun adı satırda görünür); toplam satırında ve gün gün tabloda tıklama web / WhatsApp / ara
+  diye ayrılır; "En yoğun gün" eşitlikte maç gününü seçer; yazdırınca boş 2. sayfa çıkmaz (özetin atası olmayan her öğe `display: none`).
+- CSV tek tarih biçimi: günler `GG.AA.YYYY`, saatli alanlar `GG.AA.YYYY SS:DD` (TSİ). Yeni sütun `Tıklama yapılan sayfa açılışı`
+  (`Arama` ile `Tıklama oranı (%)` arasında).
+- Süre düğmeleri: **1 hafta / 1 ay** bitişi o günün **23:59**'u (TSİ; `sureBitisi()`), yeni reklamın varsayılan bitişi de öyle.
+
+**Panel rozeti (reklamveren 4):** akışta **"Akışta 1. sponsor: ilk sayfada"**, 2. ve 3. için **"Akışta N. sponsor: yalnız "Daha fazla haber"
+açılınca"** (`akisYuvaNotu`). Ana sayfa ilk anda 6 haber açar (`ana.js` `SAYFA_BOYU`); 1. yuva 3. haberden sonra, 2. ve 3. yuva 11. ve 19.
+haberden sonra gelir, yani yalnız "Daha fazla haber"e basan görür.
+**Satış notu: 2. ve 3. akış yuvası daha az görünür, 1. yuvadan daha ucuz satılır** (ay sonu raporundaki sayfa açılışı / görünürlük bunu
+gösterir; fiyatı 1. yuvanınkiyle aynı tutmayın).
+
+**Yasaklı sektör onayı (denetçi 4):** görseldeki yazı (`gorsel_metni`) ve düğme yazısı (`dugme_metni`) değişince de onay sıfırlanır
+(`reklamlar_sektor` sürüm 015; panel `ilkIcerik` aynı alanlarla).
+
+**Haber sonu görseli (performans 7):** `sizes` etkin DPR ≤ 2 ile: kart yuvaya konunca `boyutlar(kutu)` (`assets/ortak.js`; `reklam.js`
+artık onu içe aktarır), kutu = yuvanın `clientWidth` − 27 (kart dolgusu + kenarı), kart ≥ 560 px ise (görsel yanda) × 0,44. Kart
+oluşturulurken (önizleme dahil) ekran genişliğinden tahmin (`haberSonuBoyutu()`). 360 px / DPR 3'te ≈ 201 px istenir → 480 kopyası
+(≈ 8,5 KB), 1200 değil. Akış (144px) ve maç (64px) aynı.
+
 ## 00. 014 — 2. tur inceleme (6 Kasım 2026)
 
 Migration: `supabase/migrations/014_inceleme_2.sql` (013'ten sonra; tekrar çalıştırılabilir). Testler: `testler/reklam/sql.test.mjs`
 ("014:" ile başlayanlar), `testler/sql/20_rls_testleri.sql` (014 bölümü), `testler/reklam/mantik.test.mjs`, `testler/reklam-tarayici-testleri.js`.
 
 **Sayım şişirmeye karşı (IP tutulmadan; denetçi 1)**
-- Reklam başına dakikada en çok **30 gösterim / 6 tıklama** (012'de 120 / 30), **60 yerleşim**. Fazlası sayılmaz, `reklam_sinir_dakikalari`'na
+- Reklam başına dakikada en çok **30 gösterim / 6 tıklama** (012'de 120 / 30), **60 yerleşim** (015'te 120 / 20 / 240; yukarı bakın). Fazlası sayılmaz, `reklam_sinir_dakikalari`'na
   yazılır ve raporda **"Şüpheli trafik (sayılmadı, dk)"** olarak görünür. Çorum ölçeğinde gerçek trafik bu sınırın altında kalır;
   maç sonrası ani yoğunlukta sınır dolarsa o dakika da "şüpheli" görünür (rakam yine yaklaşıktır).
 - **Sekme başına saatlik sınır:** istemci rastgele sekme kimliğini (`sessionStorage`) artık gösterimde de gönderir (`p_sekme_id`).
@@ -65,7 +112,7 @@ harf + İ/I/ı/i → i, Ç → c, Ş → s …) + baş/son boşluk yok + art ard
 değiştirmek (panel kutular yeniden işaretlenince bunu yapar; sunucu anı kendisi yazar). Panel içerik değişince kutuları boşaltıp not gösterir.
 
 **Panel (denetçi 6, KARARLAR, reklamveren 1/7/9, başkan 2)**
-- Liste rozeti akışta **"Akışta N. sponsor (şu an gösteriliyor)"** (`gosterimSirasi` = `aktif_reklamlar` aynası); sıradakinde "Sırada (önde: …)".
+- Liste rozeti akışta **"Akışta N. sponsor (şu an gösteriliyor)"** (015: "ilk sayfada" / "yalnız "Daha fazla haber" açılınca") (`gosterimSirasi` = `aktif_reklamlar` aynası); sıradakinde "Sırada (önde: …)".
 - **Dönüşüm (rotasyon) yok** (KARARLAR): kazanan en yüksek öncelik, eşitse en son yayına alınan; akışta en çok 3 farklı firma. Yeni reklam
   yayın süresi boyunca hiç kazanamayacaksa önizleme: **"Bu alan bu tarihlerde dolu: "X" 20 öncelikte. Bu reklam yayına alınsa da hiç
   görünmez…"** (`alanDolulugu`). Satışta: akışta aynı dönemde en çok 3 firma, haber sonu ve genel maç sponsoru tek firma.

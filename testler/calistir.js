@@ -1,5 +1,5 @@
 // Bütün testler tek komutla: node testler/calistir.js
-//  1) Veritabanı: migration'lar (001 → 002 → 010 → 011 → 012 → 013 → 014) + seed + RLS testleri (gerçek Postgres ya da PGlite)
+//  1) Veritabanı: migration'lar (001 → 002 → 010 → 011 → 012 → 013 → 014 → 015) + seed + RLS testleri (gerçek Postgres ya da PGlite)
 //  2) Tarayıcı: Playwright ile uygulama sayfaları, sahte Supabase (ekran görüntüleri testler/ekran/)
 //  3) Reklam mantığı: node:test birim testleri (testler/reklam/mantik.test.mjs)
 //  4) Reklam SQL: gerçek uygulama şeması üzerinde RLS/RPC testleri (testler/reklam/sql.test.mjs, kurulu Postgres gerekir)
@@ -59,7 +59,7 @@ function nodeTest(dosya) {
     ['SQL', sql, `(${sql.motor})`],
     ['Tarayıcı', tarayici, '(Playwright/Chromium)'],
     ['Reklam mantık', mantik, '(node:test)'],
-    ['Reklam SQL', reklamSql, '(node:test, 001+002+010+011+012+013+014 şeması)'],
+    ['Reklam SQL', reklamSql, '(node:test, 001+002+010+011+012+013+014+015 şeması)'],
     ['Reklam tarayıcı', reklamTarayici, '(Playwright/Chromium, tam uygulama ?sahte=1)'],
     ['Görünüm', gorunum, '(360/390/430/1280 px × açık/koyu, testler/ekran/)'],
     ['Uygulama birim', uygulama, '(node:test: kurallar, görsel küçültme, yayın)'],

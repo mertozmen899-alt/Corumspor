@@ -827,3 +827,9 @@ dialog.sayfa-alt h2 { font-size: 1.375rem; }
   .iskelet { background-image: none; }
   .video-kart:active, .hero:active .hero-gorsel { transform: none; }
 }
+
+/* son tur: sunucu */
+/* 015 (erişilebilirlik 1, tasarımcı 1): yorum sıralaması: görünür "Sırala:" etiketi; seçili düğme ✓ + metin rengi, zemin ve alt çizgiyle ayrılır */
+.yorum-siralama { align-items: center; }
+.yorum-siralama-etiket { font-size: .875rem; font-weight: 700; color: var(--metin-soluk); }
+.yorum-siralama .hayalet[aria-pressed="true"] { color: var(--metin); background: var(--yuzey-2); box-shadow: inset 0 -3px 0 var(--vurgu); }

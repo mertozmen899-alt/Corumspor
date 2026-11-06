@@ -79,7 +79,9 @@ function haberlerSekmesi(kok) {
     h('div', { class: 'iki-sutun' },
       alan('h-kaynak', 'Haberin kaynağı', h('input', { type: 'text', id: 'h-kaynak', maxlength: '120', placeholder: 'ör. Kulüp açıklaması, TFF, Çorum Valiliği' })),
       alan('h-kaynak-url', 'Kaynak bağlantısı (https, isteğe bağlı)', h('input', { type: 'url', id: 'h-kaynak-url', inputmode: 'url', placeholder: 'https://…' }))),
-    h('p', { class: 'yonetim-not', id: 'h-kaynak-notu' }, 'Kadro, transfer, sakatlık ve bilet haberlerinde kaynağı mutlaka yazın (kulüp açıklaması, TFF). Söylenti haber yapılmaz. Kaynak haberin sonunda "Kaynak: …" olarak görünür.'),
+    // 015 (başkan 2): bu tür haberde kaynak zorunlu (istemci + sunucu: haberler.kaynak_gerekli)
+    h('div', { class: 'alan' }, h('label', { class: 'onay' }, h('input', { type: 'checkbox', id: 'h-kaynak-gerekli', 'aria-describedby': 'h-kaynak-notu' }), 'Kadro / transfer / sakatlık / bilet haberi')),
+    h('p', { class: 'yonetim-not', id: 'h-kaynak-notu' }, 'Kadro, transfer, sakatlık ve bilet haberlerinde kaynağı mutlaka yazın (kulüp açıklaması, TFF): yukarıdaki kutu işaretliyse kaynaksız kaydedilmez. Söylenti haber yapılmaz. Kaynak haberin sonunda "Kaynak: …" olarak görünür.'),
     alan('h-duzeltme', 'Düzeltme notu (yalnız haberde hata düzeltildiyse)', h('textarea', { id: 'h-duzeltme', maxlength: '500', rows: '2', placeholder: 'ör. İlk hâlinde maç saati 19.00 yazıyordu; doğrusu 20.00.' }),
       'Doluysa haberin başında "Düzeltme" kutusunda tarihiyle gösterilir. Düzeltilen bilgiyi sessizce değiştirmeyin.'),
     h('div', { class: 'alan' }, h('label', { class: 'onay' }, h('input', { type: 'checkbox', id: 'h-manset' }), 'Manşet (ana sayfanın büyük açılış görselinde gösterilir; en yeni manşet)')),
@@ -119,6 +121,7 @@ function haberlerSekmesi(kok) {
     $('#h-kapak-alt').value = haber.kapak_alt || '';
     $('#h-kaynak').value = haber.kaynak || '';
     $('#h-kaynak-url').value = haber.kaynak_url || '';
+    $('#h-kaynak-gerekli').checked = !!haber.kaynak_gerekli;
     $('#h-duzeltme').value = haber.duzeltme_notu || '';
     onizlemeGoster(haber.kapak_url);
     form.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -152,6 +155,7 @@ function haberlerSekmesi(kok) {
       kapak_alt: $('#h-kapak-alt').value.trim() || null,
       kaynak: $('#h-kaynak').value.trim() || null,
       kaynak_url: $('#h-kaynak-url').value.trim() || null,
+      kaynak_gerekli: $('#h-kaynak-gerekli').checked,
       duzeltme_notu: $('#h-duzeltme').value.trim() || null,
     };
     const hHata = haberHatalari(kayit);
@@ -210,7 +214,7 @@ function haberlerSekmesi(kok) {
 
   async function yukle() {
     const { data, error } = await supabase.from('haberler')
-      .select('id, baslik, ozet, govde, kapak_url, kapak_kaynak, kapak_alt, kaynak, kaynak_url, duzeltme_notu, duzeltme_tarihi, manset, yayinda, yayin_tarihi, created_at')
+      .select('id, baslik, ozet, govde, kapak_url, kapak_kaynak, kapak_alt, kaynak, kaynak_url, kaynak_gerekli, duzeltme_notu, duzeltme_tarihi, manset, yayinda, yayin_tarihi, created_at')
       .order('created_at', { ascending: false }).limit(200);
     if (error) { liste.replaceChildren(h('li', null, hataMetni(error, 'Haberler yüklenemedi.'))); return; }
     liste.replaceChildren(...(data.length ? data.map((haber) => h('li', { 'data-haber-id': haber.id },
@@ -220,6 +224,7 @@ function haberlerSekmesi(kok) {
         haber.manset ? h('span', { class: 'rozet canli' }, 'Manşet') : null,
         haber.duzeltme_notu ? h('span', { class: 'rozet' }, 'Düzeltildi') : null,
         haber.kaynak ? null : h('span', { class: 'rozet', title: 'Kadro, transfer ve bilet haberlerinde kaynak yazın' }, 'Kaynaksız'),
+        haber.kaynak_gerekli ? h('span', { class: 'rozet', title: 'Kadro / transfer / sakatlık / bilet haberi: kaynak zorunlu' }, 'Kaynak zorunlu') : null,
         tarihYaz(haber.yayin_tarihi || haber.created_at)),
       h('span', { class: 'dugme-satir' },
         h('button', { type: 'button', class: 'dugme ikincil kucuk', onclick: () => doldur(haber) }, 'Düzenle'),
@@ -371,6 +376,8 @@ function gollerSekmesi(kok) {
       alan('g-sure', 'Video süresi (saniye, isteğe bağlı)', h('input', { type: 'number', id: 'g-sure', min: '1', max: '3600', inputmode: 'numeric' }))),
     h('div', { id: 'g-kapak-onizleme' }),
     alan('g-aciklama', 'Golün anlatımı (isteğe bağlı ama önerilir)', h('input', { type: 'text', id: 'g-aciklama', maxlength: '300' }), 'Videoyu izleyemeyenler için: kim, nasıl, hangi dakikada.'),
+    // 015 (erişilebilirlik 4): altyazısız ve anlatımsız .mp4 kaydedilmeden önce uyarı (ikinci "Kaydet" ile yine de kaydedilir)
+    h('p', { class: 'mesaj hata', id: 'g-altyazi-uyari', hidden: true }),
     h('div', { class: 'dugme-satir' },
       h('button', { type: 'submit', class: 'dugme', id: 'g-kaydet' }, 'Kaydet'),
       h('button', { type: 'button', class: 'dugme ikincil', id: 'g-yeni' }, 'Yeni gol')));
@@ -379,7 +386,12 @@ function gollerSekmesi(kok) {
 
   let kapak = null; // { url } düzenlenen golün mevcut kapağı
   let altyazi = null; // düzenlenen golün altyazı adresi
-  function temizle() { duzenlenen = null; kapak = null; altyazi = null; const m = macSecim.value; form.reset(); macSecim.value = m; $('#gol-form-baslik').textContent = 'Gol ekle'; $('#g-kapak-onizleme').replaceChildren(); $('#g-altyazi-durum').textContent = ''; }
+  let altyaziUyarildi = false; // 015: uyarı gösterildi; ikinci "Kaydet" kaydeder
+  const altyaziUyari = $('#g-altyazi-uyari');
+  const uyariKaldir = () => { altyaziUyarildi = false; altyaziUyari.hidden = true; altyaziUyari.textContent = ''; };
+  for (const id of ['#g-mp4', '#g-vtt', '#g-video', '#g-aciklama']) $(id).addEventListener('input', uyariKaldir);
+  for (const id of ['#g-mp4', '#g-vtt']) $(id).addEventListener('change', uyariKaldir);
+  function temizle() { uyariKaldir(); duzenlenen = null; kapak = null; altyazi = null; const m = macSecim.value; form.reset(); macSecim.value = m; $('#gol-form-baslik').textContent = 'Gol ekle'; $('#g-kapak-onizleme').replaceChildren(); $('#g-altyazi-durum').textContent = ''; }
   /** Gol medyası (mp4 / vtt) sitenin deposuna (gol-videolari kovası, 014): döner { url } ya da { hata }. */
   async function medyaYukle(dosya, uzanti, tur, enCok) {
     if (dosya.size > enCok) return { hata: `Dosya çok büyük: en fazla ${Math.round(enCok / 1048576)} MB.` };
@@ -449,6 +461,16 @@ function gollerSekmesi(kok) {
     if (vttDosya && !/\.vtt$/i.test(vttDosya.name)) return bildir('Altyazı WebVTT (.vtt) dosyası olmalı.', 'hata');
     if (vttDosya && !mp4Dosya && !(video && /\.mp4$/i.test(video))) return bildir('Altyazı yalnız siteye yüklenen .mp4 videoya eklenir.', 'hata');
     if (kayit.sure_sn != null && (!Number.isInteger(kayit.sure_sn) || kayit.sure_sn < 1 || kayit.sure_sn > 3600)) return bildir('Video süresi 1-3600 saniye arasında tam sayı olmalı.', 'hata');
+    // 015 (erişilebilirlik 4, WCAG 1.2.2): .mp4 + altyazı yok + anlatım boş → önce uyar; yönetici yine de kaydedebilir
+    const mp4Var = !!mp4Dosya || (!!video && /\.mp4$/i.test(video));
+    if (mp4Var && !vttDosya && !(altyazi && !mp4Dosya) && !kayit.aciklama && !altyaziUyarildi) {
+      altyaziUyarildi = true;
+      altyaziUyari.textContent = 'Bu .mp4 videonun altyazısı (.vtt) yok ve "Golün anlatımı" boş: işitme engelli taraftar golü anlayamaz. Spiker anlatımlı videoda altyazı yükle ya da golün anlatımını yaz. Yine de kaydetmek için "Kaydet"e yeniden bas.';
+      altyaziUyari.hidden = false;
+      $('#g-aciklama').focus();
+      return bildir('Altyazı ya da golün anlatımı eksik (yine de kaydetmek için "Kaydet"e yeniden bas).', 'hata');
+    }
+    uyariKaldir();
     const dugme = $('#g-kaydet');
     dugme.disabled = true;
     const dosya = $('#g-kapak').files[0];
@@ -517,7 +539,10 @@ function yorumlarSekmesi(kok) {
     h('option', { value: 'gorunur' }, 'Görünür olanlar'),
     h('option', { value: 'gizli' }, 'Gizlenenler'));
   filtre.value = 'hepsi';
-  const kuyrukSayisi = h('p', { class: 'mesaj bilgi', id: 'y-kuyruk-sayisi', hidden: true });
+  // 015 (denetçi 2): kuyruk (onay bekleyen + şikâyetle kendiliğinden gizlenen) sayfanın en üstünde, düğmeyle açılır
+  const kuyrukMetni = h('span', { id: 'y-kuyruk-metni' });
+  const kuyrukDugme = h('button', { type: 'button', class: 'dugme kucuk', id: 'y-kuyruk-ac', onclick: () => { filtre.value = 'kuyruk'; yukle().then(() => liste.querySelector('button')?.focus()); } }, 'Kuyruğu göster');
+  const kuyrukSayisi = h('div', { class: 'mesaj hata', id: 'y-kuyruk-sayisi', hidden: true }, kuyrukMetni, ' ', kuyrukDugme);
   const liste = h('ul', { class: 'yonetim-liste', id: 'yorum-moderasyon' });
   const kelimeGirdi = h('input', { type: 'text', id: 'y-kelime', maxlength: '40', autocomplete: 'off', placeholder: 'ör. küfür kökü' });
   const kelimeListesi = h('ul', { class: 'etiket-listesi', id: 'y-kelimeler', 'aria-label': 'Kelime listesi' });
@@ -526,10 +551,9 @@ function yorumlarSekmesi(kok) {
     h('p', { class: 'soluk kucuk-yazi' }, 'Taraftarın yorumunda bu kelimelerden biriyle BAŞLAYAN bir sözcük varsa yorum hemen yayımlanmaz, aşağıdaki onay kuyruğuna düşer. Büyük/küçük harf, Türkçe harf ve rakamla yazma (s4lak) fark etmez. En az 3 harf; kısa ve sık kullanılan sözcükleri eklemeyin. Liste yalnız yöneticilere görünür.'),
     h('div', { class: 'dugme-satir' }, alan('y-kelime', 'Kelime ekle', kelimeGirdi), h('button', { type: 'submit', class: 'dugme ikincil', id: 'y-kelime-ekle' }, 'Ekle')),
     kelimeListesi);
-  kok.replaceChildren(h('div', { class: 'kutu' },
+  kok.replaceChildren(kuyrukSayisi, h('div', { class: 'kutu' },
     h('h2', null, 'Yorum moderasyonu'),
     h('p', { class: 'soluk kucuk-yazi' }, 'Gizlenen ya da onay bekleyen yorumu sadece yazan kişi ve yöneticiler görür. Silinen yorum geri gelmez. Farklı 3 hesaptan şikâyet alan yorum kendiliğinden gizlenir; "Göster" ile geri açarsanız yalnız sonraki şikâyetler sayılır. Maçlar sekmesinde maç başına "ön onay" açılabilir. Şikâyet edilen yorumlara en kısa sürede bakın. "Yorumdan men et" kişinin yeni yorum yazmasını, yorumlarını düzenlemesini ve şikâyet göndermesini kapatır.'),
-    kuyrukSayisi,
     alan('y-filtre', 'Göster', filtre)), liste, kelimeFormu);
   filtre.addEventListener('change', yukle);
 
@@ -599,11 +623,15 @@ function yorumlarSekmesi(kok) {
     if (filtre.value === 'gizli') q = q.eq('gizli', true);
     if (filtre.value === 'gorunur') q = q.eq('gizli', false).eq('onay_bekliyor', false);
     const kq = supabase.from('yorumlar').select('id, onay_bekliyor, gizleme_nedeni').eq('onay_bekliyor', true).limit(500);
-    const [yr, sk, en, kb] = await Promise.all([q, supabase.from('yorum_sikayetleri').select('yorum_id, neden').limit(1000), supabase.rpc('engelli_kullanicilar'), kq]);
+    const sq = supabase.from('yorumlar').select('id').eq('gizli', true).eq('gizleme_nedeni', 'sikayet').limit(500);
+    const [yr, sk, en, kb, sg] = await Promise.all([q, supabase.from('yorum_sikayetleri').select('yorum_id, neden').limit(1000), supabase.rpc('engelli_kullanicilar'), kq, sq]);
     if (yr.error) { liste.replaceChildren(h('li', null, hataMetni(yr.error))); return; }
     const bekleyen = (kb.data || []).length;
-    kuyrukSayisi.hidden = !bekleyen;
-    kuyrukSayisi.textContent = bekleyen ? `${bekleyen} yorum onay bekliyor. "Onay kuyruğu"nu seçin.` : '';
+    const sikayetGizli = (sg.data || []).length;
+    kuyrukSayisi.hidden = !(bekleyen || sikayetGizli);
+    kuyrukMetni.textContent = [bekleyen ? `${bekleyen} yorum onay bekliyor.` : '', sikayetGizli ? `${sikayetGizli} yorum 3 şikâyetle kendiliğinden gizlendi: bakıp "Göster" ya da "Sil" deyin.` : ''].filter(Boolean).join(' ');
+    kuyrukDugme.hidden = filtre.value === 'kuyruk';
+    kuyrukSekmeSayisi(bekleyen + sikayetGizli);
     const sikayet = new Map();
     for (const x of sk.data || []) { const l = sikayet.get(x.yorum_id) || []; l.push(x.neden); sikayet.set(x.yorum_id, l); }
     const engelliler = new Set(Array.isArray(en.data) ? en.data.map((x) => (typeof x === 'string' ? x : x.engelli_kullanicilar || x.id)) : []);
@@ -816,6 +844,26 @@ async function reklamlarSekmesi() {
   document.dispatchEvent(new CustomEvent('reklamlar-sekmesi-hazir', { detail: { el: yer } }));
 }
 
+/** 015 (denetçi 2): "Yorumlar" sekmesinde kuyruk sayısı (onay bekleyen + şikâyetle gizlenen); sekme açılmadan da görünür. */
+function kuyrukSekmeSayisi(n) {
+  const dugme = $('#sekme-yorumlar');
+  if (!dugme) return;
+  let rozet = $('#sekme-yorumlar-sayac');
+  if (!n) { rozet?.remove(); return; }
+  if (!rozet) { rozet = h('span', { class: 'rozet canli', id: 'sekme-yorumlar-sayac' }); dugme.append(' ', rozet); }
+  rozet.textContent = String(n);
+  rozet.setAttribute('aria-label', `${n} yorum bakılmayı bekliyor`);
+}
+async function kuyrukSayisiniYukle() {
+  try {
+    const [a, b] = await Promise.all([
+      supabase.from('yorumlar').select('id').eq('onay_bekliyor', true).limit(500),
+      supabase.from('yorumlar').select('id').eq('gizli', true).eq('gizleme_nedeni', 'sikayet').limit(500),
+    ]);
+    kuyrukSekmeSayisi((a.data || []).length + (b.data || []).length);
+  } catch (e) { /* sayı alınamazsa sekme sayısız kalır */ }
+}
+
 // ===================================================================== sekmeler
 const SEKMELER = {
   haberler: { panel: 'haberler-sekmesi', kur: haberlerSekmesi },
@@ -861,4 +909,5 @@ if (!oturum.hazir) {
   // WAI-ARIA sekmeler: ← → Home End, seçili sekme tabindex 0
   sekmeTabindex = sekmeKlavyesi($('.yonetim-sekmeler'), (t) => sekmeAc(t.dataset.sekme));
   sekmeAc(location.hash.slice(1));
+  kuyrukSayisiniYukle();
 }

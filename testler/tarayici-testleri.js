@@ -479,7 +479,7 @@ async function tarayiciTestleri() {
     const sayfalar = fs.readdirSync(KOK).filter((d) => d.endsWith('.html')).sort();
     // GEÇİCİ (son tur): gizlilik.html ve kurallar.html bu tur SUNUCU izindeydi; ortak satırlar (künye süresi, fetchpriority'siz supabase-js,
     // kalın yazı tipi preload'u yok) orada birleştirmede uygulanır. Birleştirmeden sonra bu liste BOŞALTILMALI.
-    const SUNUCU_SAYFALARI_SON_TUR = ['gizlilik.html', 'kurallar.html'].filter((d) => /en kısa sürede dönülür|fetchpriority="high" src="assets\/vendor/.test(fs.readFileSync(path.join(KOK, d), 'utf8')));
+    const SUNUCU_SAYFALARI_SON_TUR = []; // son tur birleşti: bütün sayfalar denetlenir
     kontrol('statik: gizlilik.html var (KVKK aydınlatma + tarayıcı depolaması)', sayfalar.includes('gizlilik.html'), sayfalar.join(','));
     const cspler = new Set();
     for (const ad of sayfalar) {

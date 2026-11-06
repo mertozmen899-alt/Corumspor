@@ -1,7 +1,9 @@
 // Uygulamanın saf kuralları (DOM yok, ağ yok). Tarayıcıda, sahte istemcide (testler/sahte-supabase.js) ve Node'da aynı dosya.
-// Buradaki kurallar veritabanındakilerin AYNASIDIR (supabase/migrations/012_denetim_2.sql + 013_tasarim.sql + 014_inceleme_2.sql). Birini değiştirirseniz ötekini de
+// Buradaki kurallar veritabanındakilerin AYNASIDIR (supabase/migrations/012_denetim_2.sql + 013_tasarim.sql + 014_inceleme_2.sql + 015_son_tur.sql). Birini değiştirirseniz ötekini de
 // değiştirin; testler/kurallar-ornekleri.json iki tarafta da denenir (testler/uygulama.test.mjs, testler/reklam/sql.test.mjs).
 // Asıl koruma sunucudadır; buradaki denetimler kullanıcıya erken ve Türkçe uyarı vermek içindir.
+// 015: uygulama sahibinin adı (ayar.js SAHIP_ADI) kullanıcı adı olarak ayrılmıştır (SQL: ayrilmis_adlar tablosu, README "Künye").
+import { SAHIP_ADI } from './ayar.js';
 
 // Yorum sınırları (SQL: yorum_ekleme_kontrol, yorum_duzenleme_hakki, yorum_guncelleme_kontrol)
 export const YORUM_SINIRLARI = Object.freeze({
@@ -11,6 +13,14 @@ export const YORUM_SINIRLARI = Object.freeze({
   tekrarDakika: 10,           // aynı metin 10 dakika içinde tekrar yazılamaz
   duzenlemeDakikada: 10,      // dakikada en fazla 10 düzenleme
   duzenlemeSuresiDakika: 30,  // yorum yalnız yazıldıktan sonraki 30 dakika içinde düzenlenebilir (yönetici muaf)
+});
+
+// Şikâyet sınırları (SQL: sikayet_hakki, sikayet_otomatik_gizle; 015)
+export const SIKAYET_SINIRLARI = Object.freeze({
+  saatte: 10,                 // bir hesap saatte en fazla 10 şikâyet
+  gunde: 30,                  // son 24 saatte en fazla 30 şikâyet
+  otomatikGizlemeEsigi: 3,    // farklı 3 hesaptan şikâyet → yorum kendiliğinden gizlenir (yönetici yorumu hariç)
+  hesapYasiSaat: 24,          // yalnız şikâyet anında en az 24 saatlik hesapların şikâyeti sayılır
 });
 
 /** Aynı metin mi (baştaki/sondaki boşluk, art arda boşluk ve büyük/küçük harf yok sayılır; SQL ile aynı). */
@@ -35,19 +45,37 @@ export function metinKatla(s) { return [...String(s ?? '')].map((c) => KATLA.get
 export const KULLANICI_ADI_DESENI = /^[A-Za-z0-9_.çğıöşüÇĞİÖŞÜ]{3,24}$/;
 // İçinde geçmesi yeten kökler ve tam eşleşmesi gerekenler (SQL'deki listeyle AYNI)
 // 013: baskan, corumspor (kök), teknikdirektor, kaptan, antrenor; 014: kirmizisimsek (taraftar grubu lakabı) ve rakam benzerleri
-const AYRILMIS_KOK = /(admin|yonetici|yonetim|moderator|resmi|corumfk|corumspor|kulup|yetkili|baskan|teknikdirektor|kirmizisimsek)/;
+// 015: cfk (ÇFK, C_F_K: kulüp kısaltması)
+const AYRILMIS_KOK = /(admin|yonetici|yonetim|moderator|resmi|corumfk|corumspor|kulup|yetkili|baskan|teknikdirektor|kirmizisimsek|cfk)/;
 const AYRILMIS_TAM = ['destek', 'mod', 'sistem', 'corumsportaraftar', 'support', 'official', 'root', 'kaptan', 'antrenor'];
 
+/** Ek ayrılmış adın anahtarı (SQL: ayrilmis_ad_anahtari): parantez içi atılır, katlanır, yalnız harf. "Mert (uygulama sahibi)" → "mert". */
+export function sahipAnahtari(ad) { return metinKatla(String(ad ?? '').replace(/\([^)]*\)/g, '')).replace(/[^a-z]/g, ''); }
+/** Uygulama sahibinin adı (ayar.js SAHIP_ADI); 3 harften kısaysa yok. SQL'de ayrilmis_adlar tablosundadır. */
+export const SAHIP_ANAHTARLARI = Object.freeze([sahipAnahtari(SAHIP_ADI)].filter((k) => /^[a-z]{3,40}$/.test(k)));
+
 /** Yanıltıcı / ayrılmış ad mı (yönetici, admin, resmî, kulüp, Çorum FK, destek…)? Harf büyüklüğü, Türkçe harf, _ ve . fark etmez;
- *  rakam/simge benzerleri de yakalanır (014): (a) 0→o 1→i 3→e 4→a 5→s 7→t @→a; (b) aynısı ama 1→l; (c) (a)'da l→i ("Resml"). */
-export function kullaniciAdiAyrilmis(ad) {
+ *  rakam/simge benzerleri de yakalanır. Denenen biçimler (SQL kullanici_adi_ayrilmis ile AYNI, 015):
+ *  taban = katlanmış ad ve sondaki rakam/_/. atılmış hâli; her tabanda 8 → at | ate | b, sonra (a) 0→o 1→i 3→e 4→a 5→s 7→t @→a,
+ *  (b) aynısı ama 1→l, (d) rakamlar silinmiş; hepsine ayrıca l→i ve rn→m. Kök listede geçerse ya da tam liste / ek adlar
+ *  (uygulama sahibi) birebir tutarsa ayrılmıştır. */
+export function kullaniciAdiAyrilmis(ad, ekAnahtarlar = SAHIP_ANAHTARLARI) {
   const v = metinKatla(ad);
   const harf = (x) => x.replace(/[^a-z]/g, '');
-  const a = harf(cevir(v, '013457@', 'oieasta'));
-  const b = harf(cevir(v, '013457@', 'oleasta'));
-  const c = cevir(a, 'l', 'i');
-  return [a, b, c].some((x) => AYRILMIS_KOK.test(x) || AYRILMIS_TAM.includes(x));
+  let adaylar = [];
+  for (const taban of [v, v.replace(/[0-9_.]+$/, '')]) {
+    for (const e of ['at', 'ate', 'b']) {
+      const x = taban.split('8').join(e);
+      adaylar.push(harf(cevir(x, '013457@', 'oieasta')), harf(cevir(x, '013457@', 'oleasta')));
+    }
+    adaylar.push(harf(taban));
+  }
+  adaylar = adaylar.concat(adaylar.map((x) => cevir(x, 'l', 'i')));
+  adaylar = adaylar.concat(adaylar.map((x) => x.split('rn').join('m')));
+  return adaylar.some((x) => AYRILMIS_KOK.test(x) || AYRILMIS_TAM.includes(x) || (ekAnahtarlar || []).includes(x));
 }
+/** Kullanıcı adı en fazla 7 günde bir değiştirilebilir (SQL: profil_koruma, profiles.ad_degisti; 015). */
+export const AD_DEGISTIRME_GUN = 7;
 
 /** Kayıt formu için: geçerliyse null, değilse Türkçe hata metni. */
 export function kullaniciAdiHatasi(ad) {
@@ -113,10 +141,12 @@ export function sakatlikHatalari(s) {
 // ---------------------------------------------------------------------------
 // Haber kaynağı ve düzeltme (SQL: haberler_kaynak, haberler_kaynak_url, haberler_duzeltme_notu, haberler_kapak_alt; 014)
 // ---------------------------------------------------------------------------
+// 015: kaynak_gerekli (kadro / transfer / sakatlık / bilet haberi) işaretliyse kaynak zorunlu (SQL: haber_kaynak_kontrol + haberler_kaynak_gerekli)
 export function haberHatalari(x) {
   const h = {};
   const k = String(x.kaynak ?? '').trim();
   if (k && (k.length < 2 || k.length > 120)) h.kaynak = 'Kaynak 2-120 karakter olmalı (ör. "Kulüp açıklaması").';
+  else if (!k && x.kaynak_gerekli) h.kaynak = 'Kadro, transfer, sakatlık ya da bilet haberinde kaynak zorunlu (ör. "Kulüp açıklaması").';
   if (x.kaynak_url && !kaynakBaglantisiGecerli(x.kaynak_url)) h.kaynak_url = 'Kaynak bağlantısı https:// ile başlamalı.';
   const d = String(x.duzeltme_notu ?? '').trim();
   if (d && (d.length < 3 || d.length > 500)) h.duzeltme_notu = 'Düzeltme notu 3-500 karakter olmalı.';
@@ -141,11 +171,18 @@ export const GOL_VIDEO_KOVASI = 'gol-videolari';
 // sözcük varsa yorum onay bekler. Karşılaştırma: katla + rakam/simge benzerleri (0→o 1→i 3→e 4→a 5→s 7→t @→a $→s), harf dışı → boşluk.
 // ---------------------------------------------------------------------------
 export function yorumKatla(s) { return cevir(metinKatla(s), '013457@$', 'oieastas').replace(/[^a-z]+/g, ' ').trim(); }
+/** 015 (SQL: yorum_sikistir): harf ve boşluk dışı karakterler ARA BIRAKMADAN atılır, tek harfli sözcük dizileri birleşir:
+ *  "s.a.l.a.k" → "salak", "s a l a k" → "salak". 4+ harfli liste kelimeleri bu kopyada da (sözcük başında) aranır. */
+export function yorumSikistir(s) {
+  return cevir(metinKatla(s), '013457@$', 'oieastas').replace(/[^a-z\s]+/g, '').replace(/\s+/g, ' ').trim()
+    .replace(/(?<![a-z])([a-z]) (?=[a-z](?![a-z]))/g, '$1');
+}
 /** Listeye girecek kelimenin saklanan biçimi (SQL tetikleyicisi yorum_kelimeleri_katla); geçersizse null. */
 export function kelimeBicimi(k) { const v = yorumKatla(k).replace(/ /g, ''); return /^[a-z]{3,40}$/.test(v) ? v : null; }
 export function kelimeEslesir(metin, liste) {
   const v = ' ' + yorumKatla(metin);
-  return (liste || []).some((k) => { const b = kelimeBicimi(k); return !!b && v.includes(' ' + b); });
+  const s = ' ' + yorumSikistir(metin);
+  return (liste || []).some((k) => { const b = kelimeBicimi(k); return !!b && (v.includes(' ' + b) || (b.length >= 4 && s.includes(' ' + b))); });
 }
 /** Maçın ön onay penceresi: maçtan 2 saat önce → 24 saat sonra (SQL ile aynı). */
 export const ON_ONAY = Object.freeze({ onceSaat: 2, sonraSaat: 24 });

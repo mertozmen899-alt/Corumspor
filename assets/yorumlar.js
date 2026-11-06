@@ -7,6 +7,8 @@
 // duyurular sayfanın kalıcı #durum / #uyari bölgelerinden; listede aria-live yok.
 // 014: moderasyon: yazanın kendi onay bekleyen yorumu "Onay bekliyor" rozetiyle görünür (başkası görmez); ipucu hedefe göre
 // (maç / haber / gol); sıralama varsayılan "En yeni" üstte, "En eski" seçilebilir (saklanmaz); yasaklı hesap düzenleyemez/şikâyet edemez.
+// 015: sıralama grubunun görünür adı "Sırala:" (aria-labelledby), seçili düğmede ✓ ve belirgin stil (stil.css "son tur: sunucu"),
+// 2'den az yorumda grup gizli; başlık ve liste adı yazanın kendi bekleyen yorumunu da söyler: "Yorumlar (0 · 1 onay bekliyor)".
 import { supabase, h, mesaj, duyur, tarihYaz, hataMetni, girisAdresi } from './ortak.js';
 import { YORUM_SINIRLARI } from './kurallar.js';
 
@@ -33,13 +35,21 @@ export async function yorumlariKur(kok, { haberId = null, macId = null, golId = 
   const liste = h('ol', { class: 'yorum-listesi', id: 'yorum-listesi', 'aria-labelledby': 'yorum-baslik' });
   const sinirNotu = h('p', { class: 'soluk kucuk-yazi', id: 'yorum-sinir-notu', hidden: true }, `Son ${LISTE_SINIRI} yorum gösteriliyor.`);
   // Sıralama (taraftar 9): en yeni üstte varsayılan; "En eski" seçilince eskiden yeniye
+  // 015 (erişilebilirlik 1, tasarımcı 1): görünür "Sırala:" etiketi grubun adı; seçili düğmede ✓ (yalnız renge dayanmaz)
   let sira = 'yeni';
-  const siraDugmesi = (deger, metin) => h('button', { type: 'button', class: 'hayalet', 'aria-pressed': String(sira === deger), 'data-sira': deger, onclick: () => siraDegistir(deger) }, metin);
-  const siralama = h('div', { class: 'dugme-satir yorum-siralama', id: 'yorum-siralama', role: 'group', 'aria-label': 'Yorum sıralaması' }, siraDugmesi('yeni', 'En yeni'), siraDugmesi('eski', 'En eski'));
+  const isaret = (deger) => h('span', { class: 'sira-isaret', 'aria-hidden': 'true' }, sira === deger ? '✓ ' : '');
+  const siraDugmesi = (deger, metin) => h('button', { type: 'button', class: 'hayalet', 'aria-pressed': String(sira === deger), 'data-sira': deger, onclick: () => siraDegistir(deger) }, isaret(deger), metin);
+  const siralama = h('div', { class: 'dugme-satir yorum-siralama', id: 'yorum-siralama', role: 'group', 'aria-labelledby': 'yorum-siralama-etiket', hidden: true },
+    h('span', { class: 'yorum-siralama-etiket', id: 'yorum-siralama-etiket' }, 'Sırala:'), siraDugmesi('yeni', 'En yeni'), siraDugmesi('eski', 'En eski'));
   const kural = h('p', { class: 'yorum-kural' }, 'Sıcak, saygılı, küfürsüz tribün: ', h('a', { href: 'kurallar.html' }, 'topluluk kuralları'), '.');
   let form = null;
-  let gorunurSayi = 0;
-  const sayiYaz = () => { baslik.textContent = `Yorumlar (${gorunurSayi})`; };
+  // Sayılar listeden okunur (li[data-durum]): acik = herkese açık, bekliyor = onay bekliyor (yazan ve yönetici görür)
+  const sayiYaz = () => {
+    const acik = liste.querySelectorAll('li.yorum[data-durum="acik"]').length;
+    const bekleyen = liste.querySelectorAll('li.yorum[data-durum="bekliyor"]').length;
+    baslik.textContent = bekleyen ? `Yorumlar (${acik} · ${bekleyen} onay bekliyor)` : `Yorumlar (${acik})`;
+    siralama.hidden = liste.querySelectorAll('li.yorum').length < 2;
+  };
   const hataGoster = (alan, metin) => { mesaj(uyariKutu, metin, 'hata'); if (alan) { alan.setAttribute('aria-invalid', 'true'); alan.focus(); } };
 
   if (benim && onayli && !engelli) {
@@ -78,7 +88,6 @@ export async function yorumlariKur(kok, { haberId = null, macId = null, golId = 
       sayac.classList.remove('asim');
       liste.querySelector('.bos')?.remove();
       if (sira === 'yeni') liste.prepend(yorumOgesi(data)); else liste.append(yorumOgesi(data));
-      gorunurSayi += herkeseAcik(data) ? 1 : 0;
       sayiYaz();
       if (data.onay_bekliyor) {
         mesaj(uyariKutu, 'Yorumun alındı; yönetici onaylayınca herkes görecek (maç günü ön onay ya da kelime kontrolü).', 'bilgi');
@@ -109,7 +118,7 @@ export async function yorumlariKur(kok, { haberId = null, macId = null, golId = 
     const adId = `y-${y.id}-ad`, zamanId = `y-${y.id}-zaman`, bagli = `${adId} ${zamanId}`;
     const metinP = h('p', { class: 'yorum-metni' }, y.metin);
     const eylem = h('div', { class: 'yorum-eylem' });
-    const li = h('li', { class: 'yorum' + (y.gizli ? ' gizlenmis' : ''), 'data-yorum-id': y.id, id: 'y-' + y.id },
+    const li = h('li', { class: 'yorum' + (y.gizli ? ' gizlenmis' : ''), 'data-yorum-id': y.id, id: 'y-' + y.id, 'data-durum': herkeseAcik(y) ? 'acik' : y.gizli ? 'gizli' : 'bekliyor' },
       h('span', { class: 'avatar', 'aria-hidden': 'true' }, ad.slice(0, 1).toLocaleUpperCase('tr-TR')),
       h('div', { class: 'yorum-govde' },
         h('p', { class: 'yorum-ust' },
@@ -136,6 +145,7 @@ export async function yorumlariKur(kok, { haberId = null, macId = null, golId = 
   function yenile(li, y, odakMetni) {
     const yeni = yorumOgesi(y);
     li.replaceWith(yeni);
+    sayiYaz();
     const hedef = [...yeni.querySelectorAll('.yorum-eylem button')].find((b) => b.textContent === odakMetni) || yeni.querySelector('.yorum-eylem button');
     if (hedef) hedef.focus(); else baslik.focus();
     return yeni;
@@ -163,7 +173,7 @@ export async function yorumlariKur(kok, { haberId = null, macId = null, golId = 
       // Düzenleme kelime listesine takıldıysa yorum onay bekler (sunucu karar verir): son hâli tazele
       const { data: son } = await supabase.from('yorumlar').select(SECIM).eq('id', y.id).maybeSingle();
       const yeni = son || { ...y, metin, duzenlendi: new Date().toISOString() };
-      if (herkeseAcik(y) && !herkeseAcik(yeni)) { gorunurSayi -= 1; sayiYaz(); mesaj(uyariKutu, 'Yorumun güncellendi; yönetici onaylayınca herkes görecek.', 'bilgi'); }
+      if (herkeseAcik(y) && !herkeseAcik(yeni)) mesaj(uyariKutu, 'Yorumun güncellendi; yönetici onaylayınca herkes görecek.', 'bilgi');
       yenile(li, yeni, 'Düzenle');
     });
   }
@@ -174,7 +184,7 @@ export async function yorumlariKur(kok, { haberId = null, macId = null, golId = 
     if (error) return mesaj(uyariKutu, hataMetni(error, 'Yorum silinemedi.'));
     const sonraki = li.nextElementSibling || li.previousElementSibling;
     li.remove();
-    if (herkeseAcik(y)) { gorunurSayi -= 1; sayiYaz(); }
+    sayiYaz();
     mesaj(uyariKutu, 'Yorum silindi.', 'basari');
     duyur('Yorum silindi.');
     const hedef = sonraki && sonraki.querySelector('button');
@@ -185,7 +195,6 @@ export async function yorumlariKur(kok, { haberId = null, macId = null, golId = 
   async function gizle(y, li) {
     const { error } = await supabase.from('yorumlar').update({ gizli: !y.gizli }).eq('id', y.id);
     if (error) return mesaj(uyariKutu, hataMetni(error));
-    gorunurSayi += y.gizli ? 1 : -1; sayiYaz();
     duyur(y.gizli ? 'Yorum yeniden görünür.' : 'Yorum gizlendi.');
     yenile(li, { ...y, gizli: !y.gizli }, y.gizli ? 'Gizle' : 'Göster');
   }
@@ -222,16 +231,18 @@ export async function yorumlariKur(kok, { haberId = null, macId = null, golId = 
     if (error) { liste.replaceChildren(h('li', { class: 'bos' }, 'Yorumlar yüklenemedi. Sayfayı yenileyip tekrar dene.')); return; }
     if (sira === 'eski') data.reverse();
     sinirNotu.hidden = data.length < LISTE_SINIRI;
-    gorunurSayi = data.filter(herkeseAcik).length;
-    sayiYaz();
     liste.replaceChildren(...(data.length ? data.map(yorumOgesi) : [h('li', { class: 'bos' }, 'Tribün sessiz. İlk sözü sen söyle!')]));
+    sayiYaz();
   }
 
   /** Sıralamayı çevirir: liste yeniden istenmez, aynı düğümler ters sıraya dizilir (odak ve düzenleme kutusu korunur). */
   function siraDegistir(yeni) {
     if (yeni === sira) return;
     sira = yeni;
-    siralama.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.sira === sira)));
+    siralama.querySelectorAll('button').forEach((b) => {
+      b.setAttribute('aria-pressed', String(b.dataset.sira === sira));
+      b.querySelector('.sira-isaret').textContent = b.dataset.sira === sira ? '✓ ' : '';
+    });
     const ogeler = [...liste.children];
     if (ogeler.length > 1 && !ogeler.some((x) => x.classList.contains('bos'))) liste.append(...ogeler.reverse());
     duyur(sira === 'yeni' ? 'Yorumlar en yeniden eskiye sıralandı.' : 'Yorumlar en eskiden yeniye sıralandı.');

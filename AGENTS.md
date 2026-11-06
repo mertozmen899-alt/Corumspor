@@ -9,7 +9,7 @@ Bu dosya bu depoda çalışan yapay zekâ ajanları ve geliştiriciler içindir.
 - `supabase-js` **sitenin kendisinden** (KVKK: CDN'e istek yok), sabit sürüm + SRI: `assets/vendor/supabase-js-2.45.4/supabase.js` (npm `@supabase/supabase-js@2.45.4` paketindeki `dist/umd/supabase.js` ile bayt bayt aynı; yanında `591.supabase.js` parçası ve `LICENSE.txt`). Her HTML'de `<script defer src="assets/vendor/supabase-js-2.45.4/supabase.js" integrity="sha384-…">`. Sürüm değişirse: npm tarball'ından al, integrity'yi yenile (`openssl dgst -sha384 -binary dosya | openssl base64 -A`), klasör adını ve testteki SRI'yi güncelle.
 - Tek ayar dosyası: `assets/ayar.js` (SUPABASE_URL, SUPABASE_ANON_KEY, SITE_ADI, TAKIM_ADI, AMBLEM_DOSYASI, SAHIP_ADI, ILETISIM_EPOSTA; son ikisi künye ve gizlilik sayfasında `data-ayar` ile yazılır).
 - Tek supabase istemcisi: `assets/istemci.js` (`import { supabase } from './istemci.js'`). Reklam modülü de bunu kullanır.
-- Migration'lar: `supabase/migrations/NNN_ad.sql`, sırayla: `001_temel_sema` → `002_depolama` → `010_reklamlar` → `011_denetim_duzeltmeleri` → `012_denetim_2` → `013_tasarim` → `014_inceleme_2`. Örnek veri: `supabase/seed.sql`. Uygulanmış dosyalar (001/002/010/011/012/013/014) yeniden yazılmaz: değişiklik = yeni migration. 013 yeniden çalıştırılabilir; testler 010/012'yi yeniden uygular, bu yüzden 013 onların fonksiyonlarının dönüş tipini değiştirmez (yalnız `aktif_reklam`'ı drop/create eder ve 012'den sonra uygulanır). 014 de yeniden çalıştırılabilir; yeniden tanımladığı fonksiyonların gövdesinde `sürüm 014` işareti var ve test (20_rls_testleri.sql, reklam/sql.test.mjs) en son sürümün kurulu olduğunu denetler.
+- Migration'lar: `supabase/migrations/NNN_ad.sql`, sırayla: `001_temel_sema` → `002_depolama` → `010_reklamlar` → `011_denetim_duzeltmeleri` → `012_denetim_2` → `013_tasarim` → `014_inceleme_2` → `015_son_tur`. Örnek veri: `supabase/seed.sql`. Uygulanmış dosyalar (001/002/010/011/012/013/014) yeniden yazılmaz: değişiklik = yeni migration. 013 yeniden çalıştırılabilir; testler 010/012'yi yeniden uygular, bu yüzden 013 onların fonksiyonlarının dönüş tipini değiştirmez (yalnız `aktif_reklam`'ı drop/create eder ve 012'den sonra uygulanır). 014 de yeniden çalıştırılabilir; yeniden tanımladığı fonksiyonların gövdesinde `sürüm 014` işareti var ve test (20_rls_testleri.sql, reklam/sql.test.mjs) en son sürümün kurulu olduğunu denetler.
 - Saf kurallar (JS = SQL aynası): `assets/kurallar.js` (kullanıcı adı ayrılmış mı, haber kapağı adresi, yorum sınırları, `sezonAdi` Temmuz–Haziran, `SAKATLIK_DURUMLARI`, `sakatlikHatalari`) ↔ `012_denetim_2.sql` + `013_tasarim.sql`; ortak örnekler `testler/kurallar-ornekleri.json`. Reklam kuralları: `assets/reklam/reklam-mantik.js` ↔ `010`/`012`.
 - Görsel yükleme: `assets/gorsel-kucult.js` (yüklemeden önce canvas ile küçült + WebP). Haber/gol kapağı ve oyuncu fotoğrafı: `<uuid>-1600/-800/-480.webp` üç kopya (`kapakKaynagi()` `-1600.webp`'den srcset kurar; sitenin kendi `assets/img/` fotoğraflarında kopya genişlikleri `foto-kaynaklari.js` `genislikler`'den: olmayan dosya istenmez). `kapakKaynagi(url, { kutu })` `sizes`'ı etkin DPR ≤ 2 ile hesaplar; depodaki kapaklar `crossorigin="anonymous"`; `<img>`'i `kapakGorseli()` kurar (kırık görselde yer tutucu). Reklam: 1200 kutu + `-k.webp` küçük kopya (480 / kare 192).
 - Yayın: `node araclar/yayin-hazirla.js` → `yayin/` (yalnız HTML + `assets/` + `_headers` + `robots.txt` + `.nojekyll` + `sw.js` + `manifest.webmanifest`; geliştirici klasörü girerse durur; `ayar.js`'te yer tutucu kaldıysa **çıkış 1** (bilerek taslak: `YAYIN_TASLAK=1`; testler bunu kullanır); gerçek SUPABASE_URL varsa sayfalara `preconnect` ekler: kaynak HTML'de yok, tek ayar kuralı). Yalnız `yayin/` kopyasında: meta CSP `_headers`'a taşınır ve `*.supabase.co` proje adresine daraltılır, iç bağlantılar uzantısız olur (`goller.html` → `goller`, `index.html` → `./`; Cloudflare 308'i yok), `sw.js`'te `SURUM` içerik özeti ve `DOSYALAR` bütün kabuk. Paylaşım görseli: `node araclar/og-olustur.js` → `assets/img/og-1200x630.png`. Ana ekran simgeleri: `node araclar/simge-olustur.js` → `assets/logo/simge-*.png`, `apple-touch-icon-180.png`.
@@ -204,3 +204,38 @@ Yuvalar boştur; kendi dolgusu, kenarlığı, min-height'ı yoktur. Reklam yoksa
   Ayrıntı: `docs/REKLAM.md` 00. bölüm.
 - **Sahte veri:** yönetici adı `tribun_editor` (`kirmizi_simsek` lakabı ve "kirmizisimsek" artık ayrılmış ad). Narçil metninde/görselinde adres yok.
 - Panel (`yonetim-reklamlar.js`) ve uygulama aynı `h()`'yi (`assets/ortak.js`) kullanır.
+
+## 015 — son tur (sunucu): ek sözleşme
+- Migration `supabase/migrations/015_son_tur.sql` (014'ten sonra, yeniden çalıştırılabilir). Yeniden tanımladığı gövdelerde `sürüm 015`
+  (reklam_olay_kaydet, reklam_raporu, reklam_rapor_verisi, reklam_gunluk_topla, reklamlar_sektor, kullanici_adi_ayrilmis, profil_koruma,
+  sikayet_kontrol, sikayet_otomatik_gizle, yorum_onay_gerekli); aktif_reklamlar ve yorum_guncelleme_kontrol hâlâ `sürüm 014`. Testler
+  ikisini de denetler. 010-014'ten biri yeniden çalıştırılırsa ardından 015 de çalıştırılır.
+- **Reklam sayımı:** dakikada 120 gösterim / 20 tıklama / 240 yerleşim (reklam başına), sekme sınırları aynı (`SINIRLAR`).
+  `reklam_ham_satir_alarmi(p_gun_sayisi)` (yalnız yönetici; eşik `SINIRLAR.hamSatirAlarmi` = 20000/gün/reklam). Panel Reklamlar
+  sekmesi "Son bakım" (`reklam_gunluk_toplanan`, 2 günden eskiyse uyarı) ve alarm kutusunu gösterir. pg_cron README'de zorunlu.
+- **reklam_raporu** dönüş tipi değişti (drop/create): sonuna `tiklayan_ziyaret bigint, devam_ediyor boolean`. `tiklama_orani` =
+  tiklayan_ziyaret ÷ gösterim (≤ 100). Dönem bugünü aşmaz (JS `raporDonemi`). `reklam_gunluk.tur` 'tiklayan' alabilir.
+  CSV: `GG.AA.YYYY` tarih, `Tıklama yapılan sayfa açılışı` sütunu. Saf yardımcılar (`reklam-mantik.js`): `akisYuvaNotu`, `sureBitisi`,
+  `donemMetni`, `gunNoktali`, `anNoktali`, `haberSonuBoyutu`, `enYogunGun` (eşitlikte maç günü, `{ gun, gosterim, mac }`).
+- **Şikâyet:** `sikayet_hakki()` (saatte 10 / günde 30; `kurallar.js` `SIKAYET_SINIRLARI`), kendiliğinden gizlemede yalnız şikâyet anında
+  ≥24 saatlik hesap (`profiles.created_at`) sayılır, yönetici yorumu kendiliğinden gizlenmez. Panel Yorumlar sekmesi kuyruğu (onay bekleyen +
+  şikâyetle gizlenen) en üstte gösterir, sekme düğmesinde sayı (`#sekme-yorumlar-sayac`).
+- **Kullanıcı adı:** `kullanici_adi_ayrilmis` artık STABLE + SECURITY DEFINER (ayrilmis_adlar'ı okur); biçimler: sondaki rakam/_/. atılmış
+  taban, 8 → at/ate/b, rakamlar silinmiş, l→i, rn→m; kökte `cfk`. `ayrilmis_adlar(ad → anahtar)` (yalnız yönetici; seed "Mert (uygulama
+  sahibi)"; README: SAHIP_ADI eklenir). JS `kullaniciAdiAyrilmis(ad, ekAnahtarlar = SAHIP_ANAHTARLARI)`; `kurallar.js` artık `ayar.js`'ten
+  `SAHIP_ADI` içe aktarır (ortak.js → istemci.js zaten ayar.js'i yüklediği için sayfaların modulepreload listesi değişmez).
+  `profiles.ad_degisti`: ad en fazla 7 günde bir değişir (yönetici muaf; `AD_DEGISTIRME_GUN`), sütun anon/authenticated'a kapalı.
+- **Yorum kelime listesi:** 4+ harfli kelime `yorum_sikistir()` (= `kurallar.js` `yorumSikistir`) kopyasında da sözcük başında aranır
+  ("s.a.l.a.k", "S A L A K"); örnekler `kurallar-ornekleri.json` (SQL = JS).
+- **Haber:** `haberler.kaynak_gerekli` (panel: "Kadro / transfer / sakatlık / bilet haberi"); işaretliyse kaynak zorunlu (tetikleyici
+  `haber_kaynak_kontrol` Türkçe mesaj + kısıt `haberler_kaynak_gerekli`; `haberHatalari`). FRONT null-safe okur (alan haber sayfasında gösterilmez).
+- **Yorum bileşeni (`yorumlar.js`):** sıralama grubunun adı görünür "Sırala:" (`aria-labelledby="yorum-siralama-etiket"`), seçili düğmede
+  `✓` (aria-hidden) + `stil.css` sonundaki "son tur: sunucu" kuralı; 2'den az yorumda grup gizli; başlık/liste adı
+  "Yorumlar (N · M onay bekliyor)" (sayılar `li[data-durum]`'dan).
+- **Reklam kartı:** `assets/reklam/reklam.js` artık `../ortak.js`'ten `boyutlar` içe aktarır (haber sonu görseli `sizes`: yuva
+  `clientWidth` − 27, kart ≥ 560 px ise × 0,44, etkin DPR ≤ 2; yerleşmeden önce tahmin `haberSonuBoyutu`).
+- **Panel gol formu:** .mp4 + altyazı yok + "Golün anlatımı" boş → `#g-altyazi-uyari` uyarısı, ikinci "Kaydet" yine kaydeder.
+- **Gizlilik/kurallar (bu tur SERVER):** gizlilik §2-§5 koddaki gibi (sekme kimliği gösterimle de gider, sunucuda sayaçta ≤2 saat; yerleşim
+  olayı; .mp4 yalnız kendi depodan; 3 şikâyet, kelime listesi, ön onay; şikâyet ve ad değiştirme sınırları). kurallar.html aynısını ve
+  "kaldırma taleplerine en geç 24 saat içinde dönülür" cümlesini taşır.
+- Atlanan: denetçi 8 (yonetim.js'i modüllere bölmek; SON-TUR kararı).

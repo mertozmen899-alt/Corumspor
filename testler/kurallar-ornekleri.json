@@ -12,8 +12,11 @@
     ["TeknikDirektör", true], ["kaptan", true], ["antrenör", true],
     ["Y0netici", true], ["Adm1n", true], ["C0rumFK_Resml", true], ["Bask4n_Resm1", true], ["m0d", true], ["r00t", true], ["ku1up", true], ["5istem", true], ["S1stem", true], ["yetk1l1", true], ["t3kn1kd1rekt0r", true], ["k4pt4n", true],
     ["kirmizi_simsek", true], ["KIRMIZI.SIMSEK_19", true], ["kırmızışimşek", true], ["kirmizisimsekler", true],
+    ["Adrnin", true], ["rn0derator", true], ["Moder8or", true], ["8askan", true], ["ÇFK_Haber", true], ["C_F_K", true], ["cfk", true], ["Sistem0", true], ["Kapta1n", true], ["destek_2", true],
+    ["Mert", true], ["M3rt_1", true], ["MERT.", true], ["rn3rt", true],
     ["ayse_19", false], ["emre", false], ["tribun_editor", false], ["kral_10", false], ["destekci_ali", false], ["corumlu", false],
-    ["Çorumlu_Mert", false], ["modern_taraftar", false], ["sistematik", false], ["kaptanin_sesi", false], ["baskentli", false], ["taraftar1a2b3c", false]
+    ["Çorumlu_Mert", false], ["modern_taraftar", false], ["sistematik", false], ["kaptanin_sesi", false], ["baskentli", false], ["taraftar1a2b3c", false],
+    ["turna_10", false], ["mertcan", false], ["ornek_taraftar", false], ["kurnaz_8", false], ["hakan", false]
   ],
   "kapak": [
     [null, true],
@@ -36,7 +39,8 @@
     ["javascript:alert(1)", false],
     ["data:image/png;base64,iVBORw0KGgo=", false]
   ],
-  "_yorum_kelime": "Yorum moderasyonu: [metin, kelime listesi, onay bekler mi]. Kelimeyle BAŞLAYAN sözcük eşleşir; Türkçe harf ve rakam benzerleri yok sayılır.",
+  "_yorum_kelime": "Yorum moderasyonu: [metin, kelime listesi, onay bekler mi]. Kelimeyle BAŞLAYAN sözcük eşleşir; Türkçe harf ve rakam benzerleri yok sayılır. 015: 4+ harfli kelime harf dışı karakterleri atılmış kopyada da aranır (s.a.l.a.k); 3 harfli kelimede bu kopya kullanılmaz.",
+  "_kullanici_adi": "015: \"Mert\" assets/ayar.js SAHIP_ADI'dan (SQL testinde ayrilmis_adlar tablosuna aynı ad eklenir).",
   "yorum_kelime": [
     ["Bu ne salak pozisyon", ["salak"], true],
     ["Bu ne SAL4KÇA pozisyon", ["Salak"], true],
@@ -47,7 +51,14 @@
     ["Hakem ŞEREFSİZDİ", ["şerefsiz"], true],
     ["Bugün 3 gol attık", ["salak"], false],
     ["", ["salak"], false],
-    ["Herkes $alak", ["salak"], true]
+    ["Herkes $alak", ["salak"], true],
+    ["Hakem s.a.l.a.k", ["salak"], true],
+    ["Hakem S A L A K!", ["salak"], true],
+    ["Ş.e.r.e.f.s.i.z hakem", ["şerefsiz"], true],
+    ["s-4-l-4-k", ["salak"], true],
+    ["a.m.k", ["amk"], false],
+    ["Ka.la.sa.lak", ["salak"], false],
+    ["Bir salam iki ekmek", ["salak"], false]
   ],
   "gol_video": [
     [null, true],

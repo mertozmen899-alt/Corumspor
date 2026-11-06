@@ -296,7 +296,7 @@ test('PWA (2. tur): manifest (standalone, #0B0B0B, 192/512 + maskable PNG), her 
 });
 
 // GEÇİCİ (son tur): gizlilik.html ve kurallar.html bu tur SUNUCU izindeydi; ortak satırlar birleştirmede uygulanır (sonra liste boşalır)
-const SUNUCU_SAYFALARI_SON_TUR = ['gizlilik.html', 'kurallar.html'].filter((d) => /en kısa sürede dönülür|source-sans-3-700-tr\.woff2" as="font"/.test(readFileSync(path.join(KOK, d), 'utf8')));
+const SUNUCU_SAYFALARI_SON_TUR = []; // son tur birleşti: bütün sayfalar denetlenir
 
 test('bağımsızlık (son tur): her sayfanın og:description\'ı "Çorum FK\'nın resmî uygulaması değildir"; açıklamalar "Çorum FK"; künyede "kaldırma taleplerine en geç 24 saat içinde dönülür"; kalın yazı tipi preload\'u yok', () => {
   for (const d of readdirSync(KOK).filter((x) => x.endsWith('.html'))) {
