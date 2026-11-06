@@ -458,6 +458,39 @@ export function cevrimdisiKutusu(metin, yenidenDene, { sonGuncelleme = null } = 
   return kutu;
 }
 
+// ---------------------------------------------------------------- 020: hareket yardımcıları, listelerde beğeni sayısı
+export const hareketAzalt = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** Rakamın kayarak değişmesi (tahmin sayacı, beğeni sayısı; stil.css .kay-yukari / .kay-asagi). Hareket azaltmada yalnız metin değişir. */
+export function rakamDegistir(el, metin, yon = 'yukari') {
+  el.textContent = metin;
+  if (hareketAzalt()) return;
+  el.classList.remove('kay-yukari', 'kay-asagi');
+  void el.offsetWidth; // aynı sınıfla animasyonu yeniden başlat
+  el.classList.add(yon === 'asagi' ? 'kay-asagi' : 'kay-yukari');
+}
+/**
+ * Haber akışı / gol arşivi satırlarına beğeni sayısı ("♥ 3"; 0 ise yazılmaz). Liste başına TEK istek (begeni_sayilari RPC, ≤ 100 kimlik).
+ * tur 'haber' → [data-haber-id], 'gol' → [data-gol-id]; sayı satırdaki [data-begeni-yer] içine (yoksa satırın sonuna) eklenir.
+ * Bir kez işlenen satır yeniden sayılmaz (data-begeni). Hata olursa sessizce geçer (sayı süs bilgisi).
+ */
+export async function begeniSayilariniYaz(kok, tur) {
+  const nitelik = tur === 'haber' ? 'data-haber-id' : 'data-gol-id';
+  const ogeler = kok ? [...kok.querySelectorAll(`[${nitelik}]:not([data-begeni])`)] : [];
+  if (!ogeler.length || !supabase) return;
+  ogeler.forEach((el) => el.setAttribute('data-begeni', ''));
+  let r;
+  try { r = await supabase.rpc('begeni_sayilari', { p_tur: tur, p_idler: [...new Set(ogeler.map((el) => el.getAttribute(nitelik)))].slice(0, 100) }); } catch (e) { return; }
+  if (!r || r.error || !Array.isArray(r.data)) return;
+  const say = new Map(r.data.map((x) => [x.hedef_id, x]));
+  for (const el of ogeler) {
+    const x = say.get(el.getAttribute(nitelik));
+    if (!x || !(x.sayi > 0)) continue;
+    (el.querySelector('[data-begeni-yer]') || el).append(h('span', { class: 'begeni-mini' + (x.benim ? ' benim' : '') },
+      h('span', { 'aria-hidden': 'true' }, '♥ ' + x.sayi), h('span', { class: 'gorunmez' }, `, ${x.sayi} beğeni`)));
+    if (el.hasAttribute('aria-label')) el.setAttribute('aria-label', `${el.getAttribute('aria-label')}, ${x.sayi} beğeni`);
+  }
+}
+
 // ---------------------------------------------------------------- oturum
 let oturumSozu = null;
 
@@ -604,6 +637,8 @@ function yeniSurumNotu() {
 function swKaydet() {
   if (!('serviceWorker' in navigator)) return;
   const sw = navigator.serviceWorker;
+  // 021: gol bildirimi geldi ve sayfa ekranda (sw.js push): Profil'de "düdük sesi" açıksa kısa düdük (bildirim.js yalnız o an yüklenir)
+  sw.addEventListener('message', (e) => { if (e.data && e.data.tur === 'bildirim-gol') import('./bildirim.js').then((m) => m.golDudugu()).catch(() => {}); });
   if (sw.controller) sw.addEventListener('controllerchange', yeniSurumNotu, { once: true });
   if (['localhost', '127.0.0.1'].includes(location.hostname) || sahteMod) return;
   const kaydet = () => sw.register('sw.js').then((k) => {

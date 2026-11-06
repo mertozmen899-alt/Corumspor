@@ -272,15 +272,14 @@ async function performansTestleri() {
   // ------------------------------------------------------------------ hero, service worker, _headers
   await guvenli('hero ve önbellek', async () => {
     const img = path.join(KOK, 'assets', 'img');
-    // 016: varsayılan hero özgün tribün çizimi (tek vektör dosya: her ekran boyunda aynı, srcset gerekmez)
-    const heroBayt = fs.statSync(path.join(img, 'tribun-kirmizi-siyah.svg')).size;
-    kontrol('hero (016): tribün SVG ≤ 60 KB', heroBayt <= 60 * 1024, heroBayt + ' B');
+    // 020: varsayılan hero kırmızı-siyah zemin: <picture> ile telefonda dikey, 600 px ve üstünde geniş SVG (tek dosya iner)
+    for (const ad of ['hero-zemin-dikey.svg', 'hero-zemin-genis.svg']) { const b = fs.statSync(path.join(img, ad)).size; kontrol(`hero (020): ${ad} ≤ 60 KB`, b <= 60 * 1024, b + ' B'); }
     const { ctx, p, istekler } = await baglam();
     await p.goto(adres('index.html'));
     await p.waitForSelector('#akis[data-durum="tamam"]');
     const h = await p.$eval('#hero-gorsel', (i) => ({ cur: i.currentSrc, w: i.getAttribute('width'), hh: i.getAttribute('height'), oncelik: i.getAttribute('fetchpriority') }));
-    kontrol('hero (016): tribün çizimi, width/height ve fetchpriority=high', /tribun-kirmizi-siyah\.svg$/.test(h.cur) && h.w && h.hh && h.oncelik === 'high', JSON.stringify(h));
-    kontrol('hero (016): tek hero görseli indirildi', istekler.filter((u) => /tribun-kirmizi-siyah\.svg/.test(u)).length === 1, istekler.filter((u) => /\/img\//.test(u)).join(' '));
+    kontrol('hero (020): kırmızı-siyah zemin, width/height ve fetchpriority=high', /hero-zemin-(dikey|genis)\.svg$/.test(h.cur) && h.w && h.hh && h.oncelik === 'high', JSON.stringify(h));
+    kontrol('hero (020): tek hero zemini indirildi (dikey ya da geniş, ikisi birden değil)', istekler.filter((u) => /hero-zemin-(dikey|genis)\.svg/.test(u)).length === 1, istekler.filter((u) => /\/img\//.test(u)).join(' '));
     const sw = await p.evaluate(async () => ('serviceWorker' in navigator ? (await navigator.serviceWorker.getRegistrations()).length : 0));
     kontrol('service worker test modunda (localhost / ?sahte=1) kayıtlı değil', sw === 0, sw);
     await ctx.close();

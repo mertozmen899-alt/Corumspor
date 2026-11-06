@@ -714,7 +714,10 @@ async function tasarimTestleri() {
     await git(p, 'index.html', '#akis[data-durum="tamam"]');
     // 016: varsayılan hero özgün tribün çizimi: fotoğraf değil, atıf satırı gizli (manşet kapağı gelirse onun atfı görünür)
     const atif = await p.textContent('#hero-atif');
-    kontrol('hero (016): özgün tribün çiziminde fotoğraf atfı yok (#hero-atif gizli)', !(await p.isVisible('#hero-atif')) && /tribun-kirmizi-siyah\.svg$/.test(await p.$eval('#hero-gorsel', (i) => i.currentSrc)), atif);
+    kontrol('hero (020): varsayılan kırmızı-siyah zeminde fotoğraf atfı yok (#hero-atif gizli)', !(await p.isVisible('#hero-atif')) && /hero-zemin-(genis|dikey)\.svg$/.test(await p.$eval('#hero-gorsel', (i) => i.currentSrc)), atif);
+    // 020: amblem başlıkla çakışmaz (telefonda üstünde, geniş ekranda ayrı kolonda); hareket azaltmada giriş hareketi yok
+    const cakisma = await p.evaluate(() => { const a = document.querySelector('.hero-amblem'), b = document.querySelector('#hero-baslik'); if (!a || !b) return 'yok'; const x = a.getBoundingClientRect(), y = b.getBoundingClientRect(); return x.right <= y.left || y.right <= x.left || x.bottom <= y.top || y.bottom <= x.top; });
+    kontrol('hero (020): resmî amblem başlıkla çakışmıyor', cakisma === true, String(cakisma));
     const alt = await p.$eval('#hero-gorsel', (i) => i.getAttribute('alt'));
     kontrol('hero: görselin alt özniteliği var (süs: boş) ve başlık DOM metni (T-20)', alt === '' && (await p.textContent('#hero-baslik')).trim().length > 5);
     kontrol('hero: en fazla bir bağlantı, adı başlığı içerir (T-22)', await p.evaluate(() => { const l = document.querySelectorAll('.hero a'); return l.length <= 1 && (!l.length || l[0].textContent.includes(document.getElementById('hero-baslik').textContent.trim())); }));

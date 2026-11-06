@@ -3,7 +3,7 @@
 // aria-expanded + aria-controls): "1. Hafta · Galatasaray – Çorum FK 2 – 2"; dokununca altında o maçın golleri dakika sırasıyla
 // kompakt satırlar ("59' Alexandros Kyziridis · Asist: Fredy ▶") → gol.html?id= (video orada, dokununca, yalnız gol anı).
 // Golsüz maç listelenmez, maç özeti bu sayfada yok (maç sayfasında). Video bu sayfada yüklenmez (YouTube'a istek yok).
-import { supabase, hazir, h, $, sayfaBaslat, hataMetni, duyur, cevrimdisiKutusu, evSahibiDeplasman, skorOgesi, skorMetni } from '../ortak.js';
+import { supabase, hazir, h, $, sayfaBaslat, hataMetni, duyur, cevrimdisiKutusu, evSahibiDeplasman, skorOgesi, skorMetni, begeniSayilariniYaz } from '../ortak.js';
 import { sezonAdi } from '../kurallar.js';
 import { golAniSatiri, macEtiketi, kartTarihi } from '../gol-kart.js';
 import { sonVeri, sonVeriYaz } from '../onbellek.js';
@@ -117,6 +117,7 @@ function dahaCiz(liste = suzulmus()) {
   const ilk = parca.length ? macGrubu(parca[0]) : null;
   parca.forEach((m, i) => { arsiv.append(i === 0 ? ilk : macGrubu(m)); gosterilenMac += 1; });
   dugme.hidden = gosterilenMac >= liste.length;
+  if (arsiv.dataset.durum !== 'onbellek') begeniSayilariniYaz(arsiv, 'gol'); // 020: yeni çizilen gol satırlarına beğeni sayısı (tek istek)
   return ilk;
 }
 

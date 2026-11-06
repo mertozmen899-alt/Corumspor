@@ -7,10 +7,14 @@
 import { supabase, hazir, h, $, sayfaBaslat, param, kimlikGecerli, tarihYaz, saatYaz, kapakKaynagi, kapakGorseli, tamGenislik, fotoAtfi, paragraflar, cevrimdisiKutusu, paylasDugmesi } from '../ortak.js';
 import { reklamYuvalariniDoldur } from '../reklam-yukle.js';
 import { sonVeri, sonKayit, sonKayitYaz } from '../onbellek.js';
+import { begeniDugmesi } from '../begeni.js';
 
 const kok = $('#haber');
 const id = param('id');
 const oturumS = sayfaBaslat();
+// 020: beğeni düğmesi bir kez kurulur (önbellek + ağ çizimi aynı düğmeyi taşır; sayı tek istekle)
+let begeni = null;
+const begeniAl = () => (begeni = begeni || begeniDugmesi('haber', id, oturumS));
 const yuvaKaldir = () => document.querySelector('.reklam-yuvasi[data-reklam-alan="haber_sonu"]')?.remove();
 
 function bulunamadi() {
@@ -78,7 +82,7 @@ function haberCiz(haber, { kismi = false } = {}) {
     govde != null && !kismi ? h('div', { class: 'metin', id: 'haber-metni' }, paragraflar(govde))
       : h('div', { class: 'metin', id: 'haber-metni', 'aria-hidden': 'true' }, h('span', { class: 'iskelet iskelet-satir uzun' }), h('span', { class: 'iskelet iskelet-satir uzun' }), h('span', { class: 'iskelet iskelet-satir kisa' })),
     kismi ? null : kaynakSatiri(haber),
-    !kismi && haber.yayinda ? h('div', { class: 'eylem-satir' }, paylasDugmesi(haber.baslik)) : null));
+    !kismi && haber.yayinda ? [h('div', { class: 'eylem-satir' }, begeniAl().dugme, paylasDugmesi(haber.baslik)), begeniAl().not] : null));
 }
 
 /** Son görülen kayıt: bu haber daha önce açıldıysa (gövdesi kısaltılmış olabilir), yoksa ana sayfa listesindeki satırı. */

@@ -4,6 +4,7 @@
 // kovasında <kullanıcı id>/<rastgele uuid>.webp; eski dosya silinir. Onaysız e-posta / yasaklı hesapta düğme yerine açıklama.
 import { supabase, hazir, h, $, sayfaBaslat, tarihYaz, cikisYap, hataMetni, simge, mesaj, avatarOgesi } from '../ortak.js';
 import { PROFIL_FOTO_KOVASI } from '../kurallar.js';
+import { TURLER, VARSAYILAN_TERCIH, ortamDurumu, mevcutAbonelik, aboneOl, tercihKaydet, aboneligiKapat, dudukAcik, dudukAyarla, dudukCal } from '../bildirim.js';
 
 const kok = $('#profil');
 const oturumS = sayfaBaslat();
@@ -150,6 +151,91 @@ async function profilFotografi(o, ad, avatarKutu) {
   return kutu;
 }
 
+// 021: Bildirimler. Önce açıklama (ne gelir, örnek, sıklık, kapatma); izin YALNIZ "Bildirimleri aç" düğmesiyle istenir.
+const BILDIRIM_NOTLARI = {
+  'ios-ana-ekran': 'iPhone ve iPad\'de bildirimler yalnız ana ekrana eklenmiş uygulamada çalışır (iOS 16.4 ve sonrası): Safari\'de Paylaş › Ana Ekrana Ekle\'ye dokun, sonra uygulamayı ana ekrandaki simgeden açıp buraya gel.',
+  'destek-yok': 'Bu tarayıcı bildirimleri desteklemiyor. Android\'de Chrome, bilgisayarda Chrome, Edge ya da Firefox ile dene.',
+  kurulmadi: 'Bildirimler henüz kurulmadı. Yakında burada açabileceksin.',
+  'sw-yok': 'Bildirimler yalnız yayındaki sitede çalışır. Sayfayı yenileyip tekrar dene.',
+  reddedildi: 'Bu tarayıcıda bildirim izni kapalı. Açmak için: Android Chrome\'da adres çubuğundaki simgeye dokun › İzinler › Bildirimler; ana ekrana eklediysen telefonun Ayarlar › Uygulamalar › Çorumspor Taraftar › Bildirimler. iPhone\'da Ayarlar › Bildirimler › Çorumspor Taraftar. Sonra bu sayfayı yenile.',
+};
+
+async function bildirimBolumu() {
+  const { durum: ilkDurum, kayit } = await ortamDurumu();
+  let abonelik = null, tercih = { ...VARSAYILAN_TERCIH }, acik = false;
+  if (ilkDurum === 'hazir') {
+    try { const m = await mevcutAbonelik(supabase, kayit); abonelik = m.abonelik; acik = !!m.tercih; if (m.tercih) tercih = { ...tercih, ...m.tercih }; } catch (e) { acik = false; }
+  }
+  const mesajP = h('p', { class: 'mesaj', id: 'bildirim-mesaj', hidden: true });
+  const notP = h('p', { class: 'mesaj bilgi', id: 'bildirim-not', hidden: true });
+  const kutular = TURLER.map(([anahtar]) => h('input', { type: 'checkbox', id: 'bildirim-' + anahtar, name: anahtar, checked: tercih[anahtar] === true }));
+  const turler = h('fieldset', { id: 'bildirim-turleri' }, h('legend', null, 'Hangi bildirimler gelsin?'),
+    TURLER.map(([, ad, aciklama], i) => h('label', { class: 'onay' }, kutular[i], h('span', null, h('strong', null, ad), ' · ' + aciklama))));
+  const ac = h('button', { type: 'button', class: 'dugme', id: 'bildirim-ac' }, 'Bildirimleri aç');
+  const kapat = h('button', { type: 'button', class: 'dugme ikincil', id: 'bildirim-kapat' }, 'Bildirimleri kapat');
+  const duduk = h('input', { type: 'checkbox', id: 'bildirim-duduk', checked: dudukAcik(), 'aria-describedby': 'bildirim-duduk-not' });
+  const dene = h('button', { type: 'button', class: 'dugme ikincil kucuk', id: 'bildirim-duduk-dene' }, 'Sesi dene');
+  const secilen = () => Object.fromEntries(TURLER.map(([anahtar], i) => [anahtar, kutular[i].checked]));
+  const mesgul = (evet) => [ac, kapat].forEach((d) => (evet ? d.setAttribute('aria-disabled', 'true') : d.removeAttribute('aria-disabled')));
+  const ciz = (durum) => {
+    const engel = BILDIRIM_NOTLARI[durum];
+    notP.hidden = !engel;
+    notP.textContent = engel || '';
+    turler.hidden = !!engel;
+    ac.hidden = !!engel || acik;
+    kapat.hidden = !!engel || !acik;
+  };
+
+  ac.addEventListener('click', async () => {
+    if (ac.getAttribute('aria-disabled') === 'true') return;
+    mesgul(true);
+    mesaj(mesajP, 'Tarayıcın izin soracak…', 'bilgi');
+    try {
+      abonelik = await aboneOl(supabase, kayit, secilen());
+      acik = true;
+      ciz('hazir');
+      mesaj(mesajP, 'Bildirimler açık. Maç günü görüşürüz!', 'basari');
+      kapat.focus();
+    } catch (e) {
+      if (e && e.kod === 'reddedildi') { mesaj(mesajP, ''); ciz('reddedildi'); notP.focus(); }
+      else mesaj(mesajP, e && e.kod === 'izin' ? 'İzin vermedin; bildirimler kapalı kaldı. İstersen tekrar dene.' : hataMetni(e, 'Bildirimler açılamadı. Tekrar dene.'), 'hata');
+    }
+    mesgul(false);
+  });
+  kapat.addEventListener('click', async () => {
+    if (kapat.getAttribute('aria-disabled') === 'true') return;
+    mesgul(true);
+    try {
+      await aboneligiKapat(supabase, kayit);
+      abonelik = null; acik = false;
+      ciz('hazir');
+      mesaj(mesajP, 'Bildirimler kapandı. İstediğin zaman yeniden açabilirsin.', 'basari');
+      ac.focus();
+    } catch (e) { mesaj(mesajP, hataMetni(e, 'Bildirimler kapatılamadı. Tekrar dene.'), 'hata'); }
+    mesgul(false);
+  });
+  kutular.forEach((k) => k.addEventListener('change', async () => {
+    if (!acik || !abonelik) return; // kapalıyken seçim yalnız "Bildirimleri aç"ta kullanılır
+    try { await tercihKaydet(supabase, abonelik.endpoint, secilen()); mesaj(mesajP, 'Tercihin kaydedildi.', 'basari'); }
+    catch (e) { k.checked = !k.checked; mesaj(mesajP, hataMetni(e, 'Tercihin kaydedilemedi. Tekrar dene.'), 'hata'); }
+  }));
+  duduk.addEventListener('change', () => dudukAyarla(duduk.checked));
+  dene.addEventListener('click', async () => { if (!(await dudukCal())) mesaj(mesajP, 'Bu tarayıcı sesi çalamadı.', 'hata'); });
+
+  ciz(ilkDurum);
+  notP.setAttribute('tabindex', '-1');
+  return h('div', { class: 'ayar-kart', id: 'bildirimler' },
+    h('p', { class: 'ayar-metin' }, 'Maç günü telefonuna kısa bildirim gelsin: sabah maç hatırlatması, ilk 11, Çorum FK golleri ve maç sonu skoru. Maç olmayan günlerde bildirim gelmez; maç günü genelde 3-6 bildirim. İstediğin zaman buradan kapatırsın.'),
+    h('div', { class: 'ayar-metin' }, 'Örnek bildirim:',
+      h('div', { class: 'mesaj bilgi', id: 'bildirim-ornek' }, h('strong', null, 'GOL! 59\' Kyziridis'), h('br'), 'Çorum FK 1-0 Rakip')),
+    notP, turler,
+    h('div', { class: 'ayar-metin' }, h('div', { class: 'dugme-satir' }, ac, kapat), mesajP),
+    h('div', { class: 'ayar-metin' },
+      h('label', { class: 'onay' }, duduk, h('span', null, 'Uygulama açıkken düdük sesi')),
+      h('p', { class: 'soluk kucuk-yazi', id: 'bildirim-duduk-not' }, 'Uygulama ekrandayken gol bildirimi gelince kısa bir hakem düdüğü çalar. Bildirimin kendi sesi telefonunun bildirim sesidir; uygulama onu değiştiremez.'),
+      h('div', { class: 'dugme-satir' }, dene)));
+}
+
 async function uye(o) {
   const ad = (o.profil && o.profil.kullanici_adi) || 'taraftar';
   const avatarKutu = h('div', { class: 'profil-avatar' });
@@ -163,7 +249,9 @@ async function uye(o) {
     h('h2', { class: 'grup-baslik-k' }, 'Yorumlarım'),
     await yorumlarim(o.kullanici.id),
     o.admin ? h('h2', { class: 'grup-baslik-k' }, 'Yönetim') : null,
-    o.admin ? h('div', { class: 'ayar-kart' }, h('a', { class: 'ayar-satir', href: 'yonetim.html', id: 'yonetim-baglanti' }, 'Yönetim paneli', h('span', { class: 'ok', 'aria-hidden': 'true' }, '›'))) : null].filter(Boolean));
+    o.admin ? h('div', { class: 'ayar-kart' }, h('a', { class: 'ayar-satir', href: 'yonetim.html', id: 'yonetim-baglanti' }, 'Yönetim paneli', h('span', { class: 'ok', 'aria-hidden': 'true' }, '›'))) : null,
+    h('h2', { class: 'grup-baslik-k', id: 'bildirim-baslik' }, 'Bildirimler'),
+    await bildirimBolumu()].filter(Boolean));
 
   // Çıkış: onay penceresiyle (yanlışlıkla dokunma). Açılınca odak "Vazgeç"e, Esc kapatır, kapanınca odak düğmeye döner
   const cikis = h('button', { type: 'button', class: 'cikis-dugme', id: 'cikis' }, 'Çıkış yap');

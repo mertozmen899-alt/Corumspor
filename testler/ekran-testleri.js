@@ -74,7 +74,8 @@ async function ekranTestleri() {
     });
     kontrol(`${ad}: yatay taşma yok`, d.tasma <= 0, d.tasma + ' px');
     kontrol(`${ad}: <html lang="tr">, "Bağımsız taraftar uygulaması" şeridi, alt bilgide "Çorum FK'nın resmî uygulaması değildir"`, d.lang === 'tr' && d.serit === 'Bağımsız taraftar uygulaması' && d.seritGorunur && /Çorum FK'nın resmî uygulaması değildir/.test(d.alt), JSON.stringify(d).slice(0, 200));
-    kontrol(`${ad}: amblem yedeği yüklü (assets/logo/amblem-yedek.svg)`, d.amblem && d.amblem.src === 'assets/logo/amblem-yedek.svg' && d.amblem.w > 0, JSON.stringify(d.amblem));
+    // 020: resmî amblem sahibin kararıyla (6 Kasım 2026) ayar.js AMBLEM_DOSYASI'nda
+    kontrol(`${ad}: amblem yüklü (assets/logo/corum-fk-amblem.svg)`, d.amblem && d.amblem.src === 'assets/logo/corum-fk-amblem.svg' && d.amblem.w > 0, JSON.stringify(d.amblem));
     kontrol(`${ad}: Oswald (başlık) ve Source Sans 3 (gövde) siteden yüklendi`, d.yuklu.some((x) => /^Oswald/.test(x)) && d.yuklu.some((x) => /^Source Sans 3/.test(x)) && /^Oswald/.test(d.baslikFont) && /^"?Source Sans 3/.test(d.govdeFont), JSON.stringify(d.yuklu));
   };
   // Tam sayfa görüntüde sabit alt menü ilk ekranın altında asılı kalmasın: sayfanın sonuna (kaydırılmış hâli gibi) yerleştirilir.
@@ -221,7 +222,7 @@ async function ekranTestleri() {
 
   // amblem: AMBLEM_DOSYASI → yedek → "ÇT"
   await guvenli('amblem', async () => {
-    const ayar = fs.readFileSync(path.join(__dirname, '..', 'assets', 'ayar.js'), 'utf8').replace('export const AMBLEM_DOSYASI = null;', "export const AMBLEM_DOSYASI = 'assets/logo/amblem.png';");
+    const ayar = fs.readFileSync(path.join(__dirname, '..', 'assets', 'ayar.js'), 'utf8').replace(/export const AMBLEM_DOSYASI = [^;]*;/, "export const AMBLEM_DOSYASI = 'assets/logo/amblem.png';");
     const { ctx, p } = await baglam({ width: 390, height: 844 }, 'acik');
     await ctx.route('**/assets/ayar.js', (r) => r.fulfill({ contentType: 'text/javascript', body: ayar }));
     const istenen = [];
@@ -241,7 +242,7 @@ async function ekranTestleri() {
     d.p.on('request', (q) => { if (/assets\/logo\//.test(q.url())) istek.push(q.url().replace(ADRES + '/', '')); });
     await d.p.goto(ADRES + '/goller.html');
     await d.p.waitForSelector('#arsiv .arsiv-mac');
-    kontrol('amblem: varsayılan (AMBLEM_DOSYASI null) yalnız yedek istenir, olmayan dosya istenmez', istek.length >= 1 && istek.every((x) => x === 'assets/logo/amblem-yedek.svg'), JSON.stringify(istek));
+    kontrol('amblem (020): varsayılan resmî amblem istenir (yedek istenmez), olmayan dosya istenmez', istek.length >= 1 && istek.every((x) => x === 'assets/logo/corum-fk-amblem.svg'), JSON.stringify(istek));
     await d.ctx.close();
   });
 

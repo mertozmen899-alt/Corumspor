@@ -34,6 +34,7 @@
 <link rel="modulepreload" href="assets/reklam-yukle.js">
 <link rel="modulepreload" href="assets/gol-kart.js">
 <link rel="modulepreload" href="assets/takvim.js">
+<link rel="modulepreload" href="assets/mac-gunu.js">
 <script type="module" src="assets/sayfa/mac.js"></script>
 </head>
 <body>
@@ -41,7 +42,7 @@
 <header class="ust">
   <div class="ust-bar">
     <div class="ust-sol"><a class="ikon-dugme geri" href="takim.html#fikstur" data-geri aria-label="Geri"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 18 9 12l6-6"/></svg></a></div>
-    <a class="logo" href="index.html" aria-label="Çorumspor Taraftar ana sayfa"><span class="amblem"><img data-amblem src="assets/logo/amblem-yedek.svg" alt="" width="34" height="34"></span><span class="logo-ad">Çorumspor Taraftar</span></a>
+    <a class="logo" href="index.html" aria-label="Çorumspor Taraftar ana sayfa"><span class="amblem"><img data-amblem src="assets/logo/corum-fk-amblem.svg" alt="" width="34" height="34"></span><span class="logo-ad">Çorumspor Taraftar</span></a>
     <div class="ust-sag" id="oturum-alani"><a class="ikon-dugme" href="profil.html" id="profil-baglanti"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg><span class="gorunmez">Profil</span></a></div>
   </div>
 </header>
@@ -51,13 +52,14 @@
   <div id="mac" data-durum="bekliyor"><div class="mac-basi" aria-hidden="true"><span class="iskelet iskelet-satir uzun"></span><span class="iskelet iskelet-satir uzun"></span></div></div>
   <div class="skor-cubugu" id="skor-cubugu" aria-hidden="true"><div class="kap"></div></div>
   <div id="mac-sponsoru"></div>
-  <div class="sekme-iz mac-sekmeler" id="mac-sekmeler" role="tablist" aria-label="Maç bölümleri">
+  <div class="sekme-iz kayan-gosterge mac-sekmeler" id="mac-sekmeler" role="tablist" aria-label="Maç bölümleri">
     <button type="button" role="tab" id="sekme-ozet" aria-controls="panel-ozet" aria-selected="true">Özet</button>
     <button type="button" role="tab" id="sekme-olaylar" aria-controls="panel-olaylar" aria-selected="false">Olaylar</button>
     <button type="button" role="tab" id="sekme-yorumlar" aria-controls="panel-yorumlar" aria-selected="false">Yorumlar</button>
   </div>
   <section id="panel-ozet" class="mac-panel" role="tabpanel" aria-labelledby="sekme-ozet" tabindex="0">
     <div id="ozet-not"></div>
+    <div id="ozet-tahmin"></div>
     <section id="ozet" aria-labelledby="ozet-baslik" hidden>
       <div class="bolum-baslik"><h2 id="ozet-baslik">Maç özeti</h2></div>
       <div id="ozet-video"></div>
@@ -67,6 +69,11 @@
       <div class="bolum-baslik"><h2 id="gol-baslik">Goller</h2></div>
       <ul id="gol-listesi" class="gol-listesi"></ul>
     </section>
+    <div id="ozet-oylama"></div>
+    <div id="ozet-tahmin-sonuc"></div>
+    <div id="ozet-dizilis"></div>
+    <div id="ozet-paket"></div>
+    <div id="ozet-form"></div>
     <p class="bos" id="ozet-bos" hidden></p>
   </section>
   <section id="panel-olaylar" class="mac-panel" role="tabpanel" aria-labelledby="sekme-olaylar" tabindex="0" hidden>
@@ -88,7 +95,7 @@
 </nav>
 <footer class="alt">
   <div class="kap">
-    <p><strong>Çorumspor Taraftar</strong> · bağımsız taraftar uygulaması. <strong>Çorum FK'nın resmî uygulaması değildir</strong>; kulüple bir bağı yoktur. Kulüp adı hak sahibine aittir.</p>
+    <p><strong>Çorumspor Taraftar</strong> · bağımsız taraftar uygulaması. <strong>Çorum FK'nın resmî uygulaması değildir</strong>; kulüple bir bağı yoktur. Kulüp adı ve amblemi hak sahibine aittir.</p>
     <p>Künye: <span data-ayar="SAHIP_ADI">uygulama sahibi</span> · İletişim ve kaldırma talepleri: <a data-ayar="ILETISIM_EPOSTA" href="kurallar.html#iletisim">iletişim adresi</a> (kaldırma taleplerine en geç 24 saat içinde dönülür).</p>
     <p class="baglantilar"><a href="gizlilik.html">Gizlilik ve KVKK</a><a href="kurallar.html">Topluluk kuralları</a><a href="kaynaklar.html">Fotoğraf kaynakları</a></p>
   </div>

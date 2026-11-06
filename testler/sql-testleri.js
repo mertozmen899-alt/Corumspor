@@ -17,6 +17,7 @@ function dosyalar() {
     path.join(KOK, 'supabase', 'seed.sql'),
     path.join(__dirname, 'sql', '10_yardimcilar.sql'),
     path.join(__dirname, 'sql', '20_rls_testleri.sql'),
+    path.join(__dirname, 'sql', '30_bildirim_testleri.sql'),
   ];
 }
 

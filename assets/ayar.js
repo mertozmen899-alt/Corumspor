@@ -13,12 +13,15 @@ export const SITE_ADI = 'Çorumspor Taraftar';
 export const TAKIM_ADI = 'Çorum FK';
 
 // Üst bardaki amblem. null = özgün yedek işaret (assets/logo/amblem-yedek.svg).
-// Kulübün resmî amblemini YALNIZCA kulüpten yazılı izin aldıktan sonra assets/logo/ klasörüne koyup
-// burada adını yazın, ör. 'assets/logo/amblem.svg' ya da 'assets/logo/amblem.png' (bkz. assets/logo/README.txt).
-// Dosya açılamazsa site önce yedek işarete (özgün "ÇT" işareti), o da olmazsa "ÇT" yazısına döner.
-export const AMBLEM_DOSYASI = null;
+// Resmî Çorum FK amblemi sahibin kararıyla (6 Kasım 2026, riski sahip üstlendi) kullanılıyor; kaynak: assets/logo/README.txt.
+// Kaldırmak için null yazın. Dosya açılamazsa site önce yedek işarete (özgün "ÇT" işareti), o da olmazsa "ÇT" yazısına döner.
+export const AMBLEM_DOSYASI = 'assets/logo/corum-fk-amblem.svg';
 
 // Künye ve iletişim (alt bilgi, gizlilik.html, kurallar.html). YAYINDAN ÖNCE kendi bilginizle değiştirin.
 // Kulüp, oyuncular ve taraftarlar kaldırma taleplerini bu adrese yazar (README "Künye").
 export const SAHIP_ADI = 'Mert Özmen';
 export const ILETISIM_EPOSTA = 'mertozmen899@gmail.com';
+
+// Web Push bildirimleri (021/022, README "Bildirimler"): `node araclar/vapid-olustur.js --sql` çıktısındaki AÇIK anahtar.
+// null = Profil › Bildirimler "henüz kurulmadı" der. Özel anahtar BURAYA DEĞİL, yalnız Supabase Vault'a (bildirim_vapid_private).
+export const VAPID_ACIK_ANAHTAR = 'BBEn6zQ0OWVyY0e_7GNbCSyCM_sdnRr7JJS801mF22CvwolY15f2KvreptGEfRx50DEgT_xUCxVbe00M4fKyztI';

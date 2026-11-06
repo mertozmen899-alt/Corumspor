@@ -23,7 +23,7 @@ Yazı tipleri sitenin kendisinden yüklenir (Google'a istek gitmez).
 2. Proje adı: `corumspor`. Bölge: **Central EU (Frankfurt)** (Türkiye'ye yakın). Veritabanı şifresini bir yere not edin.
 3. Proje hazır olunca (1-2 dakika) devam edin.
 
-## 2. Veritabanını kurun (migration'lar) — SIRAYLA: 001 → 002 → 010 → 011 → 012 → 013 → 014 → 015 → 016 → 017 → 018 → 019
+## 2. Veritabanını kurun (migration'lar) — SIRAYLA: 001 → 002 → 010 → 011 → 012 → 013 → 014 → 015 → 016 → 017 → 018 → 019 → 020
 
 On iki dosya var ve **bu sırayla, her biri bir kez** çalıştırılır:
 
@@ -41,11 +41,12 @@ On iki dosya var ve **bu sırayla, her biri bir kez** çalıştırılır:
 | 10 | `supabase/migrations/017_yanit_profil_foto.sql` | Yorumlara **yanıt** (tek seviye: yanıtın yanıtı ana yoruma bağlanır, ana yorum silinince yanıtları da silinir) ve **profil fotoğrafı** (`profiles.foto_url`, yalnız kişinin kendi klasöründe; `profil-fotograflari` deposu: herkese açık, 300 KB, webp/jpeg/png; yönetici uygunsuz fotoğrafı kaldırabilir) |
 | 11 | `supabase/migrations/018_gol_ani_asist.sql` | **Gol anı ve oyuncu sayfası:** gole **asist** (`goller.asist`) ve uzun özet videosunda yalnız golü oynatan **aralık** (`video_baslangic_sn` / `video_bitis_sn`, yalnız YouTube); **maç kadrosu** (`mac_oyunculari`: ilk 11, giriş/çıkış dakikası, sarı/kırmızı kart; herkes okur, yalnız yönetici yazar). Oyuncu sayfasındaki Maç / İlk 11 / Dakika / Gol / Asist / Kart sayıları bunlardan hesaplanır |
 | 12 | `supabase/migrations/019_piyasa_rakip_gol.sql` | **Piyasa değeri ve rakip golleri:** oyuncuya isteğe bağlı **piyasa değeri** (`piyasa_degeri_eur`, tarih ve kaynak zorunlu; oyuncu sayfasında "3,00 Mn € · Transfermarkt'a göre, 30 Eylül 2026", kadro kartında yok) ve **rakibin golleri** (`rakip_goller`: dakika, uzatma, golcü, penaltı, kendi kalesine; herkes okur, yalnız yönetici yazar). Maç sayfasındaki Olaylar çizelgesi skorla tutar. Bu dosyadan sonra isterseniz tek seferlik veri SQL'i (piyasa değerleri + 10 maçın rakip golleri; tek işlem, eşleşme tutmazsa geri alınır) çalıştırılır |
+| 13 | `supabase/migrations/020_mac_gunu.sql` | **Maç günü:** maça hakem, yayın kanalı, diziliş ("4-2-3-1"), "İlk 11 açıklandı" ve kaynak; maç kadrosunda sahadaki yer ve forma no (maç sayfasında yeşil saha). Taraftar **skor tahmini** (maç başlamadan; kişi yalnız kendisininkini görür, maç başlayınca dağılım), **maçın oyuncusu** oylaması (maç bitince 48 saat, tek oy), haber / gol **beğenisi** (dakikada 30) ve **puan durumu** (yönetici panelden girer). Ödül / puan yok. Hepsi giriş + e-posta onayı ister |
 
 **En kolayı: SQL Editor**
 
 **En kolayı (yeni, boş proje):** **Database → Extensions → pg_cron**'u açın, sonra **SQL Editor → New query**'ye
-`supabase/kurulum/tek-dosya-kurulum.sql` dosyasının tamamını yapıştırıp **Run** deyin (001→019'un hepsi sırayla; pg_cron'u da açmayı dener).
+`supabase/kurulum/tek-dosya-kurulum.sql` dosyasının tamamını yapıştırıp **Run** deyin (001→022'nin hepsi sırayla; pg_cron'u da açmayı dener).
 Ardından aşağıdaki 015 adımındaki `ayrilmis_adlar` satırını ve pg_cron kontrolünü çalıştırın. Yeni migration eklenince dosyayı
 `araclar/kurulum-dosyasi-olustur.sh` ile yeniden üretin. Tek tek kurmak isterseniz:
 
@@ -286,6 +287,41 @@ sayfasında üst menüde nargile (tütün) görünüyor ve tütün reklamı yasa
 WhatsApp numarası verirse panelden eklenir. Hazır görseller (1200×628 ve 600×600 + küçük kopyalar), panele yapıştırılacak metin,
 önerilen tarih/öncelik, sitede kontrol ve raporu okuma adım adım: **[`docs/ilk-reklam/NASIL.md`](docs/ilk-reklam/NASIL.md)**.
 Not: `narçil.net` (ç ile) alan adı kayıtlı değil; firmanın sitesi `narcil.net`. Test modunda (`?sahte=1`) örnek reklam da Narçil'dir.
+
+### Bildirimler (Web Push, 021 + 022)
+
+Maç günü bildirimleri: sabah 10:00 "Bugün maç var", panelde "İlk 11 açıklandı" doldurulunca, her Çorum FK golü, maç sonu skoru.
+Taraftar Profil › Bildirimler'den açar (izin yalnız "Bildirimleri aç" düğmesiyle istenir), tür tür seçer, istediği zaman kapatır.
+Akış: panelde gol / maç sonucu / ilk 11 girilir → veritabanı tetikleyicisi (ve her dakika pg_cron) olayı `bildirim_olaylari`'na
+yazar (aynı olay iki kez yazılmaz) → **pg_net** ile `bildirim-gonder` Edge Function'ını çağırır → Edge Function Web Push gönderir,
+biten (404/410) aboneliği siler. Gizli bilgilerin hepsi **Supabase Vault**'ta (Edge Function secret'ı gerekmez): `bildirim_url`,
+`bildirim_gizli` (veritabanı Edge Function'ı bunlarla çağırır), `bildirim_vapid_public`, `bildirim_vapid_private`,
+`bildirim_vapid_subject` (Edge Function bunları ve `bildirim_gizli`'yi `bildirim_gizli_ayarlar()` ile okur; o fonksiyonu yalnız
+`service_role` çalıştırır). `service_role` anahtarı hiçbir yere yazılmaz (Edge Function'a Supabase kendisi verir).
+
+Sırayla (020'den sonra):
+1. **Database → Extensions**: `pg_cron` ve `pg_net`'i açın (Vault Supabase'de hazır gelir).
+2. **SQL Editor**: `021_bildirim.sql`, sonra `022_bildirim_vault.sql`'i çalıştırın (pg_cron açıksa 021 her dakika işini kendisi kurar;
+   sonra açtıysanız 021'i yeniden çalıştırın). Kontrol: `select jobname, schedule from cron.job where jobname = 'bildirim-calistir';` → `* * * * *`.
+3. Bilgisayarda `node araclar/vapid-olustur.js --sql` çalıştırın: çıktı **tek parça SQL**'dir (ekrana yazılır, hiçbir dosyaya yazılmaz;
+   kaydetmeyin, paylaşmayın). Hepsini **SQL Editor**'de çalıştırın: beş Vault sırrını yazar (varsa günceller).
+4. Edge Function'ı dağıtın: `supabase/functions/bildirim-gonder/` klasörü (`index.ts` + `mantik.js`), **JWT doğrulaması kapalı**
+   (`verify_jwt = false`; CLI: `supabase functions deploy bildirim-gonder --no-verify-jwt`). Çağrıyı JWT değil `x-bildirim-anahtari`
+   gizli başlığı yetkilendirir; başlık yoksa ya da yanlışsa 401.
+5. `assets/ayar.js`: `export const VAPID_ACIK_ANAHTAR = null;` satırını SQL çıktısının ilk satırındaki (`-- ayar.js için: …`)
+   satırla değiştirin, siteyi yeniden yayınlayın.
+6. Deneme: telefonda siteyi açın (iPhone'da önce Paylaş › Ana Ekrana Ekle, uygulamayı ana ekrandan açın), giriş yapın,
+   Profil › Bildirimler › "Bildirimleri aç". Sonra panelde yaklaşmakta olan bir maçta "İlk 11 açıklandı"yı doldurun (maça 3 saatten az
+   varken): bir dakika içinde bildirim gelmeli. Gelmezse: `select tur, sonuc, alici, basarisiz, gonderildi from bildirim_olaylari order
+   by id desc limit 5;` ve **Edge Functions → bildirim-gonder → Logs**. Yönetici abone sayısı: `select * from bildirim_abone_sayisi();`.
+
+Eski kurulum: Edge Function secret'ları (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `BILDIRIM_GIZLI`) varsa Vault'un
+önüne geçer; silinirse Vault kullanılır. Edge Function ayarları 5 dakika bellekte tutar: sırları değiştirdikten sonra 5 dakikaya kadar
+eski değerle çalışabilir (bu sürede gelen çağrı 401 alabilir, olay kaybolmaz; bir sonraki dakikada yeniden denenir).
+
+Sınırlar: bildirimin sesi telefonun kendi bildirim sesidir (Web Push özel ses çalamaz); "Uygulama açıkken düdük sesi" seçeneği
+yalnız uygulama ekrandayken gol gelince sitenin kendi ürettiği kısa düdüğü çalar. iPhone/iPad'de bildirim yalnız iOS 16.4+ ve
+ana ekrana eklenmiş uygulamada çalışır. VAPID anahtarını değiştirirseniz (3 ve 5'i yeniden yaparsanız) herkes bildirimleri yeniden açmalıdır.
 
 ## 9. Amblem (logo)
 

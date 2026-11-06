@@ -8,6 +8,7 @@ import { gorselKucult, ENCOK_GIRDI_BAYT } from '../gorsel-kucult.js';
 import {
   SAKATLIK_DURUMLARI, SAKATLIK_BAGLANTI_ZORUNLU, sakatlikHatalari, haberHatalari, golVideoGecerli, altyaziAdresiGecerli, GOL_VIDEO_KOVASI, kelimeBicimi, ON_ONAY,
   PROFIL_FOTO_KOVASI, profilFotoGecerli, golAniHatalari, oynamaDakikasi, VIDEO_ARALIK_SINIRI, rakipGolHatalari, piyasaDegeriHatalari, piyasaDegeriMetni,
+  dizilisHatasi, sezonAdi, puanTablosuAyristir, bizMiyiz,
 } from '../kurallar.js';
 
 const KOVA = 'haber-gorselleri';
@@ -271,6 +272,15 @@ function maclarSekmesi(kok) {
       alan('m-ozet-kaynak', 'Özet videonun kaynağı', h('input', { type: 'text', id: 'm-ozet-kaynak', maxlength: '120', placeholder: 'ör. beIN SPORTS Türkiye YouTube kanalı' }))),
     alan('m-ozet', 'Maç özeti videosu (YouTube bağlantısı; isteğe bağlı)', h('input', { type: 'url', id: 'm-ozet', maxlength: '2000', placeholder: 'https://www.youtube.com/watch?v=…' }),
       'Yalnız hak sahibinin (yayıncı ya da kulüp) kendi kanalındaki video. Maç sayfasında dokununca açılır.'),
+    // 020: maç öncesi paketi (hakem, yayın, kaynak) ve ilk 11 (diziliş + "açıklandı" işareti; oyuncuların yeri Maç kadrosu bölümünde)
+    h('div', { class: 'iki-sutun' },
+      alan('m-hakem', 'Hakem (isteğe bağlı)', h('input', { type: 'text', id: 'm-hakem', maxlength: '80' })),
+      alan('m-yayin', 'Yayın kanalı (isteğe bağlı)', h('input', { type: 'text', id: 'm-yayin', maxlength: '80', placeholder: 'ör. beIN SPORTS 2' }))),
+    h('div', { class: 'iki-sutun' },
+      alan('m-dizilis', 'Diziliş (kaleci hariç)', h('input', { type: 'text', id: 'm-dizilis', maxlength: '11', placeholder: 'ör. 4-2-3-1', inputmode: 'numeric', 'aria-describedby': 'm-dizilis-not' })),
+      alan('m-on-kaynak', 'Ön bilginin kaynağı', h('input', { type: 'text', id: 'm-on-kaynak', maxlength: '120', placeholder: 'ör. Kulüp açıklaması' }))),
+    h('small', { id: 'm-dizilis-not', class: 'yonetim-not' }, 'Sayıların toplamı 10. Sahadaki çizim için Maç kadrosu bölümünde ilk 11\'in her oyuncusuna "Sahadaki yeri" verin (1 kaleci, sonra geriden öne, soldan sağa).'),
+    h('div', { class: 'alan' }, h('label', { class: 'onay' }, h('input', { type: 'checkbox', id: 'm-ilk11' }), 'İlk 11 açıklandı (maç sayfasında rozet)')),
     // 014 (taraftar 7): bilet / yayın / kapı saati notu; (başkan 4) maç günü yorum ön onayı
     alan('m-not', 'Maç notu (bilet, yayın, kapı saati; isteğe bağlı)', h('textarea', { id: 'm-not', maxlength: '280', rows: '2', placeholder: 'ör. Biletler kulübün resmî satış noktalarında. Kapılar 17.00\'de açılır.' }),
       'Maç sayfasında küçük bir bilgi kutusunda görünür. En fazla 280 karakter. Yalnız resmî duyurudaki bilgiyi yazın.'),
@@ -287,6 +297,10 @@ function maclarSekmesi(kok) {
     h('h3', { id: 'kadro-form-baslik' }, 'Oyuncu ekle'),
     alan('k-oyuncu', 'Oyuncu (kadrodaki adıyla)', h('input', { type: 'text', id: 'k-oyuncu', maxlength: '80', list: 'kadro-adlari', required: true })),
     h('div', { class: 'alan' }, h('label', { class: 'onay' }, h('input', { type: 'checkbox', id: 'k-ilk11' }), 'İlk 11')),
+    // 020: ilk 11 sahası (sıra 1 kaleci, sonra dizilişin satırları geriden öne, soldan sağa) ve o maçtaki forma no
+    h('div', { class: 'iki-sutun' },
+      alan('k-sira', 'Sahadaki yeri (yalnız ilk 11)', h('select', { id: 'k-sira' }, h('option', { value: '' }, 'Yok'), Array.from({ length: 11 }, (_, i) => h('option', { value: String(i + 1) }, i === 0 ? '1 (kaleci)' : String(i + 1))))),
+      alan('k-no', 'Forma no (boşsa kadrodaki)', h('input', { type: 'number', id: 'k-no', min: '1', max: '99', inputmode: 'numeric' }))),
     h('div', { class: 'iki-sutun' },
       alan('k-giris', 'Oyuna giriş dakikası (yedekse)', h('input', { type: 'number', id: 'k-giris', min: '0', max: '130', inputmode: 'numeric' })),
       alan('k-cikis', 'Oyundan çıkış dakikası (kırmızıda kart dakikası)', h('input', { type: 'number', id: 'k-cikis', min: '0', max: '130', inputmode: 'numeric' }))),
@@ -394,16 +408,18 @@ function maclarSekmesi(kok) {
     $('#k-cikis').value = s.cikis_dk ?? '';
     $('#k-sari').value = String(s.sari || 0);
     $('#k-kirmizi').checked = !!s.kirmizi;
+    $('#k-sira').value = s.dizilis_sira != null ? String(s.dizilis_sira) : '';
+    $('#k-no').value = s.forma_no ?? '';
     $('#k-oyuncu').focus();
   }
   async function kadroYukle() {
     if (!duzenlenen) return;
-    const { data, error } = await supabase.from('mac_oyunculari').select('mac_id, oyuncu, ilk11, giris_dk, cikis_dk, sari, kirmizi').eq('mac_id', duzenlenen).limit(60);
+    const { data, error } = await supabase.from('mac_oyunculari').select('*').eq('mac_id', duzenlenen).limit(60);
     if (error) { kadroListe.replaceChildren(h('li', null, hataMetni(error, 'Kadro yüklenemedi.'))); return; }
-    const l = [...data].sort((a, b) => Number(b.ilk11) - Number(a.ilk11) || (a.giris_dk ?? 0) - (b.giris_dk ?? 0) || a.oyuncu.localeCompare(b.oyuncu, 'tr'));
+    const l = [...data].sort((a, b) => Number(b.ilk11) - Number(a.ilk11) || (a.dizilis_sira ?? 99) - (b.dizilis_sira ?? 99) || (a.giris_dk ?? 0) - (b.giris_dk ?? 0) || a.oyuncu.localeCompare(b.oyuncu, 'tr'));
     kadroListe.replaceChildren(...(l.length ? l.map((s) => h('li', { 'data-oyuncu': s.oyuncu },
       h('span', { class: 'satir-baslik' }, s.oyuncu),
-      h('span', { class: 'kucuk-yazi soluk' }, [s.ilk11 ? 'İlk 11' : `${s.giris_dk}' girdi`, s.cikis_dk != null ? `${s.cikis_dk}' çıktı` : null, `${oynamaDakikasi(s)} dk`, s.sari ? `${s.sari} sarı` : null, s.kirmizi ? 'kırmızı' : null].filter(Boolean).join(' · ')),
+      h('span', { class: 'kucuk-yazi soluk' }, [s.ilk11 ? 'İlk 11' : `${s.giris_dk}' girdi`, s.dizilis_sira != null ? `yer ${s.dizilis_sira}` : null, s.forma_no != null ? `no ${s.forma_no}` : null, s.cikis_dk != null ? `${s.cikis_dk}' çıktı` : null, `${oynamaDakikasi(s)} dk`, s.sari ? `${s.sari} sarı` : null, s.kirmizi ? 'kırmızı' : null].filter(Boolean).join(' · ')),
       h('span', { class: 'dugme-satir' },
         h('button', { type: 'button', class: 'dugme ikincil kucuk', onclick: () => kadroDoldur(s) }, 'Düzenle'),
         h('button', { type: 'button', class: 'dugme tehlike kucuk', onclick: () => kadroSil(s) }, 'Sil'))))
@@ -427,6 +443,8 @@ function maclarSekmesi(kok) {
       cikis_dk: tamSayiOku('#k-cikis'),
       sari: Number($('#k-sari').value),
       kirmizi: $('#k-kirmizi').checked,
+      dizilis_sira: $('#k-sira').value === '' ? null : Number($('#k-sira').value),
+      forma_no: tamSayiOku('#k-no'),
     };
     const dk = (x) => x == null || (Number.isInteger(x) && x >= 0 && x <= 130);
     if (kayit.oyuncu.length < 2 || kayit.oyuncu.length > 80) return bildir('Oyuncunun adını yazın (2-80 karakter).', 'hata');
@@ -435,6 +453,8 @@ function maclarSekmesi(kok) {
     if (!kayit.ilk11 && kayit.giris_dk == null) return bildir('Yedekten giren oyuncunun giriş dakikasını yazın (maça çıkmayan yedeği eklemeyin).', 'hata');
     if (kayit.giris_dk != null && kayit.cikis_dk != null && kayit.cikis_dk < kayit.giris_dk) return bildir('Çıkış dakikası giriş dakikasından önce olamaz.', 'hata');
     if (kayit.kirmizi && kayit.cikis_dk == null) return bildir('Kırmızı kartta çıkış dakikası olarak kartın dakikasını yazın.', 'hata');
+    if (kayit.dizilis_sira != null && !kayit.ilk11) return bildir("Sahadaki yer yalnız ilk 11'deki oyuncuya verilir.", 'hata');
+    if (kayit.forma_no != null && !(Number.isInteger(kayit.forma_no) && kayit.forma_no >= 1 && kayit.forma_no <= 99)) return bildir('Forma numarası 1-99 arasında olmalı.', 'hata');
     const dugme = $('#k-kaydet');
     dugme.disabled = true;
     const sorgu = kadroDuzenlenen ? supabase.from('mac_oyunculari').update(kayit).eq('mac_id', duzenlenen).eq('oyuncu', kadroDuzenlenen)
@@ -447,7 +467,8 @@ function maclarSekmesi(kok) {
     await kadroYukle();
   });
 
-  function temizle() { duzenlenen = null; form.reset(); $('#mac-form-baslik').textContent = 'Yeni maç'; kadroBolumu.hidden = true; rakipBolumu.hidden = true; kadroTemizle(); rakipTemizle(); }
+  let ilk11Ani = null; // düzenlenen maçın kayıtlı "ilk 11 açıklandı" anı (işaret kalırsa korunur)
+  function temizle() { duzenlenen = null; ilk11Ani = null; form.reset(); $('#mac-form-baslik').textContent = 'Yeni maç'; kadroBolumu.hidden = true; rakipBolumu.hidden = true; kadroTemizle(); rakipTemizle(); }
   $('#m-yeni').addEventListener('click', temizle);
 
   function doldur(mac) {
@@ -466,6 +487,12 @@ function maclarSekmesi(kok) {
     $('#m-hafta').value = mac.hafta ?? '';
     $('#m-ozet').value = mac.ozet_video_url || '';
     $('#m-ozet-kaynak').value = mac.ozet_video_kaynak || '';
+    $('#m-hakem').value = mac.hakem || '';
+    $('#m-yayin').value = mac.yayin_kanali || '';
+    $('#m-dizilis').value = mac.dizilis || '';
+    $('#m-on-kaynak').value = mac.on_bilgi_kaynak || '';
+    $('#m-ilk11').checked = !!mac.ilk11_aciklandi;
+    ilk11Ani = mac.ilk11_aciklandi || null;
     kadroBolumu.hidden = false;
     $('#kadro-baslik').textContent = `Maç kadrosu: ${mac.rakip}`;
     kadroTemizle();
@@ -501,7 +528,15 @@ function maclarSekmesi(kok) {
       hafta: $('#m-hafta').value.trim() === '' ? null : Number($('#m-hafta').value),
       ozet_video_url: $('#m-ozet').value.trim() || null,
       ozet_video_kaynak: $('#m-ozet-kaynak').value.trim() || null,
+      hakem: $('#m-hakem').value.trim() || null,
+      yayin_kanali: $('#m-yayin').value.trim() || null,
+      dizilis: $('#m-dizilis').value.replace(/\s+/g, '') || null,
+      on_bilgi_kaynak: $('#m-on-kaynak').value.trim() || null,
+      ilk11_aciklandi: $('#m-ilk11').checked ? ilk11Ani || new Date().toISOString() : null,
     };
+    const dh = dizilisHatasi(kayit.dizilis);
+    if (dh) return bildir(dh, 'hata');
+    for (const [k, ad, en] of [['hakem', 'Hakem', 80], ['yayin_kanali', 'Yayın kanalı', 80], ['on_bilgi_kaynak', 'Kaynak', 120]]) if (kayit[k] && (kayit[k].length < 2 || kayit[k].length > en)) return bildir(`${ad} 2-${en} karakter olmalı.`, 'hata');
     if (kayit.hafta != null && !(Number.isInteger(kayit.hafta) && kayit.hafta >= 1 && kayit.hafta <= 60)) return bildir('Hafta 1-60 arasında tam sayı olmalı.', 'hata');
     if (kayit.ozet_video_url && !(youtubeKimlik(kayit.ozet_video_url) && golVideoGecerli(kayit.ozet_video_url))) return bildir('Maç özeti bir YouTube bağlantısı olmalı.', 'hata');
     if (kayit.ozet_video_url && (!kayit.ozet_video_kaynak || kayit.ozet_video_kaynak.length < 3)) return bildir('Özet videonun kaynağını yazın (ör. "beIN SPORTS Türkiye YouTube kanalı").', 'hata');
@@ -1073,6 +1108,106 @@ function sakatliklarSekmesi(kok) {
 
 // ===================================================================== Reklamlar (ayrı modül)
 // Reklam modülü assets/reklam/yonetim-reklamlar.js dosyasını sağlar. Varsa yüklenir ve
+// ===================================================================== 020: Puan durumu
+// Kaynak sitedeki tabloyu yapıştır (her satır: sıra, takım, O G B M A Y [AV] P) → önizleme → "Tabloyu kaydet" sezonun satırlarını
+// yenisiyle değiştirir. Tek satır düzeltmesi aşağıdaki listeden (Düzenle / Sil). Otomatik çekme yok: kaynak ve tarih zorunlu.
+function puanSekmesi(kok) {
+  const bugun = new Date().toISOString().slice(0, 10);
+  let onizleme = [];
+  const form = h('form', { class: 'kutu', id: 'puan-formu', novalidate: true },
+    h('h2', null, 'Puan durumu'),
+    h('p', { class: 'yonetim-not' }, 'Ligin resmî sitesindeki tabloyu kopyalayıp yapıştırın. Her satır: sıra, takım, O G B M A Y (AV) P. "19:7" gibi atılan:yenen de olur. Kaydedince bu sezonun tablosu yenisiyle değişir.'),
+    h('div', { class: 'iki-sutun' },
+      alan('p-sezon', 'Sezon', h('input', { type: 'text', id: 'p-sezon', value: sezonAdi(new Date().toISOString()), maxlength: '7', pattern: '\\d{4}-\\d{2}' })),
+      alan('p-tarih', 'Tablonun tarihi', h('input', { type: 'date', id: 'p-tarih', value: bugun, max: bugun }))),
+    alan('p-kaynak', 'Kaynak', h('input', { type: 'text', id: 'p-kaynak', maxlength: '120', placeholder: 'ör. TFF', required: true })),
+    alan('p-metin', 'Tablo (yapıştır)', h('textarea', { id: 'p-metin', rows: '8', spellcheck: 'false', placeholder: '1 Örnekköy Spor 10 7 2 1 19 7 +12 23' })),
+    h('div', { id: 'p-onizleme' }),
+    h('div', { class: 'dugme-satir' },
+      h('button', { type: 'button', class: 'dugme ikincil', id: 'p-oku' }, 'Önizle'),
+      h('button', { type: 'submit', class: 'dugme', id: 'p-kaydet' }, 'Tabloyu kaydet')));
+  const satirForm = h('form', { class: 'kutu', id: 'puan-satir-formu', novalidate: true },
+    h('h3', { id: 'p-satir-baslik' }, 'Tek satır ekle / düzelt'),
+    h('div', { class: 'iki-sutun' }, alan('ps-takim', 'Takım', h('input', { type: 'text', id: 'ps-takim', maxlength: '80' })), alan('ps-sira', 'Sıra', h('input', { type: 'number', id: 'ps-sira', min: '1', max: '40' }))),
+    h('div', { class: 'iki-sutun' }, ...['oynanan:O', 'galibiyet:G', 'beraberlik:B', 'maglubiyet:M'].map((x) => { const [k, e] = x.split(':'); return alan('ps-' + k, e, h('input', { type: 'number', id: 'ps-' + k, min: '0', max: '60' })); })),
+    h('div', { class: 'iki-sutun' }, ...['atilan:Atılan', 'yenen:Yenen', 'puan:Puan'].map((x) => { const [k, e] = x.split(':'); return alan('ps-' + k, e, h('input', { type: 'number', id: 'ps-' + k, min: k === 'puan' ? '-50' : '0', max: '300' })); })),
+    h('div', { class: 'dugme-satir' }, h('button', { type: 'submit', class: 'dugme', id: 'ps-kaydet' }, 'Satırı kaydet'), h('button', { type: 'reset', class: 'dugme ikincil' }, 'Temizle')));
+  const liste = h('ul', { class: 'yonetim-liste', id: 'puan-listesi' });
+  kok.replaceChildren(form, satirForm, h('section', { class: 'kutu', 'aria-labelledby': 'p-liste-baslik' }, h('h3', { id: 'p-liste-baslik' }, 'Kayıtlı tablo'), liste));
+  const sezon = () => $('#p-sezon').value.trim();
+  const ortak = () => ({ sezon: sezon(), kaynak: $('#p-kaynak').value.trim(), guncellendi: $('#p-tarih').value ? new Date($('#p-tarih').value + 'T12:00:00Z').toISOString() : new Date().toISOString() });
+  const ortakHata = () => !/^\d{4}-\d{2}$/.test(sezon()) ? 'Sezonu "2026-27" gibi yazın.' : $('#p-kaynak').value.trim().length < 2 ? 'Kaynağı yazın (ör. TFF).' : null;
+  function onizle() {
+    const { satirlar, hatalar } = puanTablosuAyristir($('#p-metin').value);
+    onizleme = hatalar.length ? [] : satirlar;
+    $('#p-onizleme').replaceChildren(
+      hatalar.length ? h('ul', { class: 'mesaj hata' }, hatalar.map((x) => h('li', null, x))) : null,
+      satirlar.length ? h('p', { class: 'kucuk-yazi' }, `${satirlar.length} satır okundu`, satirlar.some((x) => bizMiyiz(x.takim)) ? ' (Çorum FK var).' : ' (Çorum FK satırı yok: adı kontrol edin).') : null,
+      satirlar.length ? h('ol', { class: 'kucuk-yazi' }, satirlar.map((x) => h('li', null, `${x.sira}. ${x.takim}: O ${x.oynanan}, G ${x.galibiyet}, B ${x.beraberlik}, M ${x.maglubiyet}, ${x.atilan}:${x.yenen}, P ${x.puan}`))) : null);
+    return !hatalar.length && satirlar.length;
+  }
+  $('#p-oku').addEventListener('click', onizle);
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const oh = ortakHata();
+    if (oh) return bildir(oh, 'hata');
+    if (!onizle()) return bildir('Tablo okunamadı: önizlemedeki satırları düzeltin.', 'hata');
+    if (!onayla(`${sezon()} sezonunun tablosu ${onizleme.length} satırlık yenisiyle değiştirilsin mi?`)) return;
+    const d = $('#p-kaydet'); d.disabled = true;
+    // Silme + ekleme tek işlem değil: ekleme başarısız olursa eski satırlar geri yazılır (tablo boş kalmasın)
+    const eski = await supabase.from('puan_durumu').select('sezon, sira, takim, oynanan, galibiyet, beraberlik, maglubiyet, atilan, yenen, puan, guncellendi, kaynak').eq('sezon', sezon()).limit(40);
+    if (eski.error) { d.disabled = false; return bildir(hataMetni(eski.error, 'Tablo okunamadı; değişiklik yapılmadı.'), 'hata'); }
+    const sil = await supabase.from('puan_durumu').delete().eq('sezon', sezon());
+    const ekle = sil.error ? sil : await supabase.from('puan_durumu').insert(onizleme.map((x) => ({ ...x, ...ortak() })));
+    if (ekle.error && !sil.error && eski.data.length) await supabase.from('puan_durumu').insert(eski.data.map(({ id, ...x }) => x));
+    d.disabled = false;
+    if (ekle.error) return bildir(hataMetni(ekle.error, 'Tablo kaydedilemedi; eski tablo yerinde.'), 'hata');
+    bildir(`Puan durumu kaydedildi (${onizleme.length} takım).`);
+    await yukle();
+  });
+  let duzenlenen = null;
+  satirForm.addEventListener('reset', () => { duzenlenen = null; $('#p-satir-baslik').textContent = 'Tek satır ekle / düzelt'; });
+  satirForm.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const oh = ortakHata();
+    if (oh) return bildir(oh, 'hata');
+    const s = { takim: $('#ps-takim').value.trim().replace(/\s+/g, ' '), sira: tamSayiOku('#ps-sira') };
+    for (const k of ['oynanan', 'galibiyet', 'beraberlik', 'maglubiyet', 'atilan', 'yenen', 'puan']) s[k] = tamSayiOku('#ps-' + k) ?? 0;
+    if (s.takim.length < 2 || !Number.isInteger(s.sira)) return bildir('Takım adını ve sırasını yazın.', 'hata');
+    if (s.galibiyet + s.beraberlik + s.maglubiyet !== s.oynanan) return bildir('Oynanan maç sayısı galibiyet + beraberlik + mağlubiyet olmalı.', 'hata');
+    const kayit = { ...s, ...ortak() };
+    const { error } = duzenlenen ? await supabase.from('puan_durumu').update(kayit).eq('sezon', sezon()).eq('takim', duzenlenen) : await supabase.from('puan_durumu').insert(kayit);
+    if (error) return bildir(/duplicate|puan_durumu_pkey/.test(error.message || '') ? 'Bu takım bu sezonun tablosunda var: listeden "Düzenle"yi kullanın.' : hataMetni(error, 'Satır kaydedilemedi.'), 'hata');
+    bildir('Satır kaydedildi.');
+    satirForm.reset();
+    await yukle();
+  });
+  async function yukle() {
+    const { data, error } = await supabase.from('puan_durumu').select('*').eq('sezon', sezon()).order('sira', { ascending: true }).limit(40);
+    if (error) { liste.replaceChildren(h('li', null, hataMetni(error))); return; }
+    liste.replaceChildren(...(data.length ? data.map((x) => h('li', { 'data-takim': x.takim },
+      h('span', { class: 'satir-baslik' }, `${x.sira}. ${x.takim}`),
+      h('span', { class: 'kucuk-yazi soluk' }, `O ${x.oynanan} · ${x.galibiyet}-${x.beraberlik}-${x.maglubiyet} · ${x.atilan}:${x.yenen} · P ${x.puan} · ${x.kaynak || 'kaynak yok'}, ${tarihYaz(x.guncellendi, { saat: false })}`),
+      h('span', { class: 'dugme-satir' },
+        h('button', { type: 'button', class: 'dugme ikincil kucuk', onclick: () => {
+          duzenlenen = x.takim; $('#p-satir-baslik').textContent = `Satırı düzenle: ${x.takim}`;
+          $('#ps-takim').value = x.takim; $('#ps-sira').value = x.sira;
+          for (const k of ['oynanan', 'galibiyet', 'beraberlik', 'maglubiyet', 'atilan', 'yenen', 'puan']) $('#ps-' + k).value = x[k];
+          if (x.kaynak && !$('#p-kaynak').value) $('#p-kaynak').value = x.kaynak;
+          $('#ps-takim').focus();
+        } }, 'Düzenle'),
+        h('button', { type: 'button', class: 'dugme tehlike kucuk', onclick: async () => {
+          if (!onayla(`${x.takim} tablodan silinsin mi?`)) return;
+          const { error: e } = await supabase.from('puan_durumu').delete().eq('sezon', x.sezon).eq('takim', x.takim);
+          if (e) return bildir(hataMetni(e), 'hata');
+          bildir('Satır silindi.'); await yukle();
+        } }, 'Sil'))))
+      : [h('li', { class: 'bos' }, 'Bu sezonun tablosu girilmedi.')]));
+  }
+  $('#p-sezon').addEventListener('change', yukle);
+  return yukle();
+}
+
 // #reklamlar-sekmesi öğesine bağlanır: export default / kur / mount (el, { supabase, oturum }).
 async function reklamlarSekmesi() {
   const yer = $('#reklamlar-sekmesi');
@@ -1117,6 +1252,7 @@ const SEKMELER = {
   kadro: { panel: 'kadro-sekmesi', kur: kadroSekmesi },
   sakatliklar: { panel: 'sakatliklar-sekmesi', kur: sakatliklarSekmesi },
   yorumlar: { panel: 'yorumlar-sekmesi', kur: yorumlarSekmesi },
+  puan: { panel: 'puan-sekmesi', kur: puanSekmesi },
   reklamlar: { panel: 'reklamlar-paneli', kur: reklamlarSekmesi },
 };
 const kurulan = new Set();

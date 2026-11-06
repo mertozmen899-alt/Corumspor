@@ -1,4 +1,5 @@
-// Takım: sekmeler (WAI-ARIA tablist; seçili sekme adreste #kadro | #sakatlik | #fikstur, geri tuşu çalışır)
+// Takım: sekmeler (WAI-ARIA tablist; seçili sekme adreste #kadro | #sakatlik | #fikstur | #puan, geri tuşu çalışır)
+//  020 Puan durumu: tam tablo (Çorum FK satırı vurgulu), son güncelleme + kaynak; sekme ilk açılınca yüklenir (açılışta ek istek yok).
 //  Kadro: mevkiye göre gruplu oyuncu kartları (fotoğraf yalnız hakkı varsa; yoksa forma numarası); 018: kart → oyuncu.html?id=
 //  Sakatlık: yalnız durum (Sakat / Cezalı / Durumu belirsiz / Döndü), kaynağı (bağlantılı) ve kaynak tarihiyle. Tanı / açıklama
 //  metni (aciklama) ziyaretçiye HİÇ gösterilmez ve istenmez (KVKK m.6 sağlık verisi; 014'ten beri yalnız yönetici okur).
@@ -11,6 +12,8 @@
 import { supabase, hazir, h, $, sayfaBaslat, tarihYaz, saatYaz, goreceZaman, hataMetni, evSahibiDeplasman, skorMetni, sonucBilgisi, durumRozeti, sekmeKlavyesi, kapakKaynagi, kapakGorseli, cevrimdisiKutusu, duyur, konumKoru, SAKATLIK_ETIKETI } from '../ortak.js';
 import { sonVeri, sonVeriYaz } from '../onbellek.js';
 import { takvimIndir, trGunu, ayIzgarasi } from '../takvim.js';
+import { sezonAdi } from '../kurallar.js';
+import { puanTablosu, puanKaynakSatiri } from '../mac-gunu.js';
 
 const oturumS = sayfaBaslat();
 const gorunum = { ad: 'liste', ay: null }; // ay: 'YYYY-AA'
@@ -20,7 +23,7 @@ const MEVKILER = [['kaleci', 'Kaleciler'], ['defans', 'Defans'], ['orta_saha', '
 const MEVKI_TEKIL = { kaleci: 'Kaleci', defans: 'Defans', orta_saha: 'Orta saha', forvet: 'Forvet' };
 const DURUM_SIRASI = { sakat: 0, cezali: 1, belirsiz: 2, supheli: 2, dondu: 3 };
 const KAYNAK_URL = /^https:\/\/[a-z0-9.-]+\.[a-z]{2,63}(\/[^\s"<>]*)?$/i;
-const SEKMELER = ['kadro', 'sakatlik', 'fikstur'];
+const SEKMELER = ['kadro', 'sakatlik', 'fikstur', 'puan'];
 const tablist = document.querySelector('[role="tablist"]');
 
 // ------------------------------------------------------------ sekmeler
@@ -33,6 +36,24 @@ function sekmeAc(ad, { adres = true } = {}) {
   }
   tabindex();
   if (adres && location.hash !== '#' + ad) history.pushState(null, '', '#' + ad);
+  if (ad === 'puan' && !puanSozu && hazir) puanSozu = puanYukle();
+}
+
+// ------------------------------------------------------------ 020: puan durumu (sekme ilk açılınca)
+let puanSozu = null;
+async function puanYukle() {
+  const kok = $('#puan-icerik');
+  const sezon = sezonAdi(new Date().toISOString());
+  const { data, error } = await supabase.from('puan_durumu').select('sezon, sira, takim, oynanan, galibiyet, beraberlik, maglubiyet, atilan, yenen, puan, guncellendi, kaynak')
+    .eq('sezon', sezon).order('sira', { ascending: true }).limit(40);
+  if (error) {
+    kok.replaceChildren(cevrimdisiKutusu(hataMetni(error, 'Puan durumu yüklenemedi.'), () => { puanSozu = puanYukle(); }));
+    kok.dataset.durum = 'hata';
+    return;
+  }
+  kok.replaceChildren(...(data.length ? [h('p', { class: 'soluk puan-sezon' }, `${sezon} sezonu`), puanTablosu(data, { kimlik: 'puan-tablosu' }), puanKaynakSatiri(data)]
+    : [h('p', { class: 'bos' }, 'Puan durumu henüz girilmedi. Lig başlayınca burada.')]));
+  kok.dataset.durum = 'tamam';
 }
 // Panel kimlikleri "panel-<ad>", adres parçası "#<ad>": parça bir öğeye denk gelmez, tarayıcı açılışta panele kaydırmaz / odak vermez
 const sekmeAdi = (t) => t.getAttribute('aria-controls').replace(/^panel-/, '');

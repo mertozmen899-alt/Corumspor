@@ -30,10 +30,10 @@ const SAYFALAR = ['./', 'index.html', 'goller.html', 'takim.html', 'profil.html'
   'kurallar.html', 'gizlilik.html', 'kaynaklar.html', 'maclar.html', 'cevrimdisi.html', 'oyuncu.html'];
 const DOSYALAR = ['assets/stil.css', 'assets/tema.js', 'assets/ortak.js', 'assets/istemci.js', 'assets/ayar.js', 'assets/kurallar.js', 'assets/foto-kaynaklari.js',
   'assets/onbellek.js', 'assets/gol-kart.js', 'assets/reklam-yukle.js', 'assets/yorumlar.js', 'assets/sayfa/ana.js', 'assets/sayfa/goller.js', 'assets/sayfa/gol.js',
-  'assets/sayfa/takim.js', 'assets/sayfa/profil.js', 'assets/sayfa/haber.js', 'assets/sayfa/mac.js', 'assets/sayfa/metin.js', 'assets/sayfa/giris.js', 'assets/sayfa/sifre.js', 'assets/sayfa/oyuncu.js', 'assets/takvim.js',
+  'assets/sayfa/takim.js', 'assets/sayfa/profil.js', 'assets/sayfa/haber.js', 'assets/sayfa/mac.js', 'assets/sayfa/metin.js', 'assets/sayfa/giris.js', 'assets/sayfa/sifre.js', 'assets/sayfa/oyuncu.js', 'assets/takvim.js', 'assets/bildirim.js',
   'assets/reklam/reklam.js', 'assets/reklam/reklam-mantik.js',
   'assets/vendor/supabase-js-2.45.4/supabase.js', 'assets/fonts/oswald-700-tr.woff2', 'assets/fonts/source-sans-3-400-tr.woff2',
-  'assets/fonts/source-sans-3-700-tr.woff2', 'assets/logo/amblem-yedek.svg', 'manifest.webmanifest', 'assets/logo/simge-192.png'];
+  'assets/fonts/source-sans-3-700-tr.woff2', 'assets/logo/amblem-yedek.svg', 'manifest.webmanifest', 'assets/logo/simge-192.png', 'assets/logo/rozet-96.png'];
 
 /** Sayfa önbellek anahtarı: .html ve sorgu atılır, /index → / (Cloudflare'in güzel adresleriyle aynı kayıt). */
 function sayfaAnahtari(adres) {
@@ -187,6 +187,55 @@ self.addEventListener('fetch', (e) => {
     if (u.pathname.startsWith('/storage/v1/object/public/haber-gorselleri/')) return e.respondWith(gorselOnce(r).catch(() => Response.error()));
   }
   // YouTube, auth, rpc, reklam görselleri ve diğer her şey: dokunma (doğrudan ağ)
+});
+
+// ---------------------------------------------------------------- 021: Web Push bildirimleri
+// Yük (supabase/functions/bildirim-gonder): { baslik, govde, url, etiket, tur }. etiket maç başına tek: aynı maçın bildirimleri
+// birikmez, yenisi eskisinin yerine geçer ve renotify ile yine öter. Bildirimin sesi işletim sisteminindir (Web Push'ta özel ses yok);
+// gol geldiğinde ekranda açık sekme varsa ona { tur: 'bildirim-gol' } gider (ortak.js → bildirim.js golDudugu: seçenek açıksa düdük).
+
+/** Bildirime dokununca açılacak adres: yalnız bu sitenin içi (başka kökenli adres verilirse ana sayfa). */
+function bildirimAdresi(adres) {
+  const kok = (self.registration && self.registration.scope) || new URL('./', self.location.href).href;
+  try {
+    const u = new URL(typeof adres === 'string' && adres ? adres : './', kok);
+    if (u.origin === new URL(kok).origin) return u.href;
+  } catch (e) { /* bozuk adres */ }
+  return kok;
+}
+
+self.addEventListener('push', (e) => {
+  let v = {};
+  try { v = (e.data && e.data.json()) || {}; } catch (x) { v = {}; }
+  const metin = (s, enCok) => (typeof s === 'string' ? s.slice(0, enCok) : '');
+  const etiket = metin(v.etiket, 64);
+  e.waitUntil((async () => {
+    await self.registration.showNotification(metin(v.baslik, 120) || 'Çorumspor Taraftar', {
+      body: metin(v.govde, 240),
+      icon: 'assets/logo/simge-192.png',
+      badge: 'assets/logo/rozet-96.png',
+      lang: 'tr',
+      tag: etiket || undefined,
+      renotify: !!etiket,
+      data: { url: bildirimAdresi(v.url) },
+    });
+    if (v.tur !== 'gol') return;
+    const acik = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    acik.filter((c) => c.visibilityState === 'visible').forEach((c) => c.postMessage({ tur: 'bildirim-gol' }));
+  })());
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const hedef = bildirimAdresi(e.notification.data && e.notification.data.url);
+  const ayniSayfa = (a) => sayfaAnahtari(a) + new URL(a).search === sayfaAnahtari(hedef) + new URL(hedef).search;
+  e.waitUntil((async () => {
+    // Aynı sayfa (ör. o golün sayfası) zaten açıksa öne getir; değilse TAM o sayfayı aç (ana sayfaya değil)
+    const acik = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const onde = acik.find((c) => ayniSayfa(c.url));
+    if (onde && 'focus' in onde) return onde.focus();
+    return self.clients.openWindow(hedef);
+  })());
 });
 
 // apikey ile Authorization aynıysa istek anonimdir (giriş yapmış kişinin yanıtı, örn. taslak haber, saklanmaz)

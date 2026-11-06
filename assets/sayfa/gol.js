@@ -8,10 +8,14 @@
 import { supabase, hazir, h, $, sayfaBaslat, param, kimlikGecerli, dakikaOgesi, dakikaOkunus, sureMetni, videoFasad, fotoAtfi, cevrimdisiKutusu, paylasDugmesi, altyaziGecerli, eslesmeOgeleri } from '../ortak.js';
 import { golKarti, macEtiketi, kartTarihi, golSuresi } from '../gol-kart.js';
 import { sonVeri, sonKayit, sonKayitYaz } from '../onbellek.js';
+import { begeniDugmesi } from '../begeni.js';
 
 const kok = $('#gol');
 const id = param('id');
 const oturumS = sayfaBaslat();
+// 020: beğeni düğmesi bir kez kurulur (önbellek + ağ çizimi aynı düğmeyi taşır; sayı tek istekle)
+let begeni = null;
+const begeniAl = () => (begeni = begeni || begeniDugmesi('gol', id, oturumS));
 const GOL_SUTUNLARI = 'id, mac_id, oyuncu, dakika, ek_dakika, penalti, video_url, video_kaynak, altyazi_url, aciklama, kapak_url, sure_sn, asist, video_baslangic_sn, video_bitis_sn, maclar(id, rakip, tarih, ic_saha, corum_skor, rakip_skor, durum)';
 
 function bulunamadi() {
@@ -58,7 +62,7 @@ function golCiz(gol, { kismi = false } = {}) {
       h('p', { id: 'gol-anlatim' }, gol.aciklama || `${gol.oyuncu}, ${dakikaOkunus(gol)}${gol.penalti ? ' penaltıdan' : ''} golü attı.`),
       !video ? h('p', { class: 'soluk' }, 'Bu golün videosu yok.') : null,
       mac ? h('a', { class: 'mac-baglanti', href: 'mac.html?id=' + encodeURIComponent(mac.id) }, h('span', null, eslesmeOgeleri(mac), ' · ', kartTarihi(mac.tarih)), h('span', { 'aria-hidden': 'true' }, '→')) : null,
-      kismi ? null : h('div', { class: 'eylem-satir' }, paylasDugmesi(paylasMetni)))));
+      kismi ? null : [h('div', { class: 'eylem-satir' }, begeniAl().dugme, paylasDugmesi(paylasMetni)), begeniAl().not])));
   if (video && video === onceki && oncekiTekrar) video.after(oncekiTekrar);
 }
 

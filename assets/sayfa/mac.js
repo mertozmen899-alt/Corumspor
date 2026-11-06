@@ -10,11 +10,18 @@
 // 019: oynanmamış maçta Paylaş'ın yanında "Takvime ekle" (.ics, tarayıcıda üretilir; assets/takvim.js).
 //  Yorumlar: yorum bileşeni, sekme ilk açılınca tembel yüklenir.
 // Aşağı kaydırınca üstte küçük skor çubuğu (sabit; yer kaplamaz, ekran okuyucuda yok: aynı bilgi h1'de).
+// 020 (Özet): maç başlamadan skor tahmini kutusu (en üstte; yeri iskeletle baştan ayrılır), ilk 11 sahası (diziliş + sıra girilmişse),
+// maç öncesi paketi (hakem, yayın, stadyum, Kim yok?, maça dair son haberler, kaynak), son 5 lig maçı + "Bu sezon <rakip> ile".
+// Maç başlayınca: taraftarların tahmini (dağılım; kişisel tahmin açılmaz) + "Senin tahminin"; maç bitince: maçın oyuncusu oylaması.
+// Başlamış maçta yeni bölümler gollerin ALTINA eklenir (çizilmiş içerik kaymaz). Kadro / oyuncu sorgusu Olaylar ile ortak (tek istek).
+// Başlıkta "İlk 11 açıklandı" rozeti. Bileşenler: assets/mac-gunu.js.
 import { supabase, hazir, h, $, sayfaBaslat, param, kimlikGecerli, tarihYaz, saatYaz, evSahibiDeplasman, skorMetni, macRozeti, sonucBilgisi, cevrimdisiKutusu, paylasDugmesi, videoFasad, sekmeKlavyesi, hataMetni, dakikaMetni, dakikaOkunus, simge, duyur, TAKIM_ADI } from '../ortak.js';
 import { reklamYuvalariniDoldur } from '../reklam-yukle.js';
 import { golKarti } from '../gol-kart.js';
 import { macOlaylari, oyuncuAnahtari } from '../kurallar.js';
 import { takvimIndir } from '../takvim.js';
+import { tahminAcik } from '../kurallar.js';
+import { tahminKutusu, tahminDagilimi, oylamaBolumu, dizilisSahasi, macOncesiPaketi, formSeridi, rakipleSatiri } from '../mac-gunu.js';
 
 const kok = $('#mac');
 const id = param('id');
@@ -81,6 +88,14 @@ function skorCubugu(ev, dep, orta) {
   }, { rootMargin: `-${pay}px 0px 0px 0px` }).observe(bas);
 }
 
+// ------------------------------------------------------------ kadro (Olaylar ve 020 Özet ortak: tek istek)
+// select('*'): 020 sütunları (dizilis_sira, forma_no) migration'dan önce de sorguyu bozmaz
+let kadroSozu = null;
+const kadroAl = (macId) => kadroSozu || (kadroSozu = Promise.all([
+  supabase.from('mac_oyunculari').select('*').eq('mac_id', macId).limit(60),
+  supabase.from('oyuncular').select('id, ad, forma_no, mevki, sira').eq('aktif', true).limit(80),
+]));
+
 // ------------------------------------------------------------ olaylar
 /** Tek olay satırı: dakika | simge | olay ve isim | taraf rozeti (Çorum FK dolu, rakip çerçeveli; renk dışında rozetin yazısı). */
 function olayOgesi(o, rakip) {
@@ -132,12 +147,12 @@ function kadroListesi(baslikId, baslik, satirlar, oyuncular, dk) {
 async function olaylariYukle(mac, goller) {
   const yer = $('#olaylar');
   yer.replaceChildren(h('div', { class: 'arsiv-iskelet', 'aria-hidden': 'true' }, h('span', { class: 'iskelet iskelet-mac' }), h('span', { class: 'iskelet iskelet-mac' })));
-  const [ka, oy, rg] = await Promise.all([
-    supabase.from('mac_oyunculari').select('oyuncu, ilk11, giris_dk, cikis_dk, sari, kirmizi').eq('mac_id', mac.id).limit(60),
-    supabase.from('oyuncular').select('id, ad, forma_no, mevki, sira').eq('aktif', true).limit(80),
+  const [[ka, oy], rg] = await Promise.all([
+    kadroAl(mac.id),
     supabase.from('rakip_goller').select('id, dakika, ek_dakika, oyuncu, penalti, kendi_kalesine').eq('mac_id', mac.id).order('dakika', { ascending: true }).limit(40),
   ]);
   if (ka.error) {
+    kadroSozu = null; // "Tekrar dene" yeniden sorsun
     yer.replaceChildren(cevrimdisiKutusu(hataMetni(ka.error, 'Maç olayları yüklenemedi.'), () => olaylariYukle(mac, goller)));
     yer.dataset.durum = 'hata';
     return;
@@ -182,6 +197,40 @@ function takvimDugmesi(mac) {
   return d;
 }
 
+// ------------------------------------------------------------ 020: maç günü (Özet)
+const veri = (r) => (r && !r.error ? r.data : null);
+/** Tahmin / dağılım, oylama, ilk 11 sahası, maç öncesi paketi ve form. Döner: { herhangi } (en az bir bölüm çizildi mi). */
+async function macGunuYukle(mac) {
+  const oturum = await oturumS; // kişisel satırlar (kendi tahmini / oyu) için; bu bölümler ilk ekranın altında
+  const kisi = oturum && oturum.kullanici;
+  const acik = tahminAcik(mac), bitti = mac.durum === 'bitti';
+  const rakipDeseni = '%' + String(mac.rakip).replace(/[%_\\]/g, ' ').trim() + '%';
+  const [[ka, oy], form, sakat, haber, tahmin, ozet, oyum, sonuc] = await Promise.all([
+    kadroAl(mac.id),
+    supabase.from('maclar').select('id, rakip, tarih, ic_saha, organizasyon, corum_skor, rakip_skor, durum').eq('durum', 'bitti').lt('tarih', mac.tarih).order('tarih', { ascending: false }).limit(40),
+    acik ? supabase.from('sakatliklar').select('id, durum, guncellendi, oyuncular(ad)').eq('yayinda', true).order('guncellendi', { ascending: false }).limit(8) : null,
+    acik ? supabase.from('haberler').select('id, baslik, yayin_tarihi').eq('yayinda', true).ilike('baslik', rakipDeseni).order('yayin_tarihi', { ascending: false }).limit(3) : null,
+    kisi ? supabase.from('skor_tahminleri').select('corum, rakip').eq('mac_id', mac.id).eq('kullanici_id', kisi.id).maybeSingle() : null,
+    !acik ? supabase.rpc('tahmin_ozeti', { p_mac_id: mac.id }) : null,
+    kisi && bitti ? supabase.from('mac_oyuncusu_oylari').select('oyuncu').eq('mac_id', mac.id).eq('kullanici_id', kisi.id).maybeSingle() : null,
+    bitti ? supabase.rpc('mac_oyuncusu_sonuclari', { p_mac_id: mac.id }) : null,
+  ]);
+  const kadro = veri(ka) || [], oyuncular = veri(oy) || [], maclar = veri(form) || [];
+  const benim = veri(tahmin) || null;
+  const ozetSatiri = Array.isArray(veri(ozet)) ? veri(ozet)[0] || null : null;
+  const yerlestir = (sec, el) => { if (el) $(sec).replaceChildren(el); return !!el; };
+  let herhangi = false;
+  if (acik) herhangi = yerlestir('#ozet-tahmin', tahminKutusu(mac, { oturum, benim })) || herhangi;
+  else herhangi = yerlestir('#ozet-tahmin-sonuc', tahminDagilimi(mac, ozetSatiri, benim)) || herhangi;
+  herhangi = yerlestir('#ozet-oylama', oylamaBolumu(mac, kadro, oyuncular, { oturum, benimOy: veri(oyum) || null, sonuclar: veri(sonuc) || [] })) || herhangi;
+  herhangi = yerlestir('#ozet-dizilis', dizilisSahasi(mac, kadro, oyuncular)) || herhangi;
+  if (acik) herhangi = yerlestir('#ozet-paket', macOncesiPaketi(mac, { sakatliklar: veri(sakat) || [], haberler: veri(haber) || [] })) || herhangi;
+  const formOge = formSeridi(maclar, { baslik: 'Son 5 lig maçı', kimlik: 'mac-form' }), rakiple = rakipleSatiri(maclar, mac);
+  if (formOge || rakiple) herhangi = yerlestir('#ozet-form', h('section', { class: 'form-bolumu', 'aria-labelledby': 'form-bolum-baslik' },
+    h('div', { class: 'bolum-baslik' }, h('h2', { id: 'form-bolum-baslik' }, 'Form')), formOge, rakiple)) || herhangi;
+  return { herhangi };
+}
+
 // ------------------------------------------------------------ yükleme
 async function yukle() {
   if (!kimlikGecerli(id)) return bulunamadi();
@@ -205,7 +254,7 @@ async function yukle() {
     : mac.durum === 'canli' ? h('span', { class: 'orta', id: 'skor' }, '–')
       : h('span', { class: 'orta saat-kutu mac-saat', id: 'skor' }, h('time', { datetime: mac.tarih }, saatYaz(mac.tarih)), h('span', { class: 'gorunmez' }, ' (TSİ) başlama saati'));
   kok.replaceChildren(h('header', { class: 'mac-basi gunes-motif', id: 'mac-basi' },
-    h('div', { class: 'ust-satir' }, macRozeti(mac), mac.organizasyon ? h('span', null, mac.organizasyon + (mac.hafta ? ` · ${mac.hafta}. Hafta` : '')) : mac.hafta ? h('span', null, `${mac.hafta}. Hafta`) : null, sonuc ? h('span', { class: 'sonuc-rozet ' + sonuc.sinif, title: sonuc.ad }, h('span', { 'aria-hidden': 'true' }, sonuc.harf), h('span', { class: 'gorunmez' }, sonuc.ad)) : null),
+    h('div', { class: 'ust-satir' }, macRozeti(mac), mac.ilk11_aciklandi && mac.durum !== 'bitti' ? h('span', { class: 'rozet ilk11-rozet', id: 'ilk11-rozet' }, 'İlk 11 açıklandı') : null, mac.organizasyon ? h('span', null, mac.organizasyon + (mac.hafta ? ` · ${mac.hafta}. Hafta` : '')) : mac.hafta ? h('span', null, `${mac.hafta}. Hafta`) : null, sonuc ? h('span', { class: 'sonuc-rozet ' + sonuc.sinif, title: sonuc.ad }, h('span', { 'aria-hidden': 'true' }, sonuc.harf), h('span', { class: 'gorunmez' }, sonuc.ad)) : null),
     h('h1', { class: 'takimlar' },
       h('span', { class: 'takim-ad' + (ev === TAKIM_ADI ? ' biz' : '') }, ev), ' ',
       orta, ' ',
@@ -247,10 +296,15 @@ async function yukle() {
     $('#gol-listesi').replaceChildren(...goller.map((g) => h('li', { class: 'gol' }, golKarti(g, mac, { macSatiri: false }))));
     $('#mac-golleri').hidden = false;
   }
-  if (!not && !ozet && !goller.length) {
-    $('#ozet-bos').textContent = mac.durum === 'bitti' ? 'Bu maçın özeti ve golleri henüz eklenmedi.' : 'Maç oynanınca goller ve özet burada. Olaylar ve yorumlar sekmelerine de bak.';
-    $('#ozet-bos').hidden = false;
-  }
+  // 020: maç başlamadan tahmin kutusunun yeri iskeletle ayrılır (sonradan gelen kutu aşağıdakileri itmesin: CLS)
+  if (tahminAcik(mac)) $('#ozet-tahmin').replaceChildren(h('div', { class: 'tahmin iskelet-kart', 'aria-hidden': 'true' }, h('span', { class: 'iskelet iskelet-satir kisa' }), h('span', { class: 'iskelet iskelet-satir uzun' })));
+  macGunuYukle(mac).catch(() => ({})).then((cizildi) => {
+    $('#ozet-tahmin .iskelet-kart')?.remove();
+    if (!not && !ozet && !goller.length && !(cizildi && cizildi.herhangi)) {
+      $('#ozet-bos').textContent = mac.durum === 'bitti' ? 'Bu maçın özeti ve golleri henüz eklenmedi.' : 'Maç oynanınca goller ve özet burada. Olaylar ve yorumlar sekmelerine de bak.';
+      $('#ozet-bos').hidden = false;
+    }
+  });
 
   acilinca.olaylar = () => olaylariYukle(mac, goller);
   acilinca.yorumlar = async () => {

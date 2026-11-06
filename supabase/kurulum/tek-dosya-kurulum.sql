@@ -4103,3 +4103,843 @@ create policy rakip_gol_silme on public.rakip_goller for delete to authenticated
 grant select on public.rakip_goller to anon, authenticated;
 grant insert, update, delete on public.rakip_goller to authenticated;
 revoke truncate on public.rakip_goller from anon, authenticated;
+
+
+-- ===================== 020_mac_gunu.sql =====================
+-- =====================================================================
+-- Çorum Taraftar: maç günü (020)
+-- Sıra: 001 → … → 019 → 020. Tekrar çalıştırılabilir (if not exists / create or replace / drop if exists).
+-- 014-019'un "sürüm" işaretli fonksiyonlarına DOKUNMAZ: yeni kurallar kısıtta ve ayrı tetikleyicilerde.
+--
+--  1) maclar.hakem, yayin_kanali, dizilis ("4-2-3-1"; toplam 10), ilk11_aciklandi, on_bilgi_kaynak   maç öncesi paketi, ilk 11
+--  2) mac_oyunculari.dizilis_sira (ilk 11'de 1-11, kaleci 1; maçta tek), forma_no (1-99)            sahada yerleştirme
+--  3) skor_tahminleri     taraftar skor tahmini: maç başlamadan yazılır/değiştirilir; giriş + e-posta onayı + yasaklı değil.
+--                         Herkes yalnız KENDİ tahminini görür; maç başlayınca dağılım tahmin_ozeti() ile (kişisel tahmin açılmaz).
+--                         Ödül, puan, sıralama YOK (bahis değil).
+--  4) mac_oyuncusu_oylari maçın oyuncusu: maç bitince (durum = 'bitti') açılır, bitişten (tarih + 2 saat) 48 saat sonra kapanır;
+--                         tek oy, değiştirilemez; oyuncu o maçta oynamış olmalı (mac_oyunculari). Sonuç mac_oyuncusu_sonuclari().
+--  5) begeniler           haber / gol beğenisi: ekle / geri al; herkes sayıyı görür (begeni_sayilari), kimin beğendiğini değil.
+--                         Dakikada en çok 30 beğeni (begeni_hizlari; yalnız tetikleyici yazar).
+--  6) puan_durumu         lig tablosu (sezon "2026-27"): herkes okur, yalnız yönetici yazar.
+-- Yeni her tabloda RLS + politikalar + TRUNCATE yok.
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 1) Maç öncesi bilgisi ve diziliş
+-- ---------------------------------------------------------------------
+alter table public.maclar add column if not exists hakem text;
+alter table public.maclar add column if not exists yayin_kanali text;
+alter table public.maclar add column if not exists dizilis text;
+alter table public.maclar add column if not exists ilk11_aciklandi timestamptz;
+alter table public.maclar add column if not exists on_bilgi_kaynak text;
+
+alter table public.maclar drop constraint if exists maclar_mac_gunu;
+alter table public.maclar add constraint maclar_mac_gunu check (
+  (hakem is null or char_length(btrim(hakem)) between 2 and 80)
+  and (yayin_kanali is null or char_length(btrim(yayin_kanali)) between 2 and 80)
+  and (dizilis is null or dizilis ~ '^\d(-\d){2,4}$')
+  and (on_bilgi_kaynak is null or char_length(btrim(on_bilgi_kaynak)) between 2 and 120));
+
+comment on column public.maclar.hakem is 'Maçın hakemi (maç öncesi paketi; 2-80 karakter).';
+comment on column public.maclar.yayin_kanali is 'Yayın kanalı (ör. beIN SPORTS 2; 2-80 karakter).';
+comment on column public.maclar.dizilis is 'Çorum FK dizilişi, kaleci hariç: "4-2-3-1" (sayıların toplamı 10).';
+comment on column public.maclar.ilk11_aciklandi is 'İlk 11 açıklandığı an (maç sayfasında "İlk 11 açıklandı" rozeti). Boş: açıklanmadı.';
+comment on column public.maclar.on_bilgi_kaynak is 'Maç öncesi bilginin (hakem, yayın, ilk 11) kaynağı (2-120 karakter).';
+
+create or replace function public.mac_gunu_kontrol()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  toplam int;
+begin
+  new.hakem := nullif(regexp_replace(btrim(coalesce(new.hakem, '')), '\s+', ' ', 'g'), '');
+  new.yayin_kanali := nullif(regexp_replace(btrim(coalesce(new.yayin_kanali, '')), '\s+', ' ', 'g'), '');
+  new.on_bilgi_kaynak := nullif(btrim(coalesce(new.on_bilgi_kaynak, '')), '');
+  new.dizilis := nullif(regexp_replace(coalesce(new.dizilis, ''), '\s+', '', 'g'), '');
+  if new.dizilis is not null then
+    if new.dizilis !~ '^\d(-\d){2,4}$' then
+      raise exception 'Dizilişi "4-2-3-1" gibi yazın (3-5 sayı, aralarında tire).' using errcode = '22023', hint = 'dizilis';
+    end if;
+    select sum(x::int) into toplam from regexp_split_to_table(new.dizilis, '-') as x;
+    if toplam <> 10 then
+      raise exception 'Dizilişteki sayıların toplamı 10 olmalı (kaleci hariç).' using errcode = '22023', hint = 'dizilis';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists mac_gunu_kontrol on public.maclar;
+create trigger mac_gunu_kontrol before insert or update on public.maclar
+  for each row execute function public.mac_gunu_kontrol();
+
+-- ---------------------------------------------------------------------
+-- 2) Maç kadrosu: sahadaki yer ve forma numarası
+-- ---------------------------------------------------------------------
+alter table public.mac_oyunculari add column if not exists dizilis_sira smallint;
+alter table public.mac_oyunculari add column if not exists forma_no smallint;
+alter table public.mac_oyunculari drop constraint if exists mac_oyunculari_dizilis;
+alter table public.mac_oyunculari add constraint mac_oyunculari_dizilis check (
+  (dizilis_sira is null or (dizilis_sira between 1 and 11 and ilk11))
+  and (forma_no is null or forma_no between 1 and 99));
+create unique index if not exists mac_oyunculari_dizilis_tek on public.mac_oyunculari (mac_id, dizilis_sira) where dizilis_sira is not null;
+comment on column public.mac_oyunculari.dizilis_sira is 'İlk 11''de sahadaki sıra: 1 kaleci, sonra dizilişin satırları geriden öne, soldan sağa. Maçta tek.';
+comment on column public.mac_oyunculari.forma_no is 'O maçtaki forma numarası (1-99). Boş: kadrodaki numara kullanılır.';
+
+-- Türkçe mesaj (kısıt ve tekil dizin yine son savunma). 018'in mac_oyuncusu_kontrol'üne dokunmaz: ayrı tetikleyici.
+create or replace function public.mac_oyuncusu_dizilis_kontrol()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.dizilis_sira is not null then
+    if not new.ilk11 or new.dizilis_sira not between 1 and 11 then
+      raise exception 'Diziliş sırası yalnız ilk 11''deki oyuncuya verilir (1-11; kaleci 1).' using errcode = '22023', hint = 'dizilis_sira';
+    end if;
+    if exists (select 1 from public.mac_oyunculari m where m.mac_id = new.mac_id and m.dizilis_sira = new.dizilis_sira
+               and (tg_op = 'INSERT' or m.oyuncu <> old.oyuncu)) then
+      raise exception 'Bu maçta % numaralı yerde başka bir oyuncu var.', new.dizilis_sira using errcode = '23505', hint = 'dizilis_sira';
+    end if;
+  end if;
+  if new.forma_no is not null and new.forma_no not between 1 and 99 then
+    raise exception 'Forma numarası 1-99 arasında olmalı.' using errcode = '22023', hint = 'forma_no';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists mac_oyuncusu_dizilis_kontrol on public.mac_oyunculari;
+create trigger mac_oyuncusu_dizilis_kontrol before insert or update on public.mac_oyunculari
+  for each row execute function public.mac_oyuncusu_dizilis_kontrol();
+
+-- ---------------------------------------------------------------------
+-- Ortak: taraftar etkileşimi için hesap şartı (giriş + e-posta onayı + yasaklı değil), Türkçe mesajla
+-- ---------------------------------------------------------------------
+create or replace function public.etkilesim_hesap_kontrol(p_ne text)
+returns void
+language plpgsql
+stable
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null then
+    raise exception '% için giriş yap.', p_ne using errcode = '42501', hint = 'giris';
+  end if;
+  if not public.eposta_onayli() then
+    raise exception '% için e-posta adresini onayla: hesap açarken gelen e-postadaki bağlantıya tıkla.', p_ne using errcode = '42501', hint = 'eposta_onayi';
+  end if;
+  if public.engelli_mi() then
+    raise exception 'Hesabın topluluk kuralları nedeniyle kapatıldı; bu işlemi yapamazsın.' using errcode = '42501', hint = 'engelli';
+  end if;
+end;
+$$;
+revoke execute on function public.etkilesim_hesap_kontrol(text) from public, anon;
+grant execute on function public.etkilesim_hesap_kontrol(text) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 3) Skor tahmini
+-- ---------------------------------------------------------------------
+create table if not exists public.skor_tahminleri (
+  mac_id uuid not null references public.maclar (id) on delete cascade,
+  kullanici_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  corum smallint not null,
+  rakip smallint not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (mac_id, kullanici_id)
+);
+alter table public.skor_tahminleri drop constraint if exists skor_tahminleri_skor;
+alter table public.skor_tahminleri add constraint skor_tahminleri_skor check (corum between 0 and 20 and rakip between 0 and 20);
+comment on table public.skor_tahminleri is 'Taraftar skor tahmini (eğlence; ödül/puan/sıralama yok). Kişi yalnız kendisininkini görür; dağılım maç başlayınca tahmin_ozeti().';
+
+/** Maç tahmine açık mı: planlanmış ve başlama saati gelmemiş. */
+create or replace function public.tahmin_acik(p_mac_id uuid)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (select 1 from public.maclar m where m.id = p_mac_id and m.durum = 'planlandi' and m.tarih > now());
+$$;
+grant execute on function public.tahmin_acik(uuid) to anon, authenticated;
+
+create or replace function public.skor_tahmini_kontrol()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  perform public.etkilesim_hesap_kontrol('Tahmin');
+  if tg_op = 'INSERT' then
+    new.kullanici_id := auth.uid();
+    new.created_at := now();
+  else
+    new.kullanici_id := old.kullanici_id;
+    new.mac_id := old.mac_id;
+    new.created_at := old.created_at;
+  end if;
+  new.updated_at := now();
+  if not public.tahmin_acik(new.mac_id) then
+    raise exception 'Maç başladı (ya da oynandı): tahminler kilitlendi.' using errcode = 'P0001', hint = 'tahmin_kilit';
+  end if;
+  if new.corum not between 0 and 20 or new.rakip not between 0 and 20 then
+    raise exception 'Skor 0 ile 20 arasında olmalı.' using errcode = '22023', hint = 'skor';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists skor_tahmini_kontrol on public.skor_tahminleri;
+create trigger skor_tahmini_kontrol before insert or update on public.skor_tahminleri
+  for each row execute function public.skor_tahmini_kontrol();
+
+alter table public.skor_tahminleri enable row level security;
+drop policy if exists tahmin_okuma on public.skor_tahminleri;
+create policy tahmin_okuma on public.skor_tahminleri for select to authenticated using (kullanici_id = (select auth.uid()));
+drop policy if exists tahmin_ekleme on public.skor_tahminleri;
+create policy tahmin_ekleme on public.skor_tahminleri for insert to authenticated with check (
+  kullanici_id = (select auth.uid()) and (select public.eposta_onayli()) and not (select public.engelli_mi()) and public.tahmin_acik(mac_id));
+drop policy if exists tahmin_guncelleme on public.skor_tahminleri;
+create policy tahmin_guncelleme on public.skor_tahminleri for update to authenticated
+  using (kullanici_id = (select auth.uid()))
+  with check (kullanici_id = (select auth.uid()) and (select public.eposta_onayli()) and not (select public.engelli_mi()) and public.tahmin_acik(mac_id));
+revoke all on public.skor_tahminleri from anon;
+revoke delete, truncate, references, trigger on public.skor_tahminleri from authenticated;
+grant select, insert, update on public.skor_tahminleri to authenticated;
+
+-- Dağılım: yalnız maç başladıktan sonra (önce satır yok). Kimin ne dediği dönmez: toplam, G/B/M yüzdesi, en çok 3 skor.
+create or replace function public.tahmin_ozeti(p_mac_id uuid)
+returns table (toplam int, galibiyet int, beraberlik int, maglubiyet int, skorlar jsonb)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with t as (
+    select s.corum, s.rakip from public.skor_tahminleri s
+    where s.mac_id = p_mac_id and not public.tahmin_acik(p_mac_id) and exists (select 1 from public.maclar m where m.id = p_mac_id)
+  ), n as (select count(*)::int as toplam from t)
+  select n.toplam,
+    round(100.0 * count(*) filter (where t.corum > t.rakip) / n.toplam)::int,
+    round(100.0 * count(*) filter (where t.corum = t.rakip) / n.toplam)::int,
+    round(100.0 * count(*) filter (where t.corum < t.rakip) / n.toplam)::int,
+    (select coalesce(jsonb_agg(jsonb_build_object('corum', k.corum, 'rakip', k.rakip, 'yuzde', k.yuzde) order by k.sayi desc, k.corum desc, k.rakip), '[]'::jsonb)
+       from (select t2.corum, t2.rakip, count(*) as sayi, round(100.0 * count(*) / n.toplam)::int as yuzde
+             from t t2 group by t2.corum, t2.rakip order by count(*) desc, t2.corum desc, t2.rakip limit 3) k)
+  from n left join t on true
+  where n.toplam > 0
+  group by n.toplam;
+$$;
+revoke execute on function public.tahmin_ozeti(uuid) from public;
+grant execute on function public.tahmin_ozeti(uuid) to anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- 4) Maçın oyuncusu oyu
+-- ---------------------------------------------------------------------
+create table if not exists public.mac_oyuncusu_oylari (
+  mac_id uuid not null references public.maclar (id) on delete cascade,
+  kullanici_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  oyuncu text not null,
+  created_at timestamptz not null default now(),
+  primary key (mac_id, kullanici_id)
+);
+alter table public.mac_oyuncusu_oylari drop constraint if exists mac_oyuncusu_oylari_oyuncu;
+alter table public.mac_oyuncusu_oylari add constraint mac_oyuncusu_oylari_oyuncu check (char_length(btrim(oyuncu)) between 2 and 80);
+create index if not exists mac_oyuncusu_oylari_sonuc_idx on public.mac_oyuncusu_oylari (mac_id, oyuncu);
+comment on table public.mac_oyuncusu_oylari is 'Maçın oyuncusu oyu: kişi başına maç başına tek oy, değiştirilemez. Pencere: maç bitince → tarih + 50 saat (bitiş tarih + 2 saat, sonra 48 saat).';
+
+/** Oy penceresi: maç bitti ve başlama + 50 saat geçmedi (bitiş = başlama + 2 saat, sonra 48 saat; kurallar.js OY_PENCERESI). */
+create or replace function public.oy_penceresi_acik(p_mac_id uuid)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (select 1 from public.maclar m where m.id = p_mac_id and m.durum = 'bitti' and now() <= m.tarih + interval '50 hours');
+$$;
+grant execute on function public.oy_penceresi_acik(uuid) to anon, authenticated;
+
+/** O maçta oynadı mı (ilk 11 ya da oyuna girdi). */
+create or replace function public.macta_oynadi(p_mac_id uuid, p_oyuncu text)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (select 1 from public.mac_oyunculari k where k.mac_id = p_mac_id and k.oyuncu = p_oyuncu and (k.ilk11 or k.giris_dk is not null));
+$$;
+grant execute on function public.macta_oynadi(uuid, text) to anon, authenticated;
+
+create or replace function public.mac_oyuncusu_oyu_kontrol()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' then
+    raise exception 'Oy değiştirilemez.' using errcode = '42501', hint = 'oy_tek';
+  end if;
+  perform public.etkilesim_hesap_kontrol('Oy vermek');
+  new.kullanici_id := auth.uid();
+  new.created_at := now();
+  new.oyuncu := regexp_replace(btrim(coalesce(new.oyuncu, '')), '\s+', ' ', 'g');
+  if not public.oy_penceresi_acik(new.mac_id) then
+    raise exception 'Bu maçın oylaması açık değil (maç bitince açılır, 48 saat sürer).' using errcode = 'P0001', hint = 'oy_penceresi';
+  end if;
+  if not public.macta_oynadi(new.mac_id, new.oyuncu) then
+    raise exception 'Yalnız bu maçta oynayan bir Çorum FK oyuncusuna oy verebilirsin.' using errcode = '22023', hint = 'oyuncu';
+  end if;
+  if exists (select 1 from public.mac_oyuncusu_oylari o where o.mac_id = new.mac_id and o.kullanici_id = new.kullanici_id) then
+    raise exception 'Bu maç için oyunu zaten verdin.' using errcode = '23505', hint = 'oy_tek';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists mac_oyuncusu_oyu_kontrol on public.mac_oyuncusu_oylari;
+create trigger mac_oyuncusu_oyu_kontrol before insert or update on public.mac_oyuncusu_oylari
+  for each row execute function public.mac_oyuncusu_oyu_kontrol();
+
+alter table public.mac_oyuncusu_oylari enable row level security;
+drop policy if exists oy_okuma on public.mac_oyuncusu_oylari;
+create policy oy_okuma on public.mac_oyuncusu_oylari for select to authenticated using (kullanici_id = (select auth.uid()));
+drop policy if exists oy_ekleme on public.mac_oyuncusu_oylari;
+create policy oy_ekleme on public.mac_oyuncusu_oylari for insert to authenticated with check (
+  kullanici_id = (select auth.uid()) and (select public.eposta_onayli()) and not (select public.engelli_mi())
+  and public.oy_penceresi_acik(mac_id) and public.macta_oynadi(mac_id, oyuncu));
+revoke all on public.mac_oyuncusu_oylari from anon;
+revoke update, delete, truncate, references, trigger on public.mac_oyuncusu_oylari from authenticated;
+grant select, insert on public.mac_oyuncusu_oylari to authenticated;
+
+-- Sonuç: oyuncu başına oy ve yüzde (herkes; istemci oy verdikten sonra ya da pencere kapanınca gösterir). Kimin oyu olduğu dönmez.
+create or replace function public.mac_oyuncusu_sonuclari(p_mac_id uuid)
+returns table (oyuncu text, oy int, yuzde int, toplam int)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with o as (select v.oyuncu from public.mac_oyuncusu_oylari v where v.mac_id = p_mac_id),
+       n as (select count(*)::int as toplam from o)
+  select o.oyuncu, count(*)::int, round(100.0 * count(*) / n.toplam)::int, n.toplam
+  from o, n group by o.oyuncu, n.toplam order by count(*) desc, o.oyuncu;
+$$;
+revoke execute on function public.mac_oyuncusu_sonuclari(uuid) from public;
+grant execute on function public.mac_oyuncusu_sonuclari(uuid) to anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- 5) Beğeni
+-- ---------------------------------------------------------------------
+create table if not exists public.begeniler (
+  hedef_tur text not null,
+  hedef_id uuid not null,
+  kullanici_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (hedef_tur, hedef_id, kullanici_id)
+);
+alter table public.begeniler drop constraint if exists begeniler_hedef_tur;
+alter table public.begeniler add constraint begeniler_hedef_tur check (hedef_tur in ('haber', 'gol'));
+create index if not exists begeniler_kullanici_idx on public.begeniler (kullanici_id, created_at);
+comment on table public.begeniler is 'Haber / gol beğenisi. Kişi yalnız kendi beğenisini görür; sayılar begeni_sayilari() ile.';
+
+-- Hız sınırı sayacı (dakikalık pencere). Yalnız SECURITY DEFINER tetikleyici yazar; kimse okuyamaz.
+create table if not exists public.begeni_hizlari (
+  kullanici_id uuid primary key references auth.users (id) on delete cascade,
+  pencere timestamptz not null default now(),
+  sayi int not null default 0
+);
+alter table public.begeni_hizlari enable row level security;
+revoke all on public.begeni_hizlari from anon, authenticated;
+
+create or replace function public.begeni_kontrol()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  n int;
+begin
+  perform public.etkilesim_hesap_kontrol('Beğenmek');
+  new.kullanici_id := auth.uid();
+  new.created_at := now();
+  if new.hedef_tur = 'haber' and not exists (select 1 from public.haberler x where x.id = new.hedef_id and x.yayinda) then
+    raise exception 'Haber bulunamadı.' using errcode = '22023', hint = 'hedef';
+  end if;
+  if new.hedef_tur = 'gol' and not exists (select 1 from public.goller x where x.id = new.hedef_id) then
+    raise exception 'Gol bulunamadı.' using errcode = '22023', hint = 'hedef';
+  end if;
+  -- Dakikada en çok 30 beğeni (geri alıp yeniden beğenmek de sayılır)
+  insert into public.begeni_hizlari as b (kullanici_id, pencere, sayi) values (new.kullanici_id, now(), 1)
+  on conflict (kullanici_id) do update set
+    pencere = case when b.pencere < now() - interval '1 minute' then now() else b.pencere end,
+    sayi = case when b.pencere < now() - interval '1 minute' then 1 else b.sayi + 1 end
+  returning sayi into n;
+  if n > 30 then
+    raise exception 'Çok hızlı beğeniyorsun: dakikada en çok 30. Biraz bekleyip yeniden dene.' using errcode = 'P0001', hint = 'begeni_siniri';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists begeni_kontrol on public.begeniler;
+create trigger begeni_kontrol before insert on public.begeniler
+  for each row execute function public.begeni_kontrol();
+
+alter table public.begeniler enable row level security;
+drop policy if exists begeni_okuma on public.begeniler;
+create policy begeni_okuma on public.begeniler for select to authenticated using (kullanici_id = (select auth.uid()));
+drop policy if exists begeni_ekleme on public.begeniler;
+create policy begeni_ekleme on public.begeniler for insert to authenticated with check (
+  kullanici_id = (select auth.uid()) and (select public.eposta_onayli()) and not (select public.engelli_mi()));
+drop policy if exists begeni_silme on public.begeniler;
+create policy begeni_silme on public.begeniler for delete to authenticated using (kullanici_id = (select auth.uid()));
+revoke all on public.begeniler from anon;
+revoke update, truncate, references, trigger on public.begeniler from authenticated;
+grant select, insert, delete on public.begeniler to authenticated;
+
+-- Haber / gol silinince beğenileri de gider (çok biçimli hedef: yabancı anahtar yok)
+create or replace function public.begeni_hedef_silindi()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from public.begeniler b where b.hedef_tur = tg_argv[0] and b.hedef_id = old.id;
+  return old;
+end;
+$$;
+drop trigger if exists begeni_hedef_silindi on public.haberler;
+create trigger begeni_hedef_silindi after delete on public.haberler for each row execute function public.begeni_hedef_silindi('haber');
+drop trigger if exists begeni_hedef_silindi on public.goller;
+create trigger begeni_hedef_silindi after delete on public.goller for each row execute function public.begeni_hedef_silindi('gol');
+
+-- Toplu sayım (liste başına tek istek): en çok 100 kimlik. benim: oturumdaki kişi beğenmiş mi.
+create or replace function public.begeni_sayilari(p_tur text, p_idler uuid[])
+returns table (hedef_id uuid, sayi int, benim boolean)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select i.id, count(b.kullanici_id)::int, coalesce(bool_or(b.kullanici_id = auth.uid()), false)
+  from (select distinct x from unnest((coalesce(p_idler, '{}'::uuid[]))[1:100]) as x) as i(id)
+  left join public.begeniler b on b.hedef_tur = p_tur and b.hedef_id = i.id
+  where p_tur in ('haber', 'gol')
+    and (p_tur <> 'haber' or exists (select 1 from public.haberler x where x.id = i.id and (x.yayinda or public.is_admin())))
+  group by i.id;
+$$;
+revoke execute on function public.begeni_sayilari(text, uuid[]) from public;
+grant execute on function public.begeni_sayilari(text, uuid[]) to anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- 6) Puan durumu
+-- ---------------------------------------------------------------------
+create table if not exists public.puan_durumu (
+  sezon text not null,
+  sira smallint not null,
+  takim text not null,
+  oynanan smallint not null default 0,
+  galibiyet smallint not null default 0,
+  beraberlik smallint not null default 0,
+  maglubiyet smallint not null default 0,
+  atilan smallint not null default 0,
+  yenen smallint not null default 0,
+  puan smallint not null default 0,
+  guncellendi timestamptz not null default now(),
+  kaynak text,
+  primary key (sezon, takim)
+);
+alter table public.puan_durumu drop constraint if exists puan_durumu_alanlar;
+alter table public.puan_durumu add constraint puan_durumu_alanlar check (
+  sezon ~ '^\d{4}-\d{2}$' and sira between 1 and 40 and char_length(btrim(takim)) between 2 and 80
+  and (kaynak is null or char_length(btrim(kaynak)) between 2 and 120));
+alter table public.puan_durumu drop constraint if exists puan_durumu_sayilar;
+alter table public.puan_durumu add constraint puan_durumu_sayilar check (
+  oynanan between 0 and 60 and galibiyet >= 0 and beraberlik >= 0 and maglubiyet >= 0
+  and galibiyet + beraberlik + maglubiyet = oynanan
+  and atilan between 0 and 300 and yenen between 0 and 300 and puan between -50 and 200);
+create index if not exists puan_durumu_sira_idx on public.puan_durumu (sezon, sira);
+comment on table public.puan_durumu is 'Lig puan tablosu (sezon "2026-27"). Yönetici kaynağından girer (otomatik çekme yok); herkes okur.';
+
+create or replace function public.puan_satiri_kontrol()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.takim := regexp_replace(btrim(coalesce(new.takim, '')), '\s+', ' ', 'g');
+  new.kaynak := nullif(btrim(coalesce(new.kaynak, '')), '');
+  if new.galibiyet + new.beraberlik + new.maglubiyet <> new.oynanan then
+    raise exception '%: oynanan maç sayısı galibiyet + beraberlik + mağlubiyet olmalı.', new.takim using errcode = '22023', hint = 'oynanan';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists puan_satiri_kontrol on public.puan_durumu;
+create trigger puan_satiri_kontrol before insert or update on public.puan_durumu
+  for each row execute function public.puan_satiri_kontrol();
+
+alter table public.puan_durumu enable row level security;
+drop policy if exists puan_okuma on public.puan_durumu;
+create policy puan_okuma on public.puan_durumu for select using (true);
+drop policy if exists puan_ekleme on public.puan_durumu;
+create policy puan_ekleme on public.puan_durumu for insert to authenticated with check ((select public.is_admin()));
+drop policy if exists puan_guncelleme on public.puan_durumu;
+create policy puan_guncelleme on public.puan_durumu for update to authenticated
+  using ((select public.is_admin())) with check ((select public.is_admin()));
+drop policy if exists puan_silme on public.puan_durumu;
+create policy puan_silme on public.puan_durumu for delete to authenticated using ((select public.is_admin()));
+grant select on public.puan_durumu to anon, authenticated;
+grant insert, update, delete on public.puan_durumu to authenticated;
+revoke truncate on public.puan_durumu from anon, authenticated;
+
+
+-- ===================== 021_bildirim.sql =====================
+-- =====================================================================
+-- Çorum Taraftar: maç günü Web Push bildirimleri (021)
+-- Sıra: … → 019 → 020 → 021. Tekrar çalıştırılabilir (if not exists / create or replace / drop if exists).
+-- Başka migration'ın fonksiyonuna DOKUNMAZ; goller / maclar'a yalnız AFTER tetikleyicisi ekler. 020'ye bağlı (maclar.ilk11_aciklandi).
+--
+--  1) push_abonelikleri     Tarayıcının push adresi (endpoint) + anahtarları (p256dh, auth) + tercih {mac_gunu, ilk11, gol, mac_sonu}.
+--                           Yalnız giriş yapmış kullanıcı abone olur. Kişi yalnız kendi satırlarını görür, tercihini değiştirir, siler
+--                           (RLS). Ekleme yalnız bildirim_abone_ol() ile: aynı tarayıcı başka hesapla açılırsa satır yeni hesaba geçer,
+--                           kişi başı en çok 10 cihaz, endpoint yalnız bilinen push servislerinde (SSRF yok).
+--  2) bildirim_olaylari     Gönderim kaydı / giden kutusu. olay_anahtari UNIQUE: aynı olay iki kez üretilmez, iki kez gönderilmez.
+--                           Yalnız service_role (Edge Function) okur/yazar; anon/authenticated hiçbir yetki yok.
+--  3) bildirim_olaylarini_hazirla(p_simdi)  Durumdan olay üretir (idempotent, on conflict do nothing):
+--        mac_gunu  maç günü 10:00 TSİ'den başlama saatine kadar (planlandı)
+--        ilk11     maclar.ilk11_aciklandi dolunca (020; yönetici "İlk 11 açıklandı"), maçtan 3 saat önce → 15 dk sonra arası
+--        gol       Çorum FK golü (goller), gol son 20 dakikada girildiyse ve maç şu an oynanıyorsa (başlamadan 30 dk önce → 4 saat sonra)
+--        mac_sonu  maç bitti olarak işaretlendiyse (son 3 saatte, maç son 6 saatte başladıysa)
+--  4) Tetikleme: pg_cron her dakika bildirim_calistir() (sabah bildirimi zamana bağlı: cron şart) + goller eklenince ve
+--     maclar.durum / ilk11_aciklandi değişince AFTER tetikleyicisi aynı fonksiyonu çağırır (gol ~1-2 sn'de gider, dakikayı beklemez).
+--     bildirim_calistir(): bekleyen olay varsa pg_net ile Edge Function'ı (bildirim-gonder) çağırır. Adres ve gizli başlık
+--     Supabase Vault'ta (bildirim_url, bildirim_gizli). pg_net / Vault / pg_cron yoksa (düz Postgres, test) sessizce atlar.
+--     pg_net isteği işlem bittikten (commit) sonra gönderilir; yönetici işlemi geri alırsa istek de gitmez.
+--  5) VAPID anahtarları da Vault'ta (022: bildirim_vapid_*, Edge Function bildirim_gizli_ayarlar() ile okur). service_role anahtarı hiçbir dosyada yok
+--     (Edge Function'a Supabase kendisi verir).
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 1) Abonelikler
+-- ---------------------------------------------------------------------
+create table if not exists public.push_abonelikleri (
+  id uuid primary key default gen_random_uuid(),
+  kullanici_id uuid not null references public.profiles (id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  tercih jsonb not null default '{"mac_gunu": true, "ilk11": true, "gol": true, "mac_sonu": true}'::jsonb,
+  created_at timestamptz not null default now(),
+  son_gonderim timestamptz
+);
+create index if not exists push_abonelikleri_kullanici on public.push_abonelikleri (kullanici_id);
+
+alter table public.push_abonelikleri drop constraint if exists push_endpoint;
+-- Yalnız tarayıcıların push servisleri (Chrome/Edge/Samsung/Opera: FCM, Firefox: Mozilla, Safari/iOS: Apple, eski Edge: WNS)
+alter table public.push_abonelikleri add constraint push_endpoint check (
+  char_length(endpoint) <= 1000
+  and endpoint ~ '^https://(fcm\.googleapis\.com|android\.googleapis\.com|updates\.push\.services\.mozilla\.com|[a-z0-9.-]+\.push\.apple\.com|[a-z0-9.-]+\.notify\.windows\.com)/[^[:space:]]+$');
+alter table public.push_abonelikleri drop constraint if exists push_anahtarlar;
+-- p256dh: 65 baytlık P-256 açık anahtarı (base64url 87 karakter), auth: 16 bayt (22 karakter); dolgulu yazımlara pay
+alter table public.push_abonelikleri add constraint push_anahtarlar check (
+  p256dh ~ '^[A-Za-z0-9_-]{80,100}={0,2}$' and auth ~ '^[A-Za-z0-9_-]{16,32}={0,2}$');
+alter table public.push_abonelikleri drop constraint if exists push_tercih;
+alter table public.push_abonelikleri add constraint push_tercih check (
+  jsonb_typeof(tercih) = 'object'
+  and tercih - array['mac_gunu', 'ilk11', 'gol', 'mac_sonu'] = '{}'::jsonb
+  and jsonb_typeof(tercih -> 'mac_gunu') = 'boolean' and jsonb_typeof(tercih -> 'ilk11') = 'boolean'
+  and jsonb_typeof(tercih -> 'gol') = 'boolean' and jsonb_typeof(tercih -> 'mac_sonu') = 'boolean');
+comment on table public.push_abonelikleri is 'Web Push abonelikleri (021). Kişi yalnız kendi satırını görür/siler, yalnız tercihini değiştirir; ekleme bildirim_abone_ol() ile.';
+
+alter table public.push_abonelikleri enable row level security;
+revoke all on public.push_abonelikleri from anon, authenticated;
+grant select, delete on public.push_abonelikleri to authenticated;
+grant update (tercih) on public.push_abonelikleri to authenticated;
+drop policy if exists push_okuma on public.push_abonelikleri;
+create policy push_okuma on public.push_abonelikleri for select to authenticated using (kullanici_id = (select auth.uid()));
+drop policy if exists push_guncelleme on public.push_abonelikleri;
+create policy push_guncelleme on public.push_abonelikleri for update to authenticated
+  using (kullanici_id = (select auth.uid())) with check (kullanici_id = (select auth.uid()));
+drop policy if exists push_silme on public.push_abonelikleri;
+create policy push_silme on public.push_abonelikleri for delete to authenticated using (kullanici_id = (select auth.uid()));
+
+-- Abone ol / tercihi yenile. Aynı tarayıcı (endpoint) başka hesapla açılmışsa satır bu hesaba geçer (endpoint tahmin edilemez,
+-- tarayıcının kendisine aittir). Kişi başı en çok 10 cihaz.
+create or replace function public.bildirim_abone_ol(p_endpoint text, p_p256dh text, p_auth text, p_tercih jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'Bildirimleri açmak için giriş yap.' using errcode = '42501';
+  end if;
+  if (select count(*) from public.push_abonelikleri a where a.kullanici_id = v_uid and a.endpoint <> p_endpoint) >= 10 then
+    raise exception 'En çok 10 cihazda bildirim açabilirsin. Kullanmadığın bir cihazda bildirimleri kapat.' using errcode = '22023';
+  end if;
+  insert into public.push_abonelikleri as a (kullanici_id, endpoint, p256dh, auth, tercih)
+  values (v_uid, p_endpoint, p_p256dh, p_auth, coalesce(p_tercih, '{"mac_gunu": true, "ilk11": true, "gol": true, "mac_sonu": true}'::jsonb))
+  on conflict (endpoint) do update
+    set kullanici_id = excluded.kullanici_id, p256dh = excluded.p256dh, auth = excluded.auth, tercih = excluded.tercih;
+exception when check_violation then
+  raise exception 'Bu tarayıcının bildirim adresi kabul edilmedi.' using errcode = '22023';
+end;
+$$;
+revoke execute on function public.bildirim_abone_ol(text, text, text, jsonb) from public, anon;
+grant execute on function public.bildirim_abone_ol(text, text, text, jsonb) to authenticated;
+
+-- Yönetici: kaç abonelik / kişi, tür başına kaç kişi açık
+create or replace function public.bildirim_abone_sayisi()
+returns table (abonelik bigint, kisi bigint, mac_gunu bigint, ilk11 bigint, gol bigint, mac_sonu bigint)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Bu bilgiyi yalnız yöneticiler görebilir.' using errcode = '42501';
+  end if;
+  return query
+    select count(*), count(distinct a.kullanici_id),
+      count(*) filter (where a.tercih ->> 'mac_gunu' = 'true'), count(*) filter (where a.tercih ->> 'ilk11' = 'true'),
+      count(*) filter (where a.tercih ->> 'gol' = 'true'), count(*) filter (where a.tercih ->> 'mac_sonu' = 'true')
+    from public.push_abonelikleri a;
+end;
+$$;
+revoke execute on function public.bildirim_abone_sayisi() from public, anon;
+grant execute on function public.bildirim_abone_sayisi() to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 2) Olaylar (gönderim kaydı)
+-- ---------------------------------------------------------------------
+create table if not exists public.bildirim_olaylari (
+  id bigint generated always as identity primary key,
+  olay_anahtari text not null unique,       -- 'gol:<gol id>', 'mac_gunu:<maç id>:<gün>', 'ilk11:<maç id>', 'mac_sonu:<maç id>'
+  tur text not null,
+  mac_id uuid references public.maclar (id) on delete cascade,
+  gol_id uuid references public.goller (id) on delete set null,
+  veri jsonb not null default '{}'::jsonb,  -- metin için: rakip, ic_saha, tarih, oyuncu, dakika, ek_dakika, penalti, corum, rakip_skor
+  created_at timestamptz not null default now(),
+  alindi timestamptz,                       -- Edge Function aldı (10 dk kilit; düşerse yeniden alınır)
+  gonderildi timestamptz,
+  alici integer,
+  basarisiz integer,
+  sonuc text                                -- 'gonderildi' | 'bayat' | 'alici-yok'
+);
+alter table public.bildirim_olaylari drop constraint if exists bildirim_tur;
+alter table public.bildirim_olaylari add constraint bildirim_tur check (tur in ('mac_gunu', 'ilk11', 'gol', 'mac_sonu'));
+create index if not exists bildirim_olaylari_bekleyen on public.bildirim_olaylari (id) where gonderildi is null;
+comment on table public.bildirim_olaylari is 'Bildirim olayları ve gönderim kaydı (021). olay_anahtari tekil: aynı olay iki kez gönderilmez. Yalnız service_role.';
+alter table public.bildirim_olaylari enable row level security;
+revoke all on public.bildirim_olaylari from anon, authenticated;
+
+create or replace function public.bildirim_olaylarini_hazirla(p_simdi timestamptz default now())
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  n integer := 0;
+  k integer;
+  v_gun date := (p_simdi at time zone 'Europe/Istanbul')::date;
+begin
+  -- maç günü sabahı (10:00 TSİ'den başlama saatine kadar)
+  insert into public.bildirim_olaylari (olay_anahtari, tur, mac_id, veri)
+  select 'mac_gunu:' || m.id || ':' || v_gun, 'mac_gunu', m.id, jsonb_build_object('rakip', m.rakip, 'ic_saha', m.ic_saha, 'tarih', m.tarih)
+  from public.maclar m
+  where m.durum = 'planlandi' and m.tarih > p_simdi
+    and (m.tarih at time zone 'Europe/Istanbul')::date = v_gun
+    and (p_simdi at time zone 'Europe/Istanbul')::time >= time '10:00'
+  on conflict (olay_anahtari) do nothing;
+  get diagnostics k = row_count; n := n + k;
+
+  -- ilk 11 açıklandı (020: yönetici maclar.ilk11_aciklandi'yi doldurdu)
+  insert into public.bildirim_olaylari (olay_anahtari, tur, mac_id, veri)
+  select 'ilk11:' || m.id, 'ilk11', m.id, jsonb_build_object('rakip', m.rakip, 'ic_saha', m.ic_saha, 'tarih', m.tarih)
+  from public.maclar m
+  where m.durum <> 'bitti' and m.ilk11_aciklandi is not null
+    and m.tarih between p_simdi - interval '15 minutes' and p_simdi + interval '3 hours'
+  on conflict (olay_anahtari) do nothing;
+  get diagnostics k = row_count; n := n + k;
+
+  -- Çorum FK golü: skor o golün dakikasına kadarki goller (rakip golleri dahil)
+  insert into public.bildirim_olaylari (olay_anahtari, tur, mac_id, gol_id, veri)
+  select 'gol:' || g.id, 'gol', m.id, g.id, jsonb_build_object(
+      'rakip', m.rakip, 'ic_saha', m.ic_saha, 'tarih', m.tarih,
+      'oyuncu', g.oyuncu, 'dakika', g.dakika, 'ek_dakika', g.ek_dakika, 'penalti', g.penalti,
+      'corum', (select count(*) from public.goller g2 where g2.mac_id = m.id
+                and (g2.dakika * 100 + coalesce(g2.ek_dakika, 0), g2.created_at, g2.id) <= (g.dakika * 100 + coalesce(g.ek_dakika, 0), g.created_at, g.id)),
+      'rakip_skor', (select count(*) from public.rakip_goller r where r.mac_id = m.id
+                and r.dakika * 100 + coalesce(r.ek_dakika, 0) <= g.dakika * 100 + coalesce(g.ek_dakika, 0)))
+  from public.goller g
+  join public.maclar m on m.id = g.mac_id
+  where g.created_at > p_simdi - interval '20 minutes'
+    and m.tarih between p_simdi - interval '4 hours' and p_simdi + interval '30 minutes'
+  on conflict (olay_anahtari) do nothing;
+  get diagnostics k = row_count; n := n + k;
+
+  -- maç sonu
+  insert into public.bildirim_olaylari (olay_anahtari, tur, mac_id, veri)
+  select 'mac_sonu:' || m.id, 'mac_sonu', m.id, jsonb_build_object('rakip', m.rakip, 'ic_saha', m.ic_saha, 'tarih', m.tarih,
+      'corum', m.corum_skor, 'rakip_skor', m.rakip_skor)
+  from public.maclar m
+  where m.durum = 'bitti' and m.corum_skor is not null and m.rakip_skor is not null
+    and m.tarih between p_simdi - interval '6 hours' and p_simdi
+    and m.updated_at > p_simdi - interval '3 hours'
+  on conflict (olay_anahtari) do nothing;
+  get diagnostics k = row_count; n := n + k;
+
+  delete from public.bildirim_olaylari where created_at < p_simdi - interval '90 days';
+  return n;
+end;
+$$;
+revoke execute on function public.bildirim_olaylarini_hazirla(timestamptz) from public, anon, authenticated;
+grant execute on function public.bildirim_olaylarini_hazirla(timestamptz) to service_role;
+
+-- Edge Function: bekleyen olayları alır (kilitler). İki çağrı aynı anda gelirse (tetikleyici + cron) aynı olayı ikisi birden almaz.
+create or replace function public.bildirim_olaylarini_al(p_adet integer default 20)
+returns setof public.bildirim_olaylari
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform public.bildirim_olaylarini_hazirla();
+  return query
+    update public.bildirim_olaylari o set alindi = now()
+    where o.id in (
+      select b.id from public.bildirim_olaylari b
+      where b.gonderildi is null and (b.alindi is null or b.alindi < now() - interval '10 minutes')
+      order by b.id
+      limit greatest(1, least(coalesce(p_adet, 20), 50))
+      for update skip locked)
+    returning o.*;
+end;
+$$;
+revoke execute on function public.bildirim_olaylarini_al(integer) from public, anon, authenticated;
+grant execute on function public.bildirim_olaylarini_al(integer) to service_role;
+
+-- Olay üret; bekleyen varsa Edge Function'ı pg_net ile çağır. Dönüş: 'bos' | 'ayar-yok' | 'cagrildi'.
+create or replace function public.bildirim_calistir()
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_url text;
+  v_gizli text;
+begin
+  perform public.bildirim_olaylarini_hazirla();
+  if not exists (select 1 from public.bildirim_olaylari b
+                 where b.gonderildi is null and (b.alindi is null or b.alindi < now() - interval '10 minutes')) then
+    return 'bos';
+  end if;
+  if to_regnamespace('net') is null or to_regclass('vault.decrypted_secrets') is null then
+    return 'ayar-yok';
+  end if;
+  select s.decrypted_secret into v_url from vault.decrypted_secrets s where s.name = 'bildirim_url';
+  select s.decrypted_secret into v_gizli from vault.decrypted_secrets s where s.name = 'bildirim_gizli';
+  if v_url is null or v_gizli is null then
+    return 'ayar-yok';
+  end if;
+  perform net.http_post(
+    url := v_url,
+    body := '{}'::jsonb,
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-bildirim-anahtari', v_gizli),
+    timeout_milliseconds := 20000);
+  return 'cagrildi';
+end;
+$$;
+revoke execute on function public.bildirim_calistir() from public, anon, authenticated;
+grant execute on function public.bildirim_calistir() to service_role;
+
+-- Tetikleyici: yönetici golü / maç sonucunu / "ilk 11 açıklandı"yı girince hemen. Hata yöneticinin kaydını ASLA engellemez.
+create or replace function public.bildirim_tetikle()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  begin
+    perform public.bildirim_calistir();
+  exception when others then
+    raise warning '021: bildirim tetiklenemedi (%)', sqlerrm;
+  end;
+  return null;
+end;
+$$;
+revoke execute on function public.bildirim_tetikle() from public, anon, authenticated;
+
+drop trigger if exists bildirim_gol on public.goller;
+create trigger bildirim_gol after insert on public.goller
+  for each statement execute function public.bildirim_tetikle();
+drop trigger if exists bildirim_mac on public.maclar;
+create trigger bildirim_mac after update of durum, ilk11_aciklandi on public.maclar
+  for each statement execute function public.bildirim_tetikle();
+
+-- pg_cron varsa her dakika (sabah bildirimi, ilk 11'in zaman penceresi ve kaçan tetikleme için). Yoksa (düz Postgres, test) atlanır.
+-- README "Bildirimler": Database → Extensions → pg_cron ve pg_net açılır, sonra bu dosya (ya da yalnız bu blok) yeniden çalıştırılır.
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    begin
+      execute $c$select cron.schedule('bildirim-calistir', '* * * * *', 'select public.bildirim_calistir()')$c$;
+    exception when others then
+      raise notice '021: pg_cron işi kurulamadı (%); bildirimler yalnız tetikleyiciyle gider, sabah bildirimi gitmez.', sqlerrm;
+    end;
+  else
+    raise notice '021: pg_cron yok; bildirim-calistir zamanlanmadı (README "Bildirimler").';
+  end if;
+end;
+$$;
+
+
+-- ===================== 022_bildirim_vault.sql =====================
+-- =====================================================================
+-- Çorum Taraftar: bildirim gizli ayarları Supabase Vault'ta (022)
+-- Sıra: … → 020 → 021 → 022. Tekrar çalıştırılabilir (create or replace). Başka migration'ın nesnesine dokunmaz.
+--
+-- Edge Function (bildirim-gonder) VAPID anahtarlarını ve gizli başlığı Edge Function secret'ı yerine Vault'tan okur:
+--   bildirim_vapid_public   VAPID açık anahtarı (ayar.js VAPID_ACIK_ANAHTAR ile aynı)
+--   bildirim_vapid_private  VAPID özel anahtarı
+--   bildirim_vapid_subject  mailto:<iletişim e-postası>
+--   bildirim_gizli          x-bildirim-anahtari başlığı (021 bildirim_calistir() de aynı sırrı gönderir)
+--   (bildirim_url 021'indir: veritabanının pg_net ile çağırdığı Edge Function adresi)
+-- Sırlar `node araclar/vapid-olustur.js --sql` çıktısıyla yazılır (README "Bildirimler").
+-- bildirim_gizli_ayarlar() yalnız service_role çalıştırır (Edge Function, Supabase'in kendi verdiği anahtarla).
+-- Vault yoksa (düz Postgres, test) fonksiyon kurulur ama boş satır döner.
+-- =====================================================================
+
+create or replace function public.bildirim_gizli_ayarlar()
+returns table (vapid_public text, vapid_private text, vapid_subject text, bildirim_gizli text)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if to_regclass('vault.decrypted_secrets') is null then
+    return query select null::text, null::text, null::text, null::text;
+    return;
+  end if;
+  return query
+    select
+      max(s.decrypted_secret) filter (where s.name = 'bildirim_vapid_public'),
+      max(s.decrypted_secret) filter (where s.name = 'bildirim_vapid_private'),
+      max(s.decrypted_secret) filter (where s.name = 'bildirim_vapid_subject'),
+      max(s.decrypted_secret) filter (where s.name = 'bildirim_gizli')
+    from vault.decrypted_secrets s
+    where s.name in ('bildirim_vapid_public', 'bildirim_vapid_private', 'bildirim_vapid_subject', 'bildirim_gizli');
+end;
+$$;
+revoke all on function public.bildirim_gizli_ayarlar() from public, anon, authenticated;
+grant execute on function public.bildirim_gizli_ayarlar() to service_role;
+comment on function public.bildirim_gizli_ayarlar() is 'Bildirim VAPID anahtarları + gizli başlık (Vault, 022). Yalnız service_role (bildirim-gonder Edge Function).';

@@ -308,3 +308,101 @@ export function rakipGolHatalari({ dakika = null, ek_dakika: ek = null, oyuncu =
   if (penalti && kk) h.push('Gol hem penaltı hem kendi kalesine olamaz.');
   return h;
 }
+
+// ---------------------------------------------------------------------------
+// 020: maç günü (SQL: 020_mac_gunu.sql). Form, rakiple bu sezon, diziliş, tahmin / oy pencereleri, puan durumu.
+// ---------------------------------------------------------------------------
+/** Lig maçı mı: organizasyon boşsa lig sayılır; kupa / hazırlık / özel / dostluk maçı değil. */
+export function ligMaciMi(mac) {
+  return !/kupa|hazirlik|ozel|dostluk/.test(metinKatla(String((mac && mac.organizasyon) || '')).toLowerCase());
+}
+/** Biten maçın sonucu harfi (Çorum FK'ya göre): 'G' | 'B' | 'M' ya da null. */
+export function sonucHarfi(m) {
+  if (!m || m.durum !== 'bitti' || !Number.isInteger(m.corum_skor) || !Number.isInteger(m.rakip_skor)) return null;
+  return m.corum_skor > m.rakip_skor ? 'G' : m.corum_skor < m.rakip_skor ? 'M' : 'B';
+}
+/** Son n lig maçının sonucu, ESKİDEN YENİYE (formun sağı en son maç). maclar: herhangi sırada; yalnız biten lig maçları sayılır. */
+export function formDizisi(maclar = [], n = 5) {
+  return maclar.filter((m) => sonucHarfi(m) && ligMaciMi(m)).sort((a, b) => Date.parse(b.tarih) - Date.parse(a.tarih))
+    .slice(0, n).reverse().map((m) => ({ harf: sonucHarfi(m), mac: m }));
+}
+/** Bu sezon aynı rakiple oynanmış (biten) maçlar, eskiden yeniye. haricId: maçın kendisi listeye girmez. */
+export function rakipleSezon(maclar = [], rakip, sezon, haricId = null) {
+  const k = oyuncuAnahtari(rakip);
+  return maclar.filter((m) => m.id !== haricId && sonucHarfi(m) && oyuncuAnahtari(m.rakip) === k && sezonAdi(m.tarih) === sezon)
+    .sort((a, b) => Date.parse(a.tarih) - Date.parse(b.tarih));
+}
+
+export const DIZILIS_DESENI = /^\d(-\d){2,4}$/;
+/** Panel / SQL mac_gunu_kontrol aynası: '4-2-3-1' gibi (3-5 sayı), toplam 10 (kaleci hariç). Hata metni ya da null. */
+export function dizilisHatasi(d) {
+  if (d == null || d === '') return null;
+  const s = String(d).replace(/\s+/g, '');
+  if (!DIZILIS_DESENI.test(s)) return 'Dizilişi "4-2-3-1" gibi yazın (3-5 sayı, aralarında tire).';
+  return s.split('-').reduce((t, x) => t + Number(x), 0) === 10 ? null : 'Dizilişteki sayıların toplamı 10 olmalı (kaleci hariç).';
+}
+/**
+ * Sahadaki satırlar: [[kaleci], [defans…], …, [forvet…]] (geriden öne, her satır soldan sağa). Yalnız diziliş geçerliyse ve ilk 11'in
+ * 11 oyuncusunun her birinin 1-11 arasında FARKLI dizilis_sira'sı varsa; yoksa null (sayfa düz listeyi gösterir).
+ */
+export function dizilisSatirlari(dizilis, kadro = []) {
+  if (!dizilis || dizilisHatasi(dizilis)) return null;
+  const ilk = kadro.filter((s) => s.ilk11);
+  const sira = new Map(ilk.map((s) => [s.dizilis_sira, s]));
+  if (ilk.length !== 11 || sira.size !== 11 || ![...sira.keys()].every((x) => Number.isInteger(x) && x >= 1 && x <= 11)) return null;
+  const satirlar = [[sira.get(1)]];
+  let n = 2;
+  for (const adet of String(dizilis).replace(/\s+/g, '').split('-').map(Number)) {
+    satirlar.push(Array.from({ length: adet }, (_, i) => sira.get(n + i)));
+    n += adet;
+  }
+  return satirlar;
+}
+
+export const TAHMIN_SINIRI = 20; // SQL skor_tahminleri_skor
+/** Tahmine açık mı (SQL tahmin_acik): planlanmış ve başlama saati gelmemiş. */
+export function tahminAcik(mac, simdi = Date.now()) {
+  return !!mac && mac.durum === 'planlandi' && Date.parse(mac.tarih) > simdi;
+}
+export const OY_PENCERESI = Object.freeze({ bitisSaat: 2, sureSaat: 48 }); // SQL oy_penceresi_acik: tarih + 50 saat
+/** Maçın oyuncusu oylaması: 'once' (maç bitmedi), 'acik', 'kapandi'. */
+export function oyDurumu(mac, simdi = Date.now()) {
+  if (!mac || mac.durum !== 'bitti') return 'once';
+  return simdi <= Date.parse(mac.tarih) + (OY_PENCERESI.bitisSaat + OY_PENCERESI.sureSaat) * 3600e3 ? 'acik' : 'kapandi';
+}
+/** Oylamanın kapanış anı (ISO). */
+export function oyKapanisi(mac) {
+  return new Date(Date.parse(mac.tarih) + (OY_PENCERESI.bitisSaat + OY_PENCERESI.sureSaat) * 3600e3).toISOString();
+}
+
+/** Puan tablosunda Çorum FK satırı mı ("Çorum FK", "ÇORUM FUTBOL KULÜBÜ", "Corum FK"…). */
+export function bizMiyiz(takim) { return /\bcorum\b/.test(metinKatla(String(takim || '')).toLowerCase()); }
+/** Mini tablo: Çorum FK'nın çevresindeki n satır (başta/sonda kayar). Çorum FK yoksa ilk n satır. satirlar sira'ya göre sıralı olmalı. */
+export function puanCevresi(satirlar = [], n = 5) {
+  const i = satirlar.findIndex((s) => bizMiyiz(s.takim));
+  if (i < 0) return satirlar.slice(0, n);
+  const bas = Math.max(0, Math.min(i - Math.floor(n / 2), satirlar.length - n));
+  return satirlar.slice(bas, bas + n);
+}
+/**
+ * Panel: yapıştırılan puan tablosu. Her satır: sıra, takım adı, sonra sayılar O G B M A Y [AV] P (sekme, ; | ya da boşlukla;
+ * "19:7" gibi atılan:yenen de olur). Döner: { satirlar: [{ sira, takim, oynanan, galibiyet, beraberlik, maglubiyet, atilan, yenen, puan }], hatalar: [] }.
+ */
+export function puanTablosuAyristir(metin) {
+  const satirlar = [], hatalar = [];
+  String(metin || '').split(/\r?\n/).forEach((ham, i) => {
+    const satir = ham.trim();
+    if (!satir) return;
+    const parca = satir.replace(/(\d+)\s*:\s*(\d+)/g, '$1 $2').split(/[\t;|]+|\s+/).filter(Boolean);
+    const sayilar = [];
+    while (parca.length && /^[+-]?\d+$/.test(parca[parca.length - 1])) sayilar.unshift(Number(parca.pop()));
+    const sira = /^\d+\.?$/.test(parca[0] || '') ? Number(parca.shift().replace('.', '')) : satirlar.length + 1;
+    const takim = parca.join(' ').trim();
+    if (sayilar.length === 8) sayilar.splice(6, 1); // averaj atılır (A − Y'den hesaplanır)
+    if (sayilar.length !== 7 || takim.length < 2) { hatalar.push(`${i + 1}. satır okunamadı: "${satir.slice(0, 60)}"`); return; }
+    const [oynanan, galibiyet, beraberlik, maglubiyet, atilan, yenen, puan] = sayilar;
+    if (galibiyet + beraberlik + maglubiyet !== oynanan) { hatalar.push(`${takim}: oynanan (${oynanan}) ≠ G + B + M.`); return; }
+    satirlar.push({ sira, takim, oynanan, galibiyet, beraberlik, maglubiyet, atilan, yenen, puan });
+  });
+  return { satirlar, hatalar };
+}

@@ -581,3 +581,30 @@ Hepsi yalnız CSS + küçük JS; yeni ağ isteği, bağımlılık, satır içi s
 | "Yeni" rozeti | Son 24 saatte yayınlanan haberde (akış satırı ve hero) seçili hap çifti (beyaz / kırmızı 5.89:1) "YENİ" yazısı | Yeni haber bir bakışta; renk tek başına anlam taşımaz |
 | Fikstür takvimi | "Liste | Takvim" (`aria-pressed`, seçilide ✓). Ay ızgarası Pazartesi başlar, yalnız maç olan aylar arasında ileri/geri (#durum ay adını ve maç sayısını söyler). Maç günü düğme (≥ 44×44; 320 px'te ızgara kenar boşluğuna taşar): iç saha dolu kırmızı + "İ", deplasman kırmızı çerçeve + "D", oynanmış maç kesikli çerçeve; bugün `aria-current="date"`. Güne dokununca alttan pencere (profil çıkış penceresi bileşeni: arka plan inert, Esc / arka plana dokunma / "Kapat", odak güne döner): tarih, maç (+ skor ve G/B/M), saat · stadyum, lig · saha, "Maç sayfası", "Takvime ekle" | Barça/RM takvim görünümü |
 | Takvime ekle | Maç sayfasında Paylaş'ın yanında (oynanmamış maç) ve takvim penceresinde. `.ics` tarayıcıda (Blob, `assets/takvim.js`): UTC başlangıç (16:00 TSİ = 13:00Z), 2 saat, "Çorum FK – Rakip", yer stadyum, açıklamada lig, saha ve maç sayfası adresi. Dış istek ve kişisel veri yok: gizlilik metnine not gerekmez (hiçbir şey saklanmaz, gönderilmez) | Maç saatini kaçırmamak |
+
+### 9.12 020: maç günü bileşenleri ve hareketleri (6 Kasım 2026)
+
+Belirteçler (`stil.css` `:root`): `--sira-adim 50ms`, `--sure-cubuk 360ms`, `--sure-uzun 400ms`, `--egri-yay` (hafif taşan), `--parilti`,
+`--saha-*` (koyu yeşil saha; iki temada aynı, beyaz yazı ≥ 5.7:1), `--mevki-*` (mevcut renklerin takma adları). Yeni çiftler `docs/kontrast.py`
+("020" satırları; hepsi geçer). Bileşenler `assets/mac-gunu.js`, `assets/begeni.js`; stiller 33. bölüm.
+
+| Ne | Hareket | Süre | `reduce` |
+|---|---|---|---|
+| Sırayla belirme (form rozetleri, oran satırları, oy kartları, puan satırları, paket kutuları) | `opacity` + `translateY(6px)`, öğe başı `--sira-adim`, en çok 8 adım | 200 ms + ≤ 400 ms gecikme (≤ 600) | Yok, anında |
+| Oran çubukları (tahmin dağılımı, oy sonucu) | `scaleX(0 → oran)`, soldan | 360 ms | Dolu çizilir |
+| Sayılar (yüzdeler) | Görününce 0'dan sayar (rAF, yavaşlayarak); ekran okuyucu gizli metinden gerçek değeri okur | 400 ms | Anında son değer |
+| Tahmin sayacı, beğeni sayısı | Rakam yukarı / aşağı kayarak değişir | 200 ms | Yalnız metin |
+| Beğeni | Kalp `scale 1 → 1.35 → 1` + çevresinde halka açılır; dolu kalp + `aria-pressed` | 320 ms | Anında dolu |
+| Maçın oyuncusu | Seçilen kart `translateY(-3px) scale(1.03)` + kırmızı çerçeve + ✓; sonuçta kazanan altın zeminde taç rozeti belirir, satırdan bir kez parıltı geçer | 200 / 320 / 400 ms | Anında son hâl |
+| İlk 11 sahası | Rozetler kaleciden forvete sahaya yerleşir (`scale .6 → 1`, aşağıdan) | 11 × 35 ms + 200 ms ≤ 600 | Anında |
+| Sekme göstergesi (Takım, Maç: `.kayan-gosterge`) | Kırmızı hap seçili sekmeye kayar (`:has`) | 200 ms | Anında |
+| Tahmin kaydedildi | Düğme bir kez "nefes alır" | 320 ms | Yok |
+| Ana sayfa hero | Etiket / alt satır yukarıdan belirir, başlık yalnız kayar (LCP metni saydam başlamaz), amblem büyüyerek gelir, zemin %4'ten oturur | ≤ 400 ms | Yok |
+
+Kurallar: bölüm görünür alana girene kadar hareket bekler (`gorununceOynat`: `animation-play-state: paused`); sonsuz animasyon yok;
+yalnız `transform` / `opacity` (yerleşim kaymaz). Maç sayfasında yeni bölümler başlamış maçta gollerin ALTINA eklenir; maç öncesi tahmin
+kutusunun yeri iskeletle baştan ayrılır (CLS). Form rozetleri bağlantı değil (28 px; dokunma hedefi değil). Puan tablosu 460 px altında
+A / Y sütunlarını gizler (Puan sütunu kaydırmadan görünür); Çorum FK satırı yumuşak kırmızı zemin + kalın + solda kırmızı çizgi.
+Hero (020, sahibin kararı): zemin sabit kırmızı-siyah çapraz şerit (`hero-zemin-genis/-dikey.svg`, `<picture>`), resmî amblem; 700 px ve
+üstünde iki kolon (solda başlık, sağda amblem; içerik 1120 px'te ortalı, yükseklik ≤ 560 px, soldan koyulaşan perde). Haber kapağı hero'ya
+geçmez. Stadyum fotoğrafı (açık lisanslı uygun aday bulunamadı) gelince yalnız `<picture>` değişir.

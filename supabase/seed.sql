@@ -99,6 +99,22 @@ insert into public.ayrilmis_adlar (ad) values ('Mert (uygulama sahibi)') on conf
 update public.maclar set mac_notu = 'Biletler kulübün resmî satış noktalarında. Kapılar maçtan 2 saat önce açılır (örnek).'
   where id = '11111111-0000-4000-8000-000000000003' and mac_notu is null;
 
+-- 020: maç öncesi paketi (hakem, yayın, kaynak) ve puan durumu (uydurma takımlar; gerçek tablo panelden, kaynağıyla girilir)
+update public.maclar set hakem = 'Örnek Hakem', yayin_kanali = 'Örnek Spor TV', on_bilgi_kaynak = 'Kulüp açıklaması (örnek)'
+  where id = '11111111-0000-4000-8000-000000000003' and hakem is null;
+insert into public.puan_durumu (sezon, sira, takim, oynanan, galibiyet, beraberlik, maglubiyet, atilan, yenen, puan, kaynak, guncellendi)
+select case when extract(month from now() at time zone 'Europe/Istanbul') >= 7
+         then to_char(now() at time zone 'Europe/Istanbul', 'YYYY') || '-' || to_char((now() at time zone 'Europe/Istanbul') + interval '1 year', 'YY')
+         else to_char((now() at time zone 'Europe/Istanbul') - interval '1 year', 'YYYY') || '-' || to_char(now() at time zone 'Europe/Istanbul', 'YY') end,
+       v.sira, v.takim, v.o, v.g, v.b, v.m, v.a, v.y, v.p, 'Lig sitesi (örnek)', now() - interval '1 day'
+from (values
+  (1, 'Örnekköy Spor', 10, 7, 2, 1, 19, 7, 23), (2, 'Kurgu Gençlik', 10, 6, 3, 1, 17, 8, 21), (3, 'Model Spor', 10, 6, 2, 2, 15, 9, 20),
+  (4, 'Deneme FK', 10, 5, 3, 2, 14, 10, 18), (5, 'Çorum FK', 10, 5, 2, 3, 16, 12, 17), (6, 'Hayal Belediyespor', 10, 4, 4, 2, 12, 10, 16),
+  (7, 'Prova FK', 10, 4, 2, 4, 11, 12, 14), (8, 'Eski Rakip', 10, 3, 3, 4, 10, 13, 12), (9, 'Taslak İdmanyurdu', 10, 2, 3, 5, 8, 15, 9),
+  (10, 'Sanal Gücü', 10, 1, 2, 7, 6, 20, 5)
+) as v(sira, takim, o, g, b, m, a, y, p)
+on conflict (sezon, takim) do nothing;
+
 -- =====================================================================
 -- İLK YÖNETİCİYİ ATAMAK
 -- 1) Sitede giris.html sayfasından kendinize normal bir hesap açın.

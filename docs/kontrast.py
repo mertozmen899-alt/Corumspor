@@ -69,7 +69,23 @@ y013=[("Açık","alt menü edilgin / zemin","#5C5A57","#FFFFFF",4.5),("Açık","
 # 019: ikili maç kartı etiketi (koyu kırmızı / yüzey), "Yeni" rozeti ve takvimde iç saha günü (beyaz / kırmızı), takvimde deplasman günü çerçevesi
 ("Açık","ikili kart etiketi: koyu kırmızı / yüzey","#A80000","#F6F4F0",4.5),("Koyu","ikili kart etiketi: --vurgu-guclu / yüzey","#FF8A85","#161618",4.5),
 ("Her iki","Yeni rozeti, takvim iç saha günü, Çorum FK olay rozeti: beyaz / kırmızı","#FFFFFF","#CC0000",4.5),
-("Açık","takvim deplasman günü çerçevesi / zemin (UI ≥3)","#CC0000","#FFFFFF",3.0),("Koyu","takvim deplasman günü çerçevesi / zemin (UI ≥3)","#FF6B66","#0B0B0B",3.0)]
+("Açık","takvim deplasman günü çerçevesi / zemin (UI ≥3)","#CC0000","#FFFFFF",3.0),("Koyu","takvim deplasman günü çerçevesi / zemin (UI ≥3)","#FF6B66","#0B0B0B",3.0),
+# 020: ilk 11 sahası (beyaz yazı / yeşil zemin ve şerit, iki tema), forma dairesi çerçevesi, kaleci dairesi, odak halkası; puan tablosunda
+# Çorum FK satırı; kazanan oy satırı (ilan zemini) ve taç rozeti; "İlk 11 açıklandı" rozeti; mevki kenarları / yüzey (UI ≥3); oran çubuğu
+("Açık","saha: beyaz yazı / --saha-zemin","#FFFFFF","#1D6A3A",4.5),("Açık","saha: beyaz yazı / --saha-serit","#FFFFFF","#22743F",4.5),
+("Koyu","saha: beyaz yazı / --saha-zemin","#FFFFFF","#14542D",4.5),("Koyu","saha: beyaz yazı / --saha-serit","#FFFFFF","#185C32",4.5),
+("Her iki","forma dairesi beyaz çerçeve / saha (UI ≥3)","#FFFFFF","#22743F",3.0),("Her iki","forma no: beyaz / kırmızı daire","#FFFFFF","#CC0000",4.5),
+("Her iki","kaleci forma no: siyah / altın daire","#0B0B0B","#C9A227",4.5),("Açık","odak halkası (koyu zemin) / saha (UI ≥3)","#8AB4F8","#1D6A3A",3.0),
+("Açık","puan tablosu Çorum FK satırı: metin / --vurgu-yumusak","#141414","#FBEAEA",4.5),("Koyu","puan tablosu Çorum FK satırı: metin / --vurgu-yumusak","#F3F1EC","#3A1213",4.5),
+("Açık","kazanan oy satırı: metin / ilan zemini","#141414","#FFF6DB",4.5),("Koyu","kazanan oy satırı: metin / ilan zemini","#F3F1EC","#2A2312",4.5),
+("Her iki","taç rozeti: siyah / altın","#0B0B0B","#C9A227",4.5),
+("Açık","İlk 11 açıklandı rozeti: beyaz / galibiyet yeşili","#FFFFFF","#1E7D3A",4.5),("Koyu","İlk 11 açıklandı rozeti: siyah / galibiyet yeşili","#0B0B0B","#4CC074",4.5),
+("Açık","mevki kenarı kaleci / yüzey (UI ≥3)","#7A5C00","#F6F4F0",3.0),("Açık","mevki kenarı defans / yüzey (UI ≥3)","#1E7D3A","#F6F4F0",3.0),
+("Açık","mevki kenarı orta saha / yüzey (UI ≥3)","#858077","#F6F4F0",3.0),("Açık","mevki kenarı forvet / yüzey (UI ≥3)","#CC0000","#F6F4F0",3.0),
+("Koyu","mevki kenarı kaleci / yüzey (UI ≥3)","#E3BE55","#161618",3.0),("Koyu","mevki kenarı defans / yüzey (UI ≥3)","#4CC074","#161618",3.0),
+("Koyu","mevki kenarı orta saha / yüzey (UI ≥3)","#74747E","#161618",3.0),("Koyu","mevki kenarı forvet / yüzey (UI ≥3)","#FF6B66","#161618",3.0),
+("Açık","oran çubuğu (vurgu) / çubuk izi (UI ≥3)","#CC0000","#ECE8E1",3.0),("Koyu","oran çubuğu (vurgu) / çubuk izi (UI ≥3)","#FF6B66","#202024",3.0),
+("Açık","beğeni sayısı (benim): koyu kırmızı / zemin","#A80000","#FFFFFF",4.5),("Koyu","beğeni sayısı (benim): --vurgu-guclu / zemin","#FF8A85","#0B0B0B",4.5)]
 bad013=0
 print("\n**013 çiftleri**\n\n| Tema | Kullanım | Ön plan | Arka plan | Oran | Eşik | Sonuç |\n|---|---|---|---|---|---|---|")
 for m,r,a,b,need in y013:

@@ -562,12 +562,19 @@ async function tarayiciTestleri() {
     const anaHtml = fs.readFileSync(path.join(KOK, 'index.html'), 'utf8');
     const ilkBaslik = (/<main[\s\S]*?<(h[1-6])\b/.exec(anaHtml) || [])[1];
     const hero = (/<img class="hero-gorsel"[^>]*>/.exec(anaHtml) || [''])[0];
-    kontrol('statik (013/016): hero görseli HTML\'de (önyükleme tarayıcısı bulur), fetchpriority=high, tribün çizimi, width/height, alt="", tek "high"',
-      /fetchpriority="high"/.test(hero) && /src="assets\/img\/tribun-kirmizi-siyah\.svg"/.test(hero) && /width="1280" height="720"/.test(hero) && / alt=""/.test(hero) && (anaHtml.match(/<img[^>]*fetchpriority="high"/g) || []).length === 1, hero);
+    // 020: varsayılan zemin <picture>: 600 px ve üstü hero-zemin-genis.svg, telefonda hero-zemin-dikey.svg (tek dosya iner)
+    kontrol('statik (013/020): hero görseli HTML\'de (önyükleme tarayıcısı bulur), fetchpriority=high, kırmızı-siyah zemin (<picture>: geniş + dikey), width/height, alt="", tek "high"',
+      /fetchpriority="high"/.test(hero) && /src="assets\/img\/hero-zemin-dikey\.svg"/.test(hero) && /width="800" height="1000"/.test(hero) && / alt=""/.test(hero)
+      && /<source media="\(min-width: 600px\)" srcset="assets\/img\/hero-zemin-genis\.svg" width="1600" height="640">/.test(anaHtml)
+      && (anaHtml.match(/<img[^>]*fetchpriority="high"/g) || []).length === 1, hero);
+    kontrol('statik (020): hero\'da resmî amblem (ayar.js AMBLEM_DOSYASI, data-amblem: açılamazsa yedek), alt="" (süs; başlık metni okunur)',
+      /<img class="hero-amblem" data-amblem src="assets\/logo\/corum-fk-amblem\.svg" alt=""/.test(anaHtml));
     kontrol('statik (son tur, tasarımcı 7): hero etiketi HTML\'de iskelet, "Manşet" yazmaz (yüklenirken yanlış etiket yok)', /<p class="hero-etiket iskelet hero-etiket-iskelet" id="hero-etiket" aria-hidden="true"><\/p>/.test(anaHtml));
-    const heroBayt = fs.statSync(path.join(KOK, 'assets/img/tribun-kirmizi-siyah.svg')).size;
-    const heroSvg = fs.readFileSync(path.join(KOK, 'assets/img/tribun-kirmizi-siyah.svg'), 'utf8');
-    kontrol('statik (016): hero tribün çizimi ≤ 60 KB, betik ve dış kaynak yok', heroBayt <= 60 * 1024 && !/<script|href="http|xlink:href="http/i.test(heroSvg), `${heroBayt} B`);
+    for (const ad of ['hero-zemin-genis.svg', 'hero-zemin-dikey.svg', '../logo/corum-fk-amblem.svg']) {
+      const yol = path.join(KOK, 'assets/img', ad);
+      const bayt = fs.statSync(yol).size, svg = fs.readFileSync(yol, 'utf8');
+      kontrol(`statik (020): ${ad} ≤ 60 KB, betik ve dış kaynak yok`, bayt <= 60 * 1024 && !/<script|href="http|xlink:href="http|<image/i.test(svg), `${bayt} B`);
+    }
     kontrol('statik: index.html ana içerikte ilk başlık h1', ilkBaslik === 'h1', ilkBaslik);
     const giris = fs.readFileSync(path.join(KOK, 'giris.html'), 'utf8');
     kontrol('statik: kayıt formunda aydınlatma metnine bağlantı (e-posta toplanırken)', /<form id="kayit-formu"[\s\S]*href="gizlilik\.html"[\s\S]*<\/form>/.test(giris));
@@ -1459,23 +1466,20 @@ async function tarayiciTestleri() {
     await ios.ctx.close();
   });
 
-  // ------------------------------------------------ son tur (performans 4): manşet kapağı varsayılan hero'nun yerine yalnız ÇÖZÜLDÜKTEN sonra,
-  // tek seferde geçer; açılıştan 2,5 sn sonra hâlâ hazır değilse varsayılan fotoğraf kalır (ikinci görsel değişimi görünmez)
-  await guvenli('son tur hero kapağı', async () => {
-    for (const [gecikme, beklenen] of [[0, 'haber'], [3500, 'varsayilan']]) {
-      const { ctx, p } = await baglam({ width: 390, height: 844 });
-      await git(p, 'index.html?sahte=1');
-      await p.waitForSelector(AKIS);
-      await dbYaz(p, (db) => { const h = db.haberler.find((x) => x.id.endsWith('02')); h.kapak_url = 'assets/img/hattusa-aslanli-kapi-1600.webp'; h.kapak_kaynak = null; });
-      await p.evaluate(() => { localStorage.removeItem('son-veri-v1-sahte'); });
-      if (gecikme) await ctx.route(/hattusa-aslanli-kapi-\d+\.webp/, async (r) => { await new Promise((c) => setTimeout(c, gecikme)); await r.continue(); });
-      await git(p, 'index.html?sahte=1');
-      await p.waitForSelector('#hero[data-kapak]', { timeout: 10000 });
-      const d = await p.evaluate(() => ({ kapak: document.querySelector('#hero').dataset.kapak, src: document.querySelector('#hero-gorsel').currentSrc, atif: document.querySelector('#hero-atif').textContent, atifGizli: document.querySelector('#hero-atif').hidden }));
-      kontrol(`son tur (performans 4): manşet kapağı ${gecikme ? 'geç (3,5 sn) gelince varsayılan hero kalır' : 'çözülünce tek seferde hero olur (atfıyla)'}`,
-        d.kapak === beklenen && (beklenen === 'haber' ? /hattusa-aslanli-kapi-\d+\.webp$/.test(d.src) && /Hattuşa|Hattusa|CC BY/.test(d.atif) : /tribun-kirmizi-siyah\.svg$/.test(d.src) && d.atifGizli), JSON.stringify(d));
-      await ctx.close();
-    }
+  // ------------------------------------------------ 020 (sahibin kararı): hero zemini sabit; manşetin kendi kapağı hero'ya GEÇMEZ
+  // (eski "son tur performans 4" kapak değişimi kaldırıldı). Kapak akış satırında ve haber sayfasında kalır; hero'da atıf yok.
+  await guvenli('020 hero sabit', async () => {
+    const { ctx, p } = await baglam({ width: 390, height: 844 });
+    await git(p, 'index.html?sahte=1');
+    await p.waitForSelector(AKIS);
+    await dbYaz(p, (db) => { const h = db.haberler.find((x) => x.id.endsWith('02')); h.kapak_url = 'assets/img/hattusa-aslanli-kapi-1600.webp'; h.kapak_kaynak = null; });
+    await p.evaluate(() => { localStorage.removeItem('son-veri-v1-sahte'); });
+    await git(p, 'index.html?sahte=1');
+    await p.waitForSelector(AKIS);
+    await p.waitForTimeout(1500);
+    const d = await p.evaluate(() => ({ src: document.querySelector('#hero-gorsel').currentSrc, atifGizli: document.querySelector('#hero-atif').hidden, baslik: document.querySelector('#hero-baslik').textContent }));
+    kontrol('020: manşetin kendi kapağı varken de hero zemini sabit (kapak geçmez), hero zemininde fotoğraf atfı yok', /hero-zemin-(genis|dikey)\.svg$/.test(d.src) && d.atifGizli && /Test haberi 2/i.test(d.baslik), JSON.stringify(d));
+    await ctx.close();
   });
 
   // ------------------------------------------------ son tur: büyük yazı (32 px, 320×640): yapışkan alan ≤ %25, başlıklar kırpılmaz

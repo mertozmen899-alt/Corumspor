@@ -9,6 +9,7 @@
 //  8) Tasarım/erişilebilirlik (013): yer işaretleri, alt menü, klavye/odak örtme, 44 px, %200 yazı, filtreler, facade, yorumlar,
 //     profil penceresi, Takım, sponsor sıklığı/tekrar/boş durum/geç yerleşme, şifre sıfırlama, men, çevrimdışı (testler/tasarim-testleri.js)
 //  9) Performans (013): kısmalı LCP/CLS, istek sayısı, modulepreload, YouTube'suz açılış, yazı tipleri, hero, _headers (testler/performans-testleri.js)
+// 10) Bildirim (021): metin, tercih süzme, sw.js push/notificationclick, VAPID betiği (testler/bildirim.test.mjs; SQL'i 1. grupta)
 // Çıkış kodu: hepsi geçerse 0, bir tane bile kalırsa 1.
 // Tek tek: node testler/sql-testleri.js | node testler/tarayici-testleri.js | node testler/reklam-tarayici-testleri.js
 //          node testler/ekran-testleri.js | node testler/tasarim-testleri.js | node testler/performans-testleri.js
@@ -53,6 +54,7 @@ function nodeTest(dosya) {
   const reklamTarayici = await kosu(reklamTarayiciTestleri, 'Reklam tarayıcı testleri');
   const gorunum = await kosu(ekranTestleri, 'Görünüm testleri');
   const uygulama = await kosu(() => nodeTest('uygulama.test.mjs'), 'Uygulama birim testleri');
+  const bildirim = await kosu(() => nodeTest('bildirim.test.mjs'), 'Bildirim testleri');
   const tasarim = await kosu(tasarimTestleri, 'Tasarım testleri');
   const performans = await kosu(performansTestleri, 'Performans testleri');
   const gruplar = [
@@ -63,6 +65,7 @@ function nodeTest(dosya) {
     ['Reklam tarayıcı', reklamTarayici, '(Playwright/Chromium, tam uygulama ?sahte=1)'],
     ['Görünüm', gorunum, '(360/390/430/1280 px × açık/koyu, testler/ekran/)'],
     ['Uygulama birim', uygulama, '(node:test: kurallar, görsel küçültme, yayın)'],
+    ['Bildirim', bildirim, '(node:test: 021 metin, tercih, sw.js push/tıklama, VAPID)'],
     ['Tasarım/erişim', tasarim, '(Playwright: T-xx erişilebilirlik ölçütleri, 013 ekranları)'],
     ['Performans', performans, `(kısmalı: ${(performans.olcumler || []).length} LCP/CLS ölçümü)`],
   ];

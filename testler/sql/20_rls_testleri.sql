@@ -1112,3 +1112,272 @@ select test.esit('rakip gol (019): maç silinince golleri de silinir (cascade)',
   (select count(*)::text from public.rakip_goller where mac_id = '11111111-0000-4000-8000-000000000199'), '0');
 delete from public.rakip_goller;
 update public.oyuncular set piyasa_degeri_eur = null, piyasa_degeri_tarih = null, piyasa_degeri_kaynak = null where id = '55555555-0000-4000-8000-000000000007';
+
+-- ================================================================ 020: maç günü (ön bilgi, diziliş, tahmin, maçın oyuncusu, beğeni, puan durumu)
+insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at) values
+  ('bbbbbbbb-0000-4000-8000-000000020a01', 'tahmin1@ornek.test', '{"kullanici_adi":"tahminci_bir"}', now()),
+  ('bbbbbbbb-0000-4000-8000-000000020a02', 'tahmin2@ornek.test', '{"kullanici_adi":"tahminci_iki"}', now()),
+  ('bbbbbbbb-0000-4000-8000-000000020a03', 'tahmin3@ornek.test', '{"kullanici_adi":"tahminci_uc"}', null),
+  ('bbbbbbbb-0000-4000-8000-000000020a04', 'tahmin4@ornek.test', '{"kullanici_adi":"tahminci_dort"}', now());
+update public.profiles set engelli = true where id = 'bbbbbbbb-0000-4000-8000-000000020a04';
+-- 0201: tahmine açık (1 saat sonra); 0202: 3 saat önce bitti (oylama açık); 0203: 3 gün önce bitti (oylama kapandı)
+insert into public.maclar (id, rakip, tarih, durum, corum_skor, rakip_skor) values
+  ('11111111-0000-4000-8000-000000000201', 'Tahmin Spor', now() + interval '1 hour', 'planlandi', null, null),
+  ('11111111-0000-4000-8000-000000000202', 'Oylama Spor', now() - interval '3 hours', 'bitti', 2, 0),
+  ('11111111-0000-4000-8000-000000000203', 'Eski Oylama', now() - interval '3 days', 'bitti', 1, 1);
+insert into public.mac_oyunculari (mac_id, oyuncu, ilk11, giris_dk) values
+  ('11111111-0000-4000-8000-000000000202', 'Kemal Kaleci', true, null), ('11111111-0000-4000-8000-000000000202', 'Ali Örnek', true, null),
+  ('11111111-0000-4000-8000-000000000202', 'Fikret Forvet', false, 70), ('11111111-0000-4000-8000-000000000202', 'Yedek Eldiven', false, null),
+  ('11111111-0000-4000-8000-000000000203', 'Ali Örnek', true, null);
+
+-- ---------------- ön bilgi ve diziliş (yönetici)
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.esit('ön bilgi (020): yönetici hakem, yayın, diziliş ve kaynak yazar (boşluklar temizlenir)',
+  test.satir($q$update public.maclar set hakem = ' Hakan   Hakem ', yayin_kanali = 'beIN SPORTS 2', dizilis = '4-2-3-1', on_bilgi_kaynak = ' Kulüp açıklaması ', ilk11_aciklandi = now() where id = '11111111-0000-4000-8000-000000000202'$q$)::text, '1');
+select test.hata_bekle('ön bilgi (020): diziliş toplamı 10 olmalı',
+  $q$update public.maclar set dizilis = '4-4-3' where id = '11111111-0000-4000-8000-000000000202'$q$, 'toplamı 10');
+select test.hata_bekle('ön bilgi (020): diziliş "4-2-3-1" biçiminde',
+  $q$update public.maclar set dizilis = 'dört-dört-iki' where id = '11111111-0000-4000-8000-000000000202'$q$, '4-2-3-1');
+select test.hata_bekle('ön bilgi (020): diziliş en çok 5 satır',
+  $q$update public.maclar set dizilis = '1-1-2-2-2-2' where id = '11111111-0000-4000-8000-000000000202'$q$, '4-2-3-1');
+select test.hata_bekle('ön bilgi (020): hakem 2-80 karakter',
+  $q$update public.maclar set hakem = 'H' where id = '11111111-0000-4000-8000-000000000202'$q$, 'maclar_mac_gunu');
+select test.esit('diziliş (020): yönetici kaleciye 1. sıra ve forma no verir',
+  test.satir($q$update public.mac_oyunculari set dizilis_sira = 1, forma_no = 1 where mac_id = '11111111-0000-4000-8000-000000000202' and oyuncu = 'Kemal Kaleci'$q$)::text, '1');
+select test.hata_bekle('diziliş (020): aynı maçta aynı yer iki oyuncuya verilmez',
+  $q$update public.mac_oyunculari set dizilis_sira = 1 where mac_id = '11111111-0000-4000-8000-000000000202' and oyuncu = 'Ali Örnek'$q$, 'başka bir oyuncu');
+select test.hata_bekle('diziliş (020): yedeğe diziliş sırası verilmez',
+  $q$update public.mac_oyunculari set dizilis_sira = 9 where mac_id = '11111111-0000-4000-8000-000000000202' and oyuncu = 'Fikret Forvet'$q$, 'yalnız ilk 11');
+select test.hata_bekle('diziliş (020): sıra 1-11',
+  $q$update public.mac_oyunculari set dizilis_sira = 12 where mac_id = '11111111-0000-4000-8000-000000000202' and oyuncu = 'Ali Örnek'$q$, 'yalnız ilk 11');
+select test.hata_bekle('diziliş (020): forma no 1-99',
+  $q$update public.mac_oyunculari set forma_no = 100 where mac_id = '11111111-0000-4000-8000-000000000202' and oyuncu = 'Ali Örnek'$q$, 'Forma numarası');
+select test.esit('diziliş (020): oyuncu kendi yerini koruyarak güncellenir',
+  test.satir($q$update public.mac_oyunculari set dizilis_sira = 1, forma_no = 13 where mac_id = '11111111-0000-4000-8000-000000000202' and oyuncu = 'Kemal Kaleci'$q$)::text, '1');
+reset role;
+set role anon;
+select test.esit('ön bilgi (020): ziyaretçi hakem, yayın, diziliş, kaynak ve kadro yerini okur',
+  (select m.hakem || '|' || m.yayin_kanali || '|' || m.dizilis || '|' || m.on_bilgi_kaynak || '|' || (m.ilk11_aciklandi is not null) || '|' || k.dizilis_sira || '/' || k.forma_no
+   from public.maclar m join public.mac_oyunculari k on k.mac_id = m.id and k.oyuncu = 'Kemal Kaleci' where m.id = '11111111-0000-4000-8000-000000000202'),
+  'Hakan Hakem|beIN SPORTS 2|4-2-3-1|Kulüp açıklaması|true|1/13');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000020a01', false);
+set role authenticated;
+select test.esit('ön bilgi (020): taraftar hakemi değiştiremez (0 satır)',
+  test.satir($q$update public.maclar set hakem = 'Sahte Hakem' where id = '11111111-0000-4000-8000-000000000202'$q$)::text, '0');
+select test.esit('diziliş (020): taraftar diziliş sırasını değiştiremez (0 satır)',
+  test.satir($q$update public.mac_oyunculari set dizilis_sira = 2 where mac_id = '11111111-0000-4000-8000-000000000202'$q$)::text, '0');
+
+-- ---------------- skor tahmini
+select test.esit('tahmin (020): onaylı taraftar maç başlamadan tahmin yapar',
+  test.satir($q$insert into public.skor_tahminleri (mac_id, corum, rakip) values ('11111111-0000-4000-8000-000000000201', 2, 1)$q$)::text, '1');
+select test.esit('tahmin (020): maç başlamadan tahminini değiştirir',
+  test.satir($q$update public.skor_tahminleri set corum = 3 where mac_id = '11111111-0000-4000-8000-000000000201'$q$)::text, '1');
+select test.hata_bekle('tahmin (020): aynı maça ikinci satır yok (değiştirmek için güncelle)',
+  $q$insert into public.skor_tahminleri (mac_id, corum, rakip) values ('11111111-0000-4000-8000-000000000201', 0, 0)$q$, 'duplicate|skor_tahminleri_pkey');
+select test.hata_bekle('tahmin (020): oynanmış maça tahmin yok',
+  $q$insert into public.skor_tahminleri (mac_id, corum, rakip) values ('11111111-0000-4000-8000-000000000001', 1, 0)$q$, 'kilitlendi');
+select test.hata_bekle('tahmin (020): skor 0-20',
+  $q$insert into public.skor_tahminleri (mac_id, corum, rakip) values ('11111111-0000-4000-8000-000000000003', 21, 0)$q$, '0 ile 20');
+select test.hata_bekle('tahmin (020): tahmin silinmez', $q$delete from public.skor_tahminleri$q$, 'permission denied');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000020a02', false);
+set role authenticated;
+select test.esit('tahmin (020): ikinci taraftar tahmin yapar',
+  test.satir($q$insert into public.skor_tahminleri (mac_id, corum, rakip) values ('11111111-0000-4000-8000-000000000201', 1, 1)$q$)::text, '1');
+select test.esit('tahmin (020): başkası adına tahmin yazılamaz (sahibi sunucuda atanır)',
+  test.satir($q$insert into public.skor_tahminleri (mac_id, kullanici_id, corum, rakip) values ('11111111-0000-4000-8000-000000000003', 'bbbbbbbb-0000-4000-8000-000000020a01', 0, 3)$q$)::text, '1');
+select test.esit('tahmin (020): kişi yalnız kendi tahminlerini görür',
+  (select count(*)::text from public.skor_tahminleri where kullanici_id <> 'bbbbbbbb-0000-4000-8000-000000020a02'), '0');
+select test.esit('tahmin (020): başkasının tahmini değiştirilemez (0 satır)',
+  test.satir($q$update public.skor_tahminleri set corum = 0 where kullanici_id = 'bbbbbbbb-0000-4000-8000-000000020a01'$q$)::text, '0');
+select test.esit('tahmin (020): maç başlamadan dağılım açılmaz', (select count(*)::text from public.tahmin_ozeti('11111111-0000-4000-8000-000000000201')), '0');
+reset role;
+select test.esit('tahmin (020): sahte kimlikli satır yazanın adına kaydedildi',
+  (select kullanici_id::text from public.skor_tahminleri where mac_id = '11111111-0000-4000-8000-000000000003'), 'bbbbbbbb-0000-4000-8000-000000020a02');
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.esit('tahmin (020): üçüncü taraftar tahmin yapar',
+  test.satir($q$insert into public.skor_tahminleri (mac_id, corum, rakip) values ('11111111-0000-4000-8000-000000000201', 2, 1)$q$)::text, '1');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000020a03', false);
+set role authenticated;
+select test.hata_bekle('tahmin (020): e-postası onaylanmamış hesap tahmin yapamaz',
+  $q$insert into public.skor_tahminleri (mac_id, corum, rakip) values ('11111111-0000-4000-8000-000000000201', 1, 0)$q$, 'e-posta');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000020a04', false);
+set role authenticated;
+select test.hata_bekle('tahmin (020): yasaklı hesap tahmin yapamaz',
+  $q$insert into public.skor_tahminleri (mac_id, corum, rakip) values ('11111111-0000-4000-8000-000000000201', 1, 0)$q$, 'kapatıldı');
+reset role;
+set role anon;
+select test.hata_bekle('tahmin (020): ziyaretçi tahmin yazamaz',
+  $q$insert into public.skor_tahminleri (mac_id, corum, rakip) values ('11111111-0000-4000-8000-000000000201', 1, 0)$q$, 'permission denied');
+select test.hata_bekle('tahmin (020): ziyaretçi kişisel tahminleri okuyamaz', $q$select * from public.skor_tahminleri$q$, 'permission denied');
+reset role;
+-- Maç başladı (başlama saati geldi)
+update public.maclar set tarih = now() - interval '1 minute' where id = '11111111-0000-4000-8000-000000000201';
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000020a01', false);
+set role authenticated;
+select test.hata_bekle('tahmin (020): maç başlayınca tahmin kilitlenir (değiştirilemez)',
+  $q$update public.skor_tahminleri set corum = 5 where mac_id = '11111111-0000-4000-8000-000000000201'$q$, 'kilitlendi');
+reset role;
+set role anon;
+select test.esit('tahmin (020): maç başlayınca dağılım herkese açık (toplam, G/B/M yüzdesi)',
+  (select toplam || '|' || galibiyet || '|' || beraberlik || '|' || maglubiyet from public.tahmin_ozeti('11111111-0000-4000-8000-000000000201')), '3|67|33|0');
+select test.esit('tahmin (020): en çok tahmin edilen skorlar (en çok 3, yüzdesiyle)',
+  (select string_agg((x.e->>'corum') || '-' || (x.e->>'rakip') || ':' || (x.e->>'yuzde'), ',' order by x.n) from public.tahmin_ozeti('11111111-0000-4000-8000-000000000201') o, jsonb_array_elements(o.skorlar) with ordinality as x(e, n)),
+  '3-1:33,2-1:33,1-1:33');
+reset role;
+select test.esit('tahmin (020): dağılım fonksiyonu yalnız toplu sütun döndürür (kimin ne dediği yok)',
+  (select array_to_string(proargnames, ',') from pg_proc where proname = 'tahmin_ozeti'), 'p_mac_id,toplam,galibiyet,beraberlik,maglubiyet,skorlar');
+
+-- ---------------- maçın oyuncusu
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000020a01', false);
+set role authenticated;
+select test.esit('oy (020): maç bitince oynayan oyuncuya oy verilir',
+  test.satir($q$insert into public.mac_oyuncusu_oylari (mac_id, oyuncu) values ('11111111-0000-4000-8000-000000000202', 'Ali Örnek')$q$)::text, '1');
+select test.hata_bekle('oy (020): tek oy',
+  $q$insert into public.mac_oyuncusu_oylari (mac_id, oyuncu) values ('11111111-0000-4000-8000-000000000202', 'Kemal Kaleci')$q$, 'zaten verdin');
+select test.hata_bekle('oy (020): oy değiştirilemez',
+  $q$update public.mac_oyuncusu_oylari set oyuncu = 'Kemal Kaleci' where mac_id = '11111111-0000-4000-8000-000000000202'$q$, 'permission denied');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000020a02', false);
+set role authenticated;
+select test.hata_bekle('oy (020): maça çıkmayan yedeğe oy yok',
+  $q$insert into public.mac_oyuncusu_oylari (mac_id, oyuncu) values ('11111111-0000-4000-8000-000000000202', 'Yedek Eldiven')$q$, 'oynayan');
+select test.hata_bekle('oy (020): kadroda olmayan ada oy yok',
+  $q$insert into public.mac_oyuncusu_oylari (mac_id, oyuncu) values ('11111111-0000-4000-8000-000000000202', 'Sahte Oyuncu')$q$, 'oynayan');
+select test.hata_bekle('oy (020): 48 saatlik pencere kapanınca oy yok',
+  $q$insert into public.mac_oyuncusu_oylari (mac_id, oyuncu) values ('11111111-0000-4000-8000-000000000203', 'Ali Örnek')$q$, 'açık değil');
+select test.hata_bekle('oy (020): bitmemiş maçta oy yok',
+  $q$insert into public.mac_oyuncusu_oylari (mac_id, oyuncu) values ('11111111-0000-4000-8000-000000000201', 'Ali Örnek')$q$, 'açık değil');
+select test.esit('oy (020): oyuna giren yedeğe oy verilir (ad boşlukları temizlenir)',
+  test.satir($q$insert into public.mac_oyuncusu_oylari (mac_id, oyuncu) values ('11111111-0000-4000-8000-000000000202', ' Fikret   Forvet ')$q$)::text, '1');
+select test.esit('oy (020): kişi yalnız kendi oyunu görür', (select count(*)::text from public.mac_oyuncusu_oylari), '1');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000020a03', false);
+set role authenticated;
+select test.hata_bekle('oy (020): e-postası onaylanmamış hesap oy veremez',
+  $q$insert into public.mac_oyuncusu_oylari (mac_id, oyuncu) values ('11111111-0000-4000-8000-000000000202', 'Ali Örnek')$q$, 'e-posta');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000020a04', false);
+set role authenticated;
+select test.hata_bekle('oy (020): yasaklı hesap oy veremez',
+  $q$insert into public.mac_oyuncusu_oylari (mac_id, oyuncu) values ('11111111-0000-4000-8000-000000000202', 'Ali Örnek')$q$, 'kapatıldı');
+reset role;
+set role anon;
+select test.esit('oy (020): sonuç herkese açık (oyuncu, oy, yüzde, toplam)',
+  (select string_agg(oyuncu || ':' || oy || ':' || yuzde || ':' || toplam, ',') from public.mac_oyuncusu_sonuclari('11111111-0000-4000-8000-000000000202')),
+  'Ali Örnek:1:50:2,Fikret Forvet:1:50:2');
+select test.hata_bekle('oy (020): ziyaretçi oy veremez',
+  $q$insert into public.mac_oyuncusu_oylari (mac_id, oyuncu) values ('11111111-0000-4000-8000-000000000202', 'Ali Örnek')$q$, 'permission denied');
+select test.hata_bekle('oy (020): ziyaretçi kişisel oyları okuyamaz', $q$select * from public.mac_oyuncusu_oylari$q$, 'permission denied');
+reset role;
+
+-- ---------------- beğeni
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000020a01', false);
+set role authenticated;
+select test.esit('beğeni (020): taraftar haberi beğenir',
+  test.satir($q$insert into public.begeniler (hedef_tur, hedef_id) values ('haber', '33333333-0000-4000-8000-000000000001')$q$)::text, '1');
+select test.esit('beğeni (020): taraftar golü beğenir',
+  test.satir($q$insert into public.begeniler (hedef_tur, hedef_id) values ('gol', '22222222-0000-4000-8000-000000000001')$q$)::text, '1');
+select test.hata_bekle('beğeni (020): aynı şey iki kez beğenilmez',
+  $q$insert into public.begeniler (hedef_tur, hedef_id) values ('haber', '33333333-0000-4000-8000-000000000001')$q$, 'duplicate|begeniler_pkey');
+select test.hata_bekle('beğeni (020): taslak haber beğenilmez',
+  $q$insert into public.begeniler (hedef_tur, hedef_id) values ('haber', '33333333-0000-4000-8000-000000000004')$q$, 'Haber bulunamadı');
+select test.hata_bekle('beğeni (020): olmayan gol beğenilmez',
+  $q$insert into public.begeniler (hedef_tur, hedef_id) values ('gol', '22222222-0000-4000-8000-0000000009ff')$q$, 'Gol bulunamadı');
+select test.hata_bekle('beğeni (020): yalnız haber ve gol',
+  $q$insert into public.begeniler (hedef_tur, hedef_id) values ('mac', '11111111-0000-4000-8000-000000000001')$q$, 'begeniler_hedef_tur');
+select test.hata_bekle('beğeni (020): dakikada en çok 30 (geri alıp yeniden beğenmek de sayılır)',
+  $q$do $x$ begin for i in 1..40 loop
+       insert into public.begeniler (hedef_tur, hedef_id) values ('gol', '22222222-0000-4000-8000-000000000002');
+       delete from public.begeniler where hedef_tur = 'gol' and hedef_id = '22222222-0000-4000-8000-000000000002';
+     end loop; end $x$$q$, 'dakikada en çok 30');
+select test.hata_bekle('beğeni (020): hız sayacı okunamaz', $q$select * from public.begeni_hizlari$q$, 'permission denied');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000020a02', false);
+set role authenticated;
+select test.esit('beğeni (020): ikinci taraftar aynı haberi beğenir (sahibi sunucuda atanır)',
+  test.satir($q$insert into public.begeniler (hedef_tur, hedef_id, kullanici_id) values ('haber', '33333333-0000-4000-8000-000000000001', 'bbbbbbbb-0000-4000-8000-000000020a01')$q$)::text, '1');
+select test.esit('beğeni (020): kimin beğendiği görünmez (yalnız kendi satırı)', (select count(*)::text from public.begeniler), '1');
+select test.esit('beğeni (020): sayım + "ben beğendim mi"',
+  (select string_agg(hedef_id::text || ':' || sayi || ':' || benim, ',' order by hedef_id) from public.begeni_sayilari('haber', array['33333333-0000-4000-8000-000000000001', '33333333-0000-4000-8000-000000000002']::uuid[])),
+  '33333333-0000-4000-8000-000000000001:2:true,33333333-0000-4000-8000-000000000002:0:false');
+select test.esit('beğeni (020): başkasının beğenisi silinemez (0 satır)',
+  test.satir($q$delete from public.begeniler where kullanici_id = 'bbbbbbbb-0000-4000-8000-000000020a01'$q$)::text, '0');
+select test.esit('beğeni (020): geri al (kendi beğenisi silinir)',
+  test.satir($q$delete from public.begeniler where hedef_tur = 'haber' and hedef_id = '33333333-0000-4000-8000-000000000001'$q$)::text, '1');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000020a03', false);
+set role authenticated;
+select test.hata_bekle('beğeni (020): e-postası onaylanmamış hesap beğenemez',
+  $q$insert into public.begeniler (hedef_tur, hedef_id) values ('gol', '22222222-0000-4000-8000-000000000001')$q$, 'e-posta');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000020a04', false);
+set role authenticated;
+select test.hata_bekle('beğeni (020): yasaklı hesap beğenemez',
+  $q$insert into public.begeniler (hedef_tur, hedef_id) values ('gol', '22222222-0000-4000-8000-000000000001')$q$, 'kapatıldı');
+reset role;
+set role anon;
+select test.esit('beğeni (020): ziyaretçi sayıları görür; taslak haberin sayısı dönmez; tekrar eden kimlik bir kez',
+  (select string_agg(hedef_id::text || ':' || sayi || ':' || benim, ',' order by hedef_id) from public.begeni_sayilari('haber', array['33333333-0000-4000-8000-000000000001', '33333333-0000-4000-8000-000000000001', '33333333-0000-4000-8000-000000000004']::uuid[])),
+  '33333333-0000-4000-8000-000000000001:1:false');
+select test.hata_bekle('beğeni (020): ziyaretçi beğenemez',
+  $q$insert into public.begeniler (hedef_tur, hedef_id) values ('gol', '22222222-0000-4000-8000-000000000001')$q$, 'permission denied');
+reset role;
+insert into public.goller (id, mac_id, oyuncu, dakika) values ('22222222-0000-4000-8000-0000000020a1', '11111111-0000-4000-8000-000000000202', 'Ali Örnek', 10);
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000020a02', false);
+set role authenticated;
+select test.esit('beğeni (020): silinecek gol beğenilir', test.satir($q$insert into public.begeniler (hedef_tur, hedef_id) values ('gol', '22222222-0000-4000-8000-0000000020a1')$q$)::text, '1');
+reset role;
+delete from public.goller where id = '22222222-0000-4000-8000-0000000020a1';
+select test.esit('beğeni (020): gol silinince beğenileri de silinir',
+  (select count(*)::text from public.begeniler where hedef_id = '22222222-0000-4000-8000-0000000020a1'), '0');
+
+-- ---------------- puan durumu
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.esit('puan (020): yönetici tablo satırlarını yazar (ad boşlukları temizlenir)',
+  test.satir($q$insert into public.puan_durumu (sezon, sira, takim, oynanan, galibiyet, beraberlik, maglubiyet, atilan, yenen, puan, kaynak) values
+    ('2019-20', 1, ' Test   Takımı ', 3, 2, 1, 0, 6, 2, 7, 'TFF'), ('2019-20', 3, 'Çorum FK', 3, 1, 1, 1, 4, 4, 4, 'TFF')$q$)::text, '2');
+select test.hata_bekle('puan (020): oynanan = G + B + M',
+  $q$insert into public.puan_durumu (sezon, sira, takim, oynanan, galibiyet, beraberlik, maglubiyet) values ('2019-20', 4, 'Hatalı Takım', 3, 1, 0, 0)$q$, 'oynanan maç sayısı');
+select test.hata_bekle('puan (020): sezon "2026-27" biçiminde',
+  $q$insert into public.puan_durumu (sezon, sira, takim) values ('2019', 4, 'Hatalı Takım')$q$, 'puan_durumu_alanlar');
+select test.hata_bekle('puan (020): aynı sezonda takım bir kez',
+  $q$insert into public.puan_durumu (sezon, sira, takim) values ('2019-20', 4, 'Çorum FK')$q$, 'duplicate|puan_durumu_pkey');
+select test.esit('puan (020): yönetici satırı günceller', test.satir($q$update public.puan_durumu set sira = 2 where sezon = '2019-20' and takim = 'Çorum FK'$q$)::text, '1');
+reset role;
+set role anon;
+select test.esit('puan (020): ziyaretçi tabloyu okur',
+  (select string_agg(sira || '.' || takim || ':' || puan, ',' order by sira) from public.puan_durumu where sezon = '2019-20'), '1.Test Takımı:7,2.Çorum FK:4');
+select test.hata_bekle('puan (020): ziyaretçi yazamaz',
+  $q$insert into public.puan_durumu (sezon, sira, takim) values ('2019-20', 9, 'Sahte')$q$, 'permission denied|row-level security');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000020a01', false);
+set role authenticated;
+select test.hata_bekle('puan (020): taraftar satır ekleyemez (RLS)',
+  $q$insert into public.puan_durumu (sezon, sira, takim) values ('2019-20', 9, 'Sahte')$q$, 'row-level security');
+select test.esit('puan (020): taraftar puanı değiştiremez (0 satır)', test.satir($q$update public.puan_durumu set puan = 99$q$)::text, '0');
+select test.esit('puan (020): taraftar silemez (0 satır)', test.satir($q$delete from public.puan_durumu$q$)::text, '0');
+reset role;
+
+-- ---------------- yapı: RLS açık, TRUNCATE yok, cascade
+select test.esit('yapı (020): yeni tablolarda RLS açık',
+  (select string_agg(relname || ':' || relrowsecurity, ',' order by relname) from pg_class where relnamespace = 'public'::regnamespace and relname in ('skor_tahminleri', 'mac_oyuncusu_oylari', 'begeniler', 'begeni_hizlari', 'puan_durumu')),
+  'begeni_hizlari:true,begeniler:true,mac_oyuncusu_oylari:true,puan_durumu:true,skor_tahminleri:true');
+select test.esit('yapı (020): yeni tablolarda TRUNCATE yetkisi yok',
+  (select string_agg(t, ',') from unnest(array['skor_tahminleri', 'mac_oyuncusu_oylari', 'begeniler', 'begeni_hizlari', 'puan_durumu']) t
+   where has_table_privilege('anon', 'public.' || t, 'TRUNCATE') or has_table_privilege('authenticated', 'public.' || t, 'TRUNCATE')), null);
+select test.dogru('yapı (020): sayım/özet fonksiyonları SECURITY DEFINER ve search_path sabit',
+  (select bool_and(prosecdef and proconfig is not null) from pg_proc where proname in ('tahmin_ozeti', 'mac_oyuncusu_sonuclari', 'begeni_sayilari', 'begeni_kontrol')));
+delete from public.maclar where id in ('11111111-0000-4000-8000-000000000201', '11111111-0000-4000-8000-000000000202', '11111111-0000-4000-8000-000000000203');
+select test.esit('yapı (020): maç silinince tahmin, oy ve kadro da silinir (cascade)',
+  ((select count(*) from public.skor_tahminleri where mac_id = '11111111-0000-4000-8000-000000000201')
+   + (select count(*) from public.mac_oyuncusu_oylari where mac_id = '11111111-0000-4000-8000-000000000202')
+   + (select count(*) from public.mac_oyunculari where mac_id in ('11111111-0000-4000-8000-000000000202', '11111111-0000-4000-8000-000000000203')))::text, '0');
+delete from public.skor_tahminleri; delete from public.begeniler; delete from public.begeni_hizlari;
+delete from public.puan_durumu where sezon = '2019-20';

@@ -32,6 +32,11 @@
 // 017 (017_yanit_profil_foto.sql): yorumlar.ust_yorum_id (tek seviye yanıt, hedef ana yorumdan, taşınmaz, ana silinince yanıtlar da),
 // profiles.foto_url (herkes okur; K.profilFotoGecerli; kişi kendisi koyar, yönetici başkasınınkini yalnız kaldırır), profil-fotograflari kovası
 // (300 KB webp/jpeg/png, yalnız <uid>/ klasörü; yönetici her dosyayı silebilir). Örnek yanıt: Haber 3'te ayse_19 → burak.
+// 020 (020_mac_gunu.sql): maclar.hakem / yayin_kanali / dizilis / ilk11_aciklandi / on_bilgi_kaynak, mac_oyunculari.dizilis_sira / forma_no,
+// skor_tahminleri (kişi yalnız kendisininkini görür; maç başlamadan; tahmin_ozeti() maç başlayınca), mac_oyuncusu_oylari (tek oy, maç bitince
+// → tarih + 50 saat, yalnız oynayan oyuncuya; mac_oyuncusu_sonuclari()), begeniler (dakikada 30; begeni_sayilari()), puan_durumu (yönetici yazar).
+// Hepsinde giriş + e-posta onayı + yasaklı değil. Test kolu: veri ilk kurulmadan localStorage 'sahte_mac_gunu' = '1' ise M6 eklenir:
+// 3 saat önce biten maç (2-1; diziliş 4-2-3-1, tam kadro, oylama açık, 3 tahmin ve 2 oy), M3'e de 2 tahmin (dağılım M3 başlayınca).
 
 import * as RM from '../assets/reklam/reklam-mantik.js';
 import * as K from '../assets/kurallar.js';
@@ -146,10 +151,12 @@ function baslangicVerisi() {
         ozet_video_url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ', ozet_video_kaynak: 'Örnek yayıncının YouTube kanalı' },
       { id: M(2), rakip: 'Kurgu Gençlik', tarih: gunOnce(7, 13), stadyum: 'Kurgu Arena', ic_saha: false, organizasyon: 'Lig (örnek)', corum_skor: 1, rakip_skor: 1, durum: 'bitti' },
       { id: M(3), rakip: 'Deneme FK', tarih: gunOnce(-5, 16), stadyum: 'Çorum Şehir Stadyumu', ic_saha: true, organizasyon: 'Lig (örnek)', corum_skor: null, rakip_skor: null, durum: 'planlandi',
-        mac_notu: 'Biletler kulübün resmî satış noktalarında. Kapılar maçtan 2 saat önce açılır (örnek).' },
+        mac_notu: 'Biletler kulübün resmî satış noktalarında. Kapılar maçtan 2 saat önce açılır (örnek).',
+        hakem: 'Örnek Hakem', yayin_kanali: 'Örnek Spor TV', on_bilgi_kaynak: 'Kulüp açıklaması (örnek)' }, // 020: maç öncesi paketi
       { id: M(4), rakip: 'Hayal Belediyespor', tarih: gunOnce(-12, 11), stadyum: 'Hayal İlçe Stadı', ic_saha: false, organizasyon: 'Kupa (örnek)', corum_skor: null, rakip_skor: null, durum: 'planlandi' },
       { id: M(5), rakip: 'Eski Rakip', tarih: gunOnce(21, 16), stadyum: 'Eski Stat', ic_saha: false, organizasyon: 'Lig (örnek)', corum_skor: 0, rakip_skor: 2, durum: 'bitti' },
-    ].map((m) => ({ mac_notu: null, on_onay: false, hafta: null, ozet_video_url: null, ozet_video_kaynak: null, ...m, created_at: gunOnce(40), updated_at: gunOnce(40) })),
+      ...macGunuMaclari(), // 020 test kolu sahte_mac_gunu
+    ].map((m) => ({ mac_notu: null, on_onay: false, hafta: null, ozet_video_url: null, ozet_video_kaynak: null, hakem: null, yayin_kanali: null, dizilis: null, ilk11_aciklandi: null, on_bilgi_kaynak: null, ...m, created_at: gunOnce(40), updated_at: gunOnce(40) })),
     goller: [
       { id: G(1), mac_id: M(1), oyuncu: 'Ali Örnek', dakika: 23, ek_dakika: null, penalti: false, video_url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ', video_kaynak: 'Blender Foundation, CC BY 3.0 (örnek video)', altyazi_url: null, aciklama: 'Ceza sahası dışından sert vuruş.', kapak_url: IMG('siklik-kapilari-tabiat-parki'), sure_sn: 42, asist: 'Mehmet Deneme', video_baslangic_sn: 5, video_bitis_sn: 47, created_at: gunOnce(14) }, // 018: asist + gol anı aralığı (42 sn)
       { id: G(2), mac_id: M(1), oyuncu: 'Mehmet Deneme', dakika: 90, ek_dakika: 2, penalti: true, video_url: null, video_kaynak: null, altyazi_url: null, aciklama: null, kapak_url: null, sure_sn: null, created_at: gunOnce(14) },
@@ -162,7 +169,8 @@ function baslangicVerisi() {
       { mac_id: M(1), oyuncu: 'Fikret Forvet', ilk11: false, giris_dk: 70, cikis_dk: null, sari: 0, kirmizi: false },
       { mac_id: M(2), oyuncu: 'Ali Örnek', ilk11: false, giris_dk: 60, cikis_dk: null, sari: 0, kirmizi: false },
       { mac_id: M(2), oyuncu: 'Orhan Ortasaha', ilk11: true, giris_dk: null, cikis_dk: 85, sari: 1, kirmizi: true },
-    ].map((x, i) => ({ id: 'mo-' + (i + 1), ...x })), // id yalnız sahte istemcinin silme işi için (gerçek tabloda birincil anahtar mac_id + oyuncu)
+      ...macGunuKadrosu(), // 020 test kolu sahte_mac_gunu
+    ].map((x, i) => ({ id: 'mo-' + (i + 1), dizilis_sira: null, forma_no: null, ...x })), // id yalnız sahte istemcinin silme işi için (gerçek tabloda birincil anahtar mac_id + oyuncu)
     yorumlar: [
       { id: Y(1), kullanici_id: U.ayse, haber_id: H(1), mac_id: null, metin: 'Harika maçtı! <b>kalın değil</b>', gizli: false, onay_bekliyor: false, gizleme_nedeni: null, moderasyon_zamani: null, created_at: gunOnce(1, 10), duzenlendi: null },
       { id: Y(2), kullanici_id: U.burak, haber_id: H(1), mac_id: null, metin: 'Bu yorum gizlendi (kural dışı).', gizli: true, onay_bekliyor: false, gizleme_nedeni: 'yonetici', moderasyon_zamani: null, created_at: gunOnce(1, 11), duzenlendi: null },
@@ -197,7 +205,45 @@ function baslangicVerisi() {
     reklam_sekme_sayaclari: [], // 014
     reklam_gunluk_toplanan: [], // 015: gece bakımının topladığı günler (sahte modda bakım yok)
     yorum_duzenlemeleri: [],
+    // 020: tahmin, oy, beğeni (kişisel; kişi yalnız kendisininkini görür), puan durumu (uydurma takımlar)
+    skor_tahminleri: macGunuAcik() ? [
+      { mac_id: M(3), kullanici_id: U.burak, corum: 2, rakip: 0 }, { mac_id: M(3), kullanici_id: U.admin, corum: 1, rakip: 1 },
+      { mac_id: M(6), kullanici_id: U.ayse, corum: 2, rakip: 1 }, { mac_id: M(6), kullanici_id: U.burak, corum: 2, rakip: 1 }, { mac_id: M(6), kullanici_id: U.admin, corum: 1, rakip: 1 },
+    ].map((t) => ({ id: t.mac_id + ':' + t.kullanici_id, ...t, created_at: gunOnce(1), updated_at: gunOnce(1) })) : [],
+    mac_oyuncusu_oylari: macGunuAcik() ? [
+      { mac_id: M(6), kullanici_id: U.burak, oyuncu: 'Ali Örnek' }, { mac_id: M(6), kullanici_id: U.admin, oyuncu: 'Kemal Kaleci' },
+    ].map((o) => ({ id: o.mac_id + ':' + o.kullanici_id, ...o, created_at: new Date().toISOString() })) : [],
+    begeniler: [
+      { hedef_tur: 'haber', hedef_id: H(1), kullanici_id: U.burak }, { hedef_tur: 'haber', hedef_id: H(1), kullanici_id: U.admin },
+      { hedef_tur: 'gol', hedef_id: G(1), kullanici_id: U.burak },
+    ].map((b) => ({ id: b.hedef_tur + ':' + b.hedef_id + ':' + b.kullanici_id, ...b, created_at: gunOnce(1) })),
+    begeni_zamanlari: [],
+    puan_durumu: [
+      ['Örnekköy Spor', 10, 7, 2, 1, 19, 7, 23], ['Kurgu Gençlik', 10, 6, 3, 1, 17, 8, 21], ['Model Spor', 10, 6, 2, 2, 15, 9, 20],
+      ['Deneme FK', 10, 5, 3, 2, 14, 10, 18], ['Çorum FK', 10, 5, 2, 3, 16, 12, 17], ['Hayal Belediyespor', 10, 4, 4, 2, 12, 10, 16],
+      ['Prova FK', 10, 4, 2, 4, 11, 12, 14], ['Eski Rakip', 10, 3, 3, 4, 10, 13, 12], ['Taslak İdmanyurdu', 10, 2, 3, 5, 8, 15, 9], ['Sanal Gücü', 10, 1, 2, 7, 6, 20, 5],
+    ].map(([takim, oynanan, galibiyet, beraberlik, maglubiyet, atilan, yenen, puan], i) => ({
+      id: K.sezonAdi(new Date().toISOString()) + ':' + takim, sezon: K.sezonAdi(new Date().toISOString()), sira: i + 1, takim, oynanan, galibiyet, beraberlik, maglubiyet, atilan, yenen, puan,
+      guncellendi: gunOnce(1), kaynak: 'Lig sitesi (örnek)' })),
   };
+}
+
+// 020 test kolu: localStorage 'sahte_mac_gunu' = '1' (veri ilk kurulmadan) → M6: 3 saat önce biten maç (oylama açık, diziliş, tahmin dağılımı)
+function macGunuAcik() { try { return localStorage.getItem('sahte_mac_gunu') === '1'; } catch (e) { return false; } }
+function macGunuMaclari() {
+  if (!macGunuAcik()) return [];
+  return [{ id: M(6), rakip: 'Yakın Rakip', tarih: new Date(Date.now() - 3 * 3600e3).toISOString(), stadyum: 'Çorum Şehir Stadyumu', ic_saha: true, organizasyon: 'Lig (örnek)',
+    corum_skor: 2, rakip_skor: 1, durum: 'bitti', hafta: 11, dizilis: '4-2-3-1', ilk11_aciklandi: new Date(Date.now() - 4 * 3600e3).toISOString(),
+    hakem: 'Örnek Hakem', yayin_kanali: 'Örnek Spor TV', on_bilgi_kaynak: 'Kulüp açıklaması (örnek)' }];
+}
+function macGunuKadrosu() {
+  if (!macGunuAcik()) return [];
+  const ilk = ['Kemal Kaleci', 'Barış Bek', 'Deniz Defans', 'Sağlam Stoper', 'Kanat Bek', 'Orhan Ortasaha', 'Mehmet Deneme', 'Sol Kanat', 'Ali Örnek', 'Sağ Kanat', 'Fikret Forvet'];
+  const no = [1, 2, 4, 5, 3, 8, 6, 7, 10, 17, 9];
+  return [
+    ...ilk.map((oyuncu, i) => ({ mac_id: M(6), oyuncu, ilk11: true, giris_dk: null, cikis_dk: oyuncu === 'Sağ Kanat' ? 72 : null, sari: oyuncu === 'Mehmet Deneme' ? 1 : 0, kirmizi: false, dizilis_sira: i + 1, forma_no: no[i] })),
+    { mac_id: M(6), oyuncu: 'Yedek Forvet', ilk11: false, giris_dk: 72, cikis_dk: null, sari: 0, kirmizi: false, forma_no: 19 },
+  ];
 }
 
 // ------------------------------------------------------------------ depolama
@@ -206,7 +252,7 @@ function dbOku() {
     const s = localStorage.getItem(DB_ANAHTAR);
     if (s) {
       const db = JSON.parse(s);
-      for (const k of ['reklamlar', 'reklam_olaylari', 'reklam_sinir_dakikalari', 'yorum_duzenlemeleri', 'oyuncular', 'sakatliklar', 'yorum_sikayetleri', 'yorum_kelimeleri', 'reklam_yerlesimleri', 'reklam_sekme_sayaclari', 'reklam_gunluk_toplanan', 'mac_oyunculari', 'rakip_goller']) db[k] = db[k] || [];
+      for (const k of ['reklamlar', 'reklam_olaylari', 'reklam_sinir_dakikalari', 'yorum_duzenlemeleri', 'oyuncular', 'sakatliklar', 'yorum_sikayetleri', 'yorum_kelimeleri', 'reklam_yerlesimleri', 'reklam_sekme_sayaclari', 'reklam_gunluk_toplanan', 'mac_oyunculari', 'rakip_goller', 'skor_tahminleri', 'mac_oyuncusu_oylari', 'begeniler', 'begeni_zamanlari', 'puan_durumu']) db[k] = db[k] || [];
       return db;
     }
   } catch (e) {}
@@ -297,6 +343,11 @@ class Sorgu {
   neq(k, v) { this.filtreler.push((r) => r[k] !== v); return this; }
   in(k, l) { this.filtreler.push((r) => l.includes(r[k])); return this; }
   is(k, v) { this.filtreler.push((r) => (v === null ? r[k] == null : r[k] === v)); return this; }
+  ilike(k, desen) { // 020: PostgREST ilike (% joker; büyük/küçük harf yok sayılır)
+    const parca = String(desen).split('%').map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const d = new RegExp('^' + parca.join('.*') + '$', 'i');
+    this.filtreler.push((r) => d.test(String(r[k] ?? '').toLocaleLowerCase('tr')) || d.test(String(r[k] ?? ''))); return this;
+  }
   gte(k, v) { this.filtreler.push((r) => r[k] != null && karsilastir(r[k], v) >= 0); return this; }
   gt(k, v) { this.filtreler.push((r) => r[k] != null && karsilastir(r[k], v) > 0); return this; }
   lte(k, v) { this.filtreler.push((r) => r[k] != null && karsilastir(r[k], v) <= 0); return this; }
@@ -330,6 +381,7 @@ class Sorgu {
     if (tablo === 'haberler') return r.yayinda || ctx.admin;
     if (tablo === 'reklamlar' || tablo === 'reklam_olaylari' || tablo === 'yorum_sikayetleri' || tablo === 'yorum_kelimeleri' || tablo === 'reklam_gunluk_toplanan') return ctx.admin; // RLS: yalnız yönetici okur
     if (tablo === 'oyuncular') return r.aktif || ctx.admin;        // 013
+    if (tablo === 'skor_tahminleri' || tablo === 'mac_oyuncusu_oylari' || tablo === 'begeniler') return !!ctx.uid && r.kullanici_id === ctx.uid; // 020: yalnız kendisininki
     if (tablo === 'sakatliklar') return r.yayinda || ctx.admin;    // 013: ziyaretçi yalnız yayındakini görür
     if (tablo === 'yorumlar') {
       const haberAcik = !r.haber_id || (db.haberler.find((x) => x.id === r.haber_id) || {}).yayinda;
@@ -389,8 +441,8 @@ class Sorgu {
         if (!ctx.admin) throw rlsHatasi(this.t);
         if (this.t === 'rakip_goller') { Object.assign(r, { ek_dakika: r.ek_dakika ?? null, penalti: !!r.penalti, kendi_kalesine: !!r.kendi_kalesine }); rakipGolDogrula(r); } // 019
         if (this.t === 'mac_oyunculari') { // 018: birincil anahtar (mac_id, oyuncu)
-          Object.assign(r, { ilk11: !!r.ilk11, giris_dk: r.giris_dk ?? null, cikis_dk: r.cikis_dk ?? null, sari: r.sari ?? 0, kirmizi: !!r.kirmizi });
-          macOyuncusuDogrula(r);
+          Object.assign(r, { ilk11: !!r.ilk11, giris_dk: r.giris_dk ?? null, cikis_dk: r.cikis_dk ?? null, sari: r.sari ?? 0, kirmizi: !!r.kirmizi, dizilis_sira: r.dizilis_sira ?? null, forma_no: r.forma_no ?? null });
+          macOyuncusuDogrula(r, db);
           if (db.mac_oyunculari.some((x) => x.mac_id === r.mac_id && x.oyuncu === r.oyuncu)) throw { code: '23505', message: 'duplicate key value violates unique constraint "mac_oyunculari_pkey"' };
           delete r.created_at;
         }
@@ -461,6 +513,35 @@ class Sorgu {
         const sonra = [...db.yorum_sikayetleri, r].filter((x) => x.yorum_id === r.yorum_id && (!y.moderasyon_zamani || x.created_at > y.moderasyon_zamani) && eskiHesap(x.sikayet_eden, x.created_at));
         const yazanYonetici = (db.profiles.find((x) => x.id === y.kullanici_id) || {}).role === 'admin';
         if (!y.gizli && !yazanYonetici && new Set(sonra.map((x) => x.sikayet_eden)).size >= K.SIKAYET_SINIRLARI.otomatikGizlemeEsigi) Object.assign(y, { gizli: true, gizleme_nedeni: 'sikayet' });
+      } else if (this.t === 'skor_tahminleri') { // 020 skor_tahmini_kontrol
+        hesapKontrol(ctx, 'Tahmin');
+        if (!K.tahminAcik(db.maclar.find((m) => m.id === r.mac_id))) throw { code: 'P0001', message: 'Maç başladı (ya da oynandı): tahminler kilitlendi.', hint: 'tahmin_kilit' };
+        tahminDogrula(r);
+        if (db.skor_tahminleri.some((x) => x.mac_id === r.mac_id && x.kullanici_id === ctx.uid)) throw { code: '23505', message: 'duplicate key value violates unique constraint "skor_tahminleri_pkey"' };
+        Object.assign(r, { id: r.mac_id + ':' + ctx.uid, kullanici_id: ctx.uid, created_at: simdi(), updated_at: simdi() });
+      } else if (this.t === 'mac_oyuncusu_oylari') { // 020 mac_oyuncusu_oyu_kontrol
+        hesapKontrol(ctx, 'Oy vermek');
+        r.oyuncu = String(r.oyuncu ?? '').trim().replace(/\s+/g, ' ');
+        if (K.oyDurumu(db.maclar.find((m) => m.id === r.mac_id)) !== 'acik') throw { code: 'P0001', message: 'Bu maçın oylaması açık değil (maç bitince açılır, 48 saat sürer).', hint: 'oy_penceresi' };
+        if (!db.mac_oyunculari.some((k) => k.mac_id === r.mac_id && k.oyuncu === r.oyuncu && K.macaCikti(k))) throw gecersiz('Yalnız bu maçta oynayan bir Çorum FK oyuncusuna oy verebilirsin.');
+        if (db.mac_oyuncusu_oylari.some((x) => x.mac_id === r.mac_id && x.kullanici_id === ctx.uid)) throw { code: '23505', message: 'Bu maç için oyunu zaten verdin.', hint: 'oy_tek' };
+        Object.assign(r, { id: r.mac_id + ':' + ctx.uid, kullanici_id: ctx.uid, created_at: simdi() });
+      } else if (this.t === 'begeniler') { // 020 begeni_kontrol
+        hesapKontrol(ctx, 'Beğenmek');
+        if (r.hedef_tur === 'haber' && !(db.haberler.find((x) => x.id === r.hedef_id) || {}).yayinda) throw gecersiz('Haber bulunamadı.');
+        if (r.hedef_tur === 'gol' && !db.goller.some((x) => x.id === r.hedef_id)) throw gecersiz('Gol bulunamadı.');
+        if (!['haber', 'gol'].includes(r.hedef_tur)) throw kisitHatasi('begeniler', 'begeniler_hedef_tur');
+        db.begeni_zamanlari = db.begeni_zamanlari.filter((x) => Date.now() - Date.parse(x.zaman) < 60000);
+        if (db.begeni_zamanlari.filter((x) => x.kullanici_id === ctx.uid).length >= 30) throw { code: 'P0001', message: 'Çok hızlı beğeniyorsun: dakikada en çok 30. Biraz bekleyip yeniden dene.', hint: 'begeni_siniri' };
+        db.begeni_zamanlari.push({ kullanici_id: ctx.uid, zaman: simdi() });
+        if (db.begeniler.some((x) => x.hedef_tur === r.hedef_tur && x.hedef_id === r.hedef_id && x.kullanici_id === ctx.uid)) throw { code: '23505', message: 'duplicate key value violates unique constraint "begeniler_pkey"' };
+        Object.assign(r, { id: r.hedef_tur + ':' + r.hedef_id + ':' + ctx.uid, kullanici_id: ctx.uid, created_at: simdi() });
+      } else if (this.t === 'puan_durumu') { // 020: yalnız yönetici
+        if (!ctx.admin) throw rlsHatasi(this.t);
+        puanDogrula(r);
+        if (db.puan_durumu.some((x) => x.sezon === r.sezon && x.takim === r.takim)) throw { code: '23505', message: 'duplicate key value violates unique constraint "puan_durumu_pkey"' };
+        Object.assign(r, { id: r.sezon + ':' + r.takim, guncellendi: r.guncellendi || simdi(), kaynak: r.kaynak ?? null });
+        delete r.created_at;
       } else if (this.t === 'reklamlar') {
         if (!ctx.admin) throw rlsHatasi(this.t);
         const an = reklamSimdi().toISOString();
@@ -524,9 +605,17 @@ class Sorgu {
       if (this.t === 'goller') { const ara = { ...r, ...v }; golDogrula(ara, r); v.asist = ara.asist; }
       if (this.t === 'rakip_goller') { const ara = { ...r, ...v }; rakipGolDogrula(ara); v.oyuncu = ara.oyuncu; } // 019
       if (this.t === 'oyuncular') { const ara = { ...r, ...v }; piyasaDogrula(ara); if ('piyasa_degeri_kaynak' in v) v.piyasa_degeri_kaynak = ara.piyasa_degeri_kaynak; } // 019
-      if (this.t === 'mac_oyunculari') { const ara = { ...r, ...v }; macOyuncusuDogrula(ara); if (ara.oyuncu !== r.oyuncu && db.mac_oyunculari.some((x) => x !== r && x.mac_id === ara.mac_id && x.oyuncu === ara.oyuncu)) throw { code: '23505', message: 'duplicate key value violates unique constraint "mac_oyunculari_pkey"' }; v.oyuncu = ara.oyuncu; }
+      if (this.t === 'mac_oyunculari') { const ara = { ...r, ...v }; macOyuncusuDogrula(ara, db, r); if (ara.oyuncu !== r.oyuncu && db.mac_oyunculari.some((x) => x !== r && x.mac_id === ara.mac_id && x.oyuncu === ara.oyuncu)) throw { code: '23505', message: 'duplicate key value violates unique constraint "mac_oyunculari_pkey"' }; v.oyuncu = ara.oyuncu; }
       if (this.t === 'haberler') { const ara = { ...r, ...v }; haberDogrula(ara, r); Object.assign(v, { kaynak: ara.kaynak, kaynak_url: ara.kaynak_url, duzeltme_notu: ara.duzeltme_notu, duzeltme_tarihi: ara.duzeltme_tarihi, kapak_alt: ara.kapak_alt, kaynak_gerekli: ara.kaynak_gerekli }); }
-      if (this.t === 'maclar') macDogrula({ ...r, ...v });
+      if (this.t === 'maclar') { const ara = { ...r, ...v }; macDogrula(ara); for (const k of ['hakem', 'yayin_kanali', 'dizilis', 'on_bilgi_kaynak']) if (k in v) v[k] = ara[k]; }
+      if (this.t === 'skor_tahminleri') { // 020: maç başlamadan; sahibi ve maçı değişmez
+        if (!K.tahminAcik(db.maclar.find((m) => m.id === r.mac_id))) throw { code: 'P0001', message: 'Maç başladı (ya da oynandı): tahminler kilitlendi.', hint: 'tahmin_kilit' };
+        hesapKontrol(ctx, 'Tahmin');
+        tahminDogrula({ ...r, ...v });
+        Object.assign(v, { mac_id: r.mac_id, kullanici_id: r.kullanici_id, created_at: r.created_at, updated_at: simdi() });
+      }
+      if (this.t === 'mac_oyuncusu_oylari') throw { code: '42501', message: 'permission denied for table mac_oyuncusu_oylari' }; // 020: oy değiştirilemez
+      if (this.t === 'puan_durumu') { const ara = { ...r, ...v }; puanDogrula(ara); v.takim = ara.takim; v.kaynak = ara.kaynak; }
       if (this.t === 'oyuncular' && 'foto_url' in v && !K.kapakAdresiGecerli(v.foto_url)) throw { code: '23514', message: 'new row for relation "oyuncular" violates check constraint "oyuncular_foto_kaynagi"' };
       if (this.t === 'profiles' && 'kullanici_adi' in v && v.kullanici_adi !== r.kullanici_adi && K.kullaniciAdiAyrilmis(v.kullanici_adi)) throw { code: '22023', message: 'Bu kullanıcı adı kullanılamaz: yönetici, resmî hesap ya da kulüp gibi görünen adlar ayrılmıştır.' };
       if (this.t === 'profiles') { // 015: ad değiştirme 7 günde bir (yönetici muaf); ad_degisti'yi kişi yazamaz
@@ -554,15 +643,19 @@ class Sorgu {
   }
 
   _delete(db, ctx) {
+    if (this.t === 'skor_tahminleri' || this.t === 'mac_oyuncusu_oylari') throw { code: '42501', message: 'permission denied for table ' + this.t }; // 020
     const hedefler = this.sec(db, ctx).filter((r) => this.yazabilir(ctx, r));
     const silinen = new Set(hedefler.map((r) => r.id));
     db[this.t] = db[this.t].filter((r) => !silinen.has(r.id));
     // basamaklı silme
     if (this.t === 'haberler') db.yorumlar = db.yorumlar.filter((y) => !silinen.has(y.haber_id));
+    if (this.t === 'haberler' || this.t === 'goller') db.begeniler = db.begeniler.filter((b) => !(b.hedef_tur === (this.t === 'haberler' ? 'haber' : 'gol') && silinen.has(b.hedef_id))); // 020
     if (this.t === 'maclar') {
       const golIdleri = new Set(db.goller.filter((g) => silinen.has(g.mac_id)).map((g) => g.id));
       db.mac_oyunculari = db.mac_oyunculari.filter((x) => !silinen.has(x.mac_id)); // 018
       db.rakip_goller = db.rakip_goller.filter((x) => !silinen.has(x.mac_id)); // 019
+      db.skor_tahminleri = db.skor_tahminleri.filter((x) => !silinen.has(x.mac_id)); db.mac_oyuncusu_oylari = db.mac_oyuncusu_oylari.filter((x) => !silinen.has(x.mac_id)); // 020
+      db.begeniler = db.begeniler.filter((b) => !(b.hedef_tur === 'gol' && golIdleri.has(b.hedef_id)));
       db.goller = db.goller.filter((g) => !silinen.has(g.mac_id)); db.yorumlar = db.yorumlar.filter((y) => !silinen.has(y.mac_id) && !golIdleri.has(y.gol_id));
       const reklamlar = new Set(db.reklamlar.filter((x) => silinen.has(x.mac_id)).map((x) => x.id)); // maça özel sponsorluk da gider
       db.reklamlar = db.reklamlar.filter((x) => !reklamlar.has(x.id));
@@ -581,7 +674,8 @@ class Sorgu {
   }
 
   yazabilir(ctx, r) {
-    if (['haberler', 'maclar', 'goller', 'reklamlar', 'oyuncular', 'sakatliklar', 'yorum_sikayetleri', 'yorum_kelimeleri', 'mac_oyunculari', 'rakip_goller'].includes(this.t)) return ctx.admin;
+    if (['haberler', 'maclar', 'goller', 'reklamlar', 'oyuncular', 'sakatliklar', 'yorum_sikayetleri', 'yorum_kelimeleri', 'mac_oyunculari', 'rakip_goller', 'puan_durumu'].includes(this.t)) return ctx.admin;
+    if (['skor_tahminleri', 'begeniler'].includes(this.t)) return !!ctx.uid && r.kullanici_id === ctx.uid; // 020
     if (this.t === 'yorumlar') return !!ctx.uid && (r.kullanici_id === ctx.uid || ctx.admin);
     if (this.t === 'profiles') return !!ctx.uid && (r.id === ctx.uid || ctx.admin);
     return false;
@@ -647,8 +741,12 @@ function piyasaDogrula(r) {
   if (r.piyasa_degeri_kaynak != null && (r.piyasa_degeri_kaynak.length < 2 || r.piyasa_degeri_kaynak.length > 80)) throw kisitHatasi('oyuncular', 'oyuncular_piyasa_degeri');
   if (r.piyasa_degeri_eur != null && (!r.piyasa_degeri_tarih || !r.piyasa_degeri_kaynak)) throw gecersiz('Piyasa değeri girildiyse tarihini ve kaynağını da yazın.');
 }
-function macOyuncusuDogrula(r) {
+function macOyuncusuDogrula(r, db = null, eski = null) {
   r.oyuncu = String(r.oyuncu ?? '').trim().replace(/\s+/g, ' ');
+  // 020: diziliş sırası yalnız ilk 11'de (1-11, maçta tek), forma no 1-99
+  if (r.dizilis_sira != null && (!r.ilk11 || !(Number.isInteger(r.dizilis_sira) && r.dizilis_sira >= 1 && r.dizilis_sira <= 11))) throw gecersiz("Diziliş sırası yalnız ilk 11'deki oyuncuya verilir (1-11; kaleci 1).");
+  if (r.dizilis_sira != null && db && db.mac_oyunculari.some((x) => x !== eski && x.mac_id === r.mac_id && x.dizilis_sira === r.dizilis_sira)) throw { code: '23505', message: 'Bu maçta ' + r.dizilis_sira + ' numaralı yerde başka bir oyuncu var.', hint: 'dizilis_sira' };
+  if (r.forma_no != null && !(Number.isInteger(r.forma_no) && r.forma_no >= 1 && r.forma_no <= 99)) throw gecersiz('Forma numarası 1-99 arasında olmalı.');
   if (r.oyuncu.length < 2 || r.oyuncu.length > 80) throw kisitHatasi('mac_oyunculari', 'mac_oyunculari_oyuncu');
   if (r.ilk11 && r.giris_dk != null) throw gecersiz("İlk 11'deki oyuncunun giriş dakikası olmaz.");
   for (const k of ['giris_dk', 'cikis_dk']) if (r[k] != null && !(Number.isInteger(r[k]) && r[k] >= 0 && r[k] <= 130)) throw kisitHatasi('mac_oyunculari', 'mac_oyunculari_dakika');
@@ -662,6 +760,28 @@ function macDogrula(r) {
   if (!K.golVideoGecerli(r.ozet_video_url ?? null)) throw kisitHatasi('maclar', 'maclar_ozet_video');
   if (r.ozet_video_url && !r.ozet_video_kaynak) throw gecersiz('Özet videonun kaynağını yazın (ör. "beIN SPORTS Türkiye YouTube kanalı").');
   if (r.mac_notu != null && (String(r.mac_notu).trim().length < 2 || String(r.mac_notu).trim().length > 280)) throw kisitHatasi('maclar', 'maclar_mac_notu');
+  // 020 (mac_gunu_kontrol + maclar_mac_gunu)
+  for (const k of ['hakem', 'yayin_kanali', 'on_bilgi_kaynak']) if (typeof r[k] === 'string') r[k] = r[k].trim().replace(/\s+/g, ' ') || null;
+  if (typeof r.dizilis === 'string') r.dizilis = r.dizilis.replace(/\s+/g, '') || null;
+  const dh = K.dizilisHatasi(r.dizilis ?? null);
+  if (dh) throw gecersiz(dh);
+  for (const [k, en] of [['hakem', 80], ['yayin_kanali', 80], ['on_bilgi_kaynak', 120]]) if (r[k] != null && (r[k].length < 2 || r[k].length > en)) throw kisitHatasi('maclar', 'maclar_mac_gunu');
+}
+/** 020: tahmin, oy ve beğeni için hesap şartı (SQL etkilesim_hesap_kontrol). */
+function hesapKontrol(ctx, ne) {
+  if (!ctx.uid) throw { code: '42501', message: ne + ' için giriş yap.', hint: 'giris' };
+  if (!ctx.onayli) throw { code: '42501', message: ne + ' için e-posta adresini onayla: hesap açarken gelen e-postadaki bağlantıya tıkla.', hint: 'eposta_onayi' };
+  if (ctx.engelli) throw { code: '42501', message: 'Hesabın topluluk kuralları nedeniyle kapatıldı; bu işlemi yapamazsın.', hint: 'engelli' };
+}
+function tahminDogrula(r) {
+  for (const k of ['corum', 'rakip']) if (!(Number.isInteger(r[k]) && r[k] >= 0 && r[k] <= K.TAHMIN_SINIRI)) throw gecersiz('Skor 0 ile 20 arasında olmalı.');
+}
+function puanDogrula(r) {
+  r.takim = String(r.takim ?? '').trim().replace(/\s+/g, ' ');
+  r.kaynak = typeof r.kaynak === 'string' ? r.kaynak.trim() || null : r.kaynak ?? null;
+  for (const k of ['oynanan', 'galibiyet', 'beraberlik', 'maglubiyet', 'atilan', 'yenen', 'puan']) r[k] = r[k] ?? 0;
+  if (!/^\d{4}-\d{2}$/.test(r.sezon || '') || !(Number.isInteger(r.sira) && r.sira >= 1 && r.sira <= 40) || r.takim.length < 2 || r.takim.length > 80) throw kisitHatasi('puan_durumu', 'puan_durumu_alanlar');
+  if (r.galibiyet + r.beraberlik + r.maglubiyet !== r.oynanan) throw gecersiz(r.takim + ': oynanan maç sayısı galibiyet + beraberlik + mağlubiyet olmalı.');
 }
 /** 014 yorum_onay_gerekli: kelime listesi ya da maçın (gol yorumunda golün maçının) ön onay penceresi. */
 function onayGerekliMi(db, y) {
@@ -710,6 +830,28 @@ function rpcCalistir(db, ctx, ad, p) {
   if (ad === 'engelli_kullanicilar') {
     if (!ctx.admin) throw { code: '42501', message: 'Bu listeyi yalnızca yöneticiler görebilir.' };
     return { data: db.profiles.filter((p) => p.engelli).map((p) => p.id), error: null };
+  }
+  // 020: tahmin dağılımı (yalnız maç başlayınca), maçın oyuncusu sonucu, toplu beğeni sayımı
+  if (ad === 'tahmin_ozeti') {
+    const m = db.maclar.find((x) => x.id === p.p_mac_id);
+    const t = m && !K.tahminAcik(m) ? db.skor_tahminleri.filter((x) => x.mac_id === m.id) : [];
+    if (!t.length) return { data: [], error: null };
+    const n = t.length, yuzde = (k) => Math.round((100 * k) / n);
+    const say = new Map();
+    for (const x of t) { const k = x.corum + '-' + x.rakip; say.set(k, { corum: x.corum, rakip: x.rakip, sayi: ((say.get(k) || {}).sayi || 0) + 1 }); }
+    const skorlar = [...say.values()].sort((a, b) => b.sayi - a.sayi || b.corum - a.corum || a.rakip - b.rakip).slice(0, 3).map((x) => ({ corum: x.corum, rakip: x.rakip, yuzde: yuzde(x.sayi) }));
+    return { data: [{ toplam: n, galibiyet: yuzde(t.filter((x) => x.corum > x.rakip).length), beraberlik: yuzde(t.filter((x) => x.corum === x.rakip).length), maglubiyet: yuzde(t.filter((x) => x.corum < x.rakip).length), skorlar }], error: null };
+  }
+  if (ad === 'mac_oyuncusu_sonuclari') {
+    const o = db.mac_oyuncusu_oylari.filter((x) => x.mac_id === p.p_mac_id);
+    const say = new Map();
+    for (const x of o) say.set(x.oyuncu, (say.get(x.oyuncu) || 0) + 1);
+    return { data: [...say].map(([oyuncu, oy]) => ({ oyuncu, oy, yuzde: Math.round((100 * oy) / o.length), toplam: o.length })).sort((a, b) => b.oy - a.oy || a.oyuncu.localeCompare(b.oyuncu)), error: null };
+  }
+  if (ad === 'begeni_sayilari') {
+    if (!['haber', 'gol'].includes(p.p_tur)) return { data: [], error: null };
+    const idler = [...new Set((p.p_idler || []).slice(0, 100))].filter((id) => p.p_tur !== 'haber' || ctx.admin || (db.haberler.find((x) => x.id === id) || {}).yayinda);
+    return { data: idler.map((id) => { const l = db.begeniler.filter((b) => b.hedef_tur === p.p_tur && b.hedef_id === id); return { hedef_id: id, sayi: l.length, benim: !!ctx.uid && l.some((b) => b.kullanici_id === ctx.uid) }; }), error: null };
   }
   if (ad === 'benim_profilim') { // 012: kişinin kendi profili (rol dahil); başkasınınki yok
     const pr = ctx.uid ? db.profiles.find((x) => x.id === ctx.uid) : null;

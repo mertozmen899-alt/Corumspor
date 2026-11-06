@@ -546,3 +546,48 @@ test('019: SW yeni sürüm notu, konum koruma ve "Golü tekrar izle" kaynakta (o
   for (const s of ['takim', 'mac']) assert.match(readFileSync(path.join(KOK, s + '.html'), 'utf8'), /<link rel="modulepreload" href="assets\/takvim\.js">/);
   assert.match(readFileSync(path.join(KOK, 'sw.js'), 'utf8'), /'assets\/takvim\.js'/);
 });
+
+test('maç günü (020): form, rakiple bu sezon, lig maçı', () => {
+  const m = (id, gun, c, r, org = 'Lig', rakip = 'A Spor') => ({ id, tarih: `2026-${gun}T16:00:00Z`, durum: 'bitti', corum_skor: c, rakip_skor: r, organizasyon: org, rakip });
+  const l = [m(1, '08-10', 2, 1), m(2, '08-17', 0, 0), m(3, '08-24', 0, 1, 'Türkiye Kupası'), m(4, '08-31', 1, 3, 'Lig', 'B Spor'), m(5, '09-07', 3, 0),
+    m(6, '09-14', 1, 1), m(7, '09-21', 2, 0, 'Lig', 'A Spor'), { id: 8, tarih: '2026-09-28T16:00:00Z', durum: 'planlandi', corum_skor: null, rakip_skor: null, rakip: 'A Spor' }];
+  assert.deepEqual(K.formDizisi(l).map((x) => x.harf).join(''), 'BMGBG', 'son 5 lig maçı, eskiden yeniye; kupa ve oynanmamış maç sayılmaz');
+  assert.equal(K.ligMaciMi({ organizasyon: 'Hazırlık maçı' }), false);
+  assert.equal(K.ligMaciMi({ organizasyon: null }), true);
+  assert.deepEqual(K.rakipleSezon(l, 'a spor', '2026-27', 7).map((x) => x.id), [1, 2, 3, 5, 6]);
+  assert.deepEqual(K.rakipleSezon(l, 'A Spor', '2025-26').map((x) => x.id), []);
+});
+
+test('maç günü (020): diziliş (SQL mac_gunu_kontrol aynası) ve sahadaki satırlar', () => {
+  assert.equal(K.dizilisHatasi('4-2-3-1'), null);
+  assert.match(K.dizilisHatasi('4-4-3'), /toplamı 10/);
+  assert.match(K.dizilisHatasi('4-2-3-1-0-0'), /4-2-3-1/);
+  assert.match(K.dizilisHatasi('dört'), /4-2-3-1/);
+  const kadro = Array.from({ length: 11 }, (_, i) => ({ oyuncu: 'O' + (i + 1), ilk11: true, dizilis_sira: i + 1 })).concat([{ oyuncu: 'Yedek', ilk11: false, giris_dk: 70 }]);
+  const s = K.dizilisSatirlari('4-3-3', kadro);
+  assert.deepEqual(s.map((x) => x.map((o) => o.oyuncu).join(',')), ['O1', 'O2,O3,O4,O5', 'O6,O7,O8', 'O9,O10,O11']);
+  assert.equal(K.dizilisSatirlari('4-3-3', kadro.slice(1)), null, '11 kişi değilse düz liste');
+  assert.equal(K.dizilisSatirlari('4-3-3', kadro.map((o) => (o.oyuncu === 'O5' ? { ...o, dizilis_sira: 4 } : o))), null, 'aynı yer iki kez');
+  assert.equal(K.dizilisSatirlari(null, kadro), null);
+});
+
+test('maç günü (020): tahmin kilidi ve maçın oyuncusu penceresi (SQL tahmin_acik / oy_penceresi_acik aynası)', () => {
+  const simdi = Date.parse('2026-11-06T12:00:00Z');
+  assert.equal(K.tahminAcik({ durum: 'planlandi', tarih: '2026-11-06T13:00:00Z' }, simdi), true);
+  assert.equal(K.tahminAcik({ durum: 'planlandi', tarih: '2026-11-06T11:59:00Z' }, simdi), false, 'başlama saati geçti');
+  assert.equal(K.tahminAcik({ durum: 'canli', tarih: '2026-11-06T13:00:00Z' }, simdi), false);
+  assert.equal(K.oyDurumu({ durum: 'canli', tarih: '2026-11-06T10:00:00Z' }, simdi), 'once');
+  assert.equal(K.oyDurumu({ durum: 'bitti', tarih: '2026-11-04T11:00:00Z' }, simdi), 'acik', '49 saat: açık');
+  assert.equal(K.oyDurumu({ durum: 'bitti', tarih: '2026-11-04T09:00:00Z' }, simdi), 'kapandi', '51 saat: kapandı');
+  assert.equal(K.oyKapanisi({ tarih: '2026-11-04T09:00:00Z' }), '2026-11-06T11:00:00.000Z');
+});
+
+test('maç günü (020): puan durumu (Çorum FK satırı, çevresi, yapıştırılan tablo)', () => {
+  assert.ok(K.bizMiyiz('ÇORUM FK') && K.bizMiyiz('Corum Futbol Kulübü') && !K.bizMiyiz('Örnekköy Spor'));
+  const t = Array.from({ length: 10 }, (_, i) => ({ sira: i + 1, takim: i === 8 ? 'Çorum FK' : 'T' + (i + 1) }));
+  assert.deepEqual(K.puanCevresi(t).map((x) => x.sira), [6, 7, 8, 9, 10], 'sonda kayar');
+  assert.deepEqual(K.puanCevresi(t.map((x, i) => (i === 4 ? { ...x, takim: 'Çorum FK' } : { ...x, takim: 'T' + x.sira }))).map((x) => x.sira), [3, 4, 5, 6, 7]);
+  const r = K.puanTablosuAyristir('1. Örnekköy Spor 10 7 2 1 19:7 +12 23\n2\tÇorum FK\t10\t5\t2\t3\t16\t12\t17\nHatalı FK 10 1 1 1 5 5 4\nbozuk');
+  assert.deepEqual(r.satirlar.map((s) => `${s.sira}.${s.takim}:${s.oynanan}/${s.atilan}-${s.yenen}/${s.puan}`), ['1.Örnekköy Spor:10/19-7/23', '2.Çorum FK:10/16-12/17']);
+  assert.equal(r.hatalar.length, 2);
+});

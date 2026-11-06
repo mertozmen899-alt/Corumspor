@@ -34,6 +34,7 @@
 <link rel="modulepreload" href="assets/reklam-yukle.js">
 <link rel="modulepreload" href="assets/onbellek.js">
 <link rel="modulepreload" href="assets/gol-kart.js">
+<link rel="modulepreload" href="assets/mac-gunu.js">
 <link rel="modulepreload" href="assets/reklam/reklam.js">
 <link rel="modulepreload" href="assets/reklam/reklam-mantik.js">
 <script type="module" src="assets/sayfa/ana.js"></script>
@@ -43,7 +44,7 @@
 <header class="ust">
   <div class="ust-bar">
     <div class="ust-sol"></div>
-    <a class="logo" href="index.html" aria-label="Çorumspor Taraftar ana sayfa"><span class="amblem"><img data-amblem src="assets/logo/amblem-yedek.svg" alt="" width="34" height="34"></span><span class="logo-ad">Çorumspor Taraftar</span></a>
+    <a class="logo" href="index.html" aria-label="Çorumspor Taraftar ana sayfa"><span class="amblem"><img data-amblem src="assets/logo/corum-fk-amblem.svg" alt="" width="34" height="34"></span><span class="logo-ad">Çorumspor Taraftar</span></a>
     <div class="ust-sag" id="oturum-alani"><a class="ikon-dugme" href="profil.html" id="profil-baglanti"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg><span class="gorunmez">Profil</span></a></div>
   </div>
 </header>
@@ -52,17 +53,19 @@
 <h1 class="gorunmez">Ana Sayfa</h1>
 <section class="hero" id="hero" aria-labelledby="hero-baslik">
   <picture>
-    <img class="hero-gorsel" id="hero-gorsel" src="assets/img/tribun-kirmizi-siyah.svg" sizes="100vw" width="1280" height="720" alt="" fetchpriority="high" decoding="async">
+    <source media="(min-width: 600px)" srcset="assets/img/hero-zemin-genis.svg" width="1600" height="640">
+    <img class="hero-gorsel" id="hero-gorsel" src="assets/img/hero-zemin-dikey.svg" sizes="100vw" width="800" height="1000" alt="" fetchpriority="high" decoding="async">
   </picture>
   <p class="foto-atif" id="hero-atif" hidden></p>
   <div class="hero-yazi"><div class="hero-ic">
+    <img class="hero-amblem" data-amblem src="assets/logo/corum-fk-amblem.svg" alt="" width="240" height="240" decoding="async">
     <p class="hero-etiket iskelet hero-etiket-iskelet" id="hero-etiket" aria-hidden="true"></p>
     <h2 class="hero-baslik" id="hero-baslik"><span class="iskelet hero-iskelet" aria-hidden="true"></span><span class="iskelet hero-iskelet" aria-hidden="true"></span><span class="gorunmez">Manşet yükleniyor</span></h2>
     <p class="hero-alt" id="hero-alt">&nbsp;</p>
   </div></div>
 </section>
 <div class="kap">
-  <section class="mac-ikili" id="mac-ikili" aria-label="Son maç ve sıradaki maç"><span class="ikili-kart iskelet-kart" aria-hidden="true"><span class="iskelet iskelet-satir kisa"></span><span class="iskelet iskelet-satir uzun"></span><span class="iskelet iskelet-satir kisa"></span></span><span class="ikili-kart iskelet-kart" aria-hidden="true"><span class="iskelet iskelet-satir kisa"></span><span class="iskelet iskelet-satir uzun"></span><span class="iskelet iskelet-satir kisa"></span></span></section>
+  <section class="mac-ikili" id="mac-ikili" aria-label="Son maç ve sıradaki maç"><span class="ikili-kart iskelet-kart" aria-hidden="true"><span class="iskelet iskelet-satir kisa"></span><span class="iskelet iskelet-satir uzun"></span><span class="iskelet iskelet-satir kisa"></span></span><span class="ikili-kart iskelet-kart" aria-hidden="true"><span class="iskelet iskelet-satir kisa"></span><span class="iskelet iskelet-satir uzun"></span><span class="iskelet iskelet-satir kisa"></span></span><span class="ikili-form iskelet-kart" aria-hidden="true"><span class="iskelet iskelet-satir kisa"></span></span></section>
   <section aria-labelledby="son-dakika-baslik">
     <div class="bolum-baslik"><h2 id="son-dakika-baslik">Son dakika</h2></div>
     <div id="akis-durum"></div>
@@ -80,6 +83,10 @@
     <li aria-hidden="true"><span class="iskelet iskelet-video"></span><span class="iskelet iskelet-satir uzun"></span><span class="iskelet iskelet-satir kisa"></span></li>
     </ul>
   </section>
+  <section aria-labelledby="puan-baslik" id="puan-bolumu" hidden>
+    <div class="bolum-baslik"><h2 id="puan-baslik">Puan durumu</h2><a href="takim.html#puan">Tam tablo →</a></div>
+    <div id="ana-puan"></div>
+  </section>
   <div id="kim-yok" class="kim-yok-yer"></div>
 </div>
 <noscript><p class="kap uyari">Bu site JavaScript ile çalışır. Tarayıcında JavaScript'i aç.</p></noscript>
@@ -94,7 +101,7 @@
 </nav>
 <footer class="alt">
   <div class="kap">
-    <p><strong>Çorumspor Taraftar</strong> · bağımsız taraftar uygulaması. <strong>Çorum FK'nın resmî uygulaması değildir</strong>; kulüple bir bağı yoktur. Kulüp adı hak sahibine aittir.</p>
+    <p><strong>Çorumspor Taraftar</strong> · bağımsız taraftar uygulaması. <strong>Çorum FK'nın resmî uygulaması değildir</strong>; kulüple bir bağı yoktur. Kulüp adı ve amblemi hak sahibine aittir.</p>
     <p>Künye: <span data-ayar="SAHIP_ADI">uygulama sahibi</span> · İletişim ve kaldırma talepleri: <a data-ayar="ILETISIM_EPOSTA" href="kurallar.html#iletisim">iletişim adresi</a> (kaldırma taleplerine en geç 24 saat içinde dönülür).</p>
     <p class="baglantilar"><a href="gizlilik.html">Gizlilik ve KVKK</a><a href="kurallar.html">Topluluk kuralları</a><a href="kaynaklar.html">Fotoğraf kaynakları</a></p>
   </div>

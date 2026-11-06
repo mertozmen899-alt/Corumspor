@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" width="800" height="1000" preserveAspectRatio="xMidYMid slice">
+<title>Kırmızı-siyah</title>
+<defs>
+<linearGradient id="taban" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0B0B0B"/><stop offset=".6" stop-color="#140708"/><stop offset="1" stop-color="#0B0B0B"/></linearGradient>
+<pattern id="serit" width="140" height="140" patternUnits="userSpaceOnUse" patternTransform="rotate(-24)"><rect width="70" height="140" fill="#C00000"/></pattern>
+<radialGradient id="odak" gradientUnits="userSpaceOnUse" cx="480" cy="260" r="620"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".45" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+<mask id="maske" maskUnits="userSpaceOnUse" x="0" y="0" width="800" height="1000"><rect width="800" height="1000" fill="url(#odak)"/></mask>
+<radialGradient id="isik" gradientUnits="userSpaceOnUse" cx="480" cy="260" r="589"><stop offset="0" stop-color="#E01010" stop-opacity=".55"/><stop offset=".6" stop-color="#8A0000" stop-opacity=".22"/><stop offset="1" stop-color="#8A0000" stop-opacity="0"/></radialGradient>
+<radialGradient id="parilti" gradientUnits="userSpaceOnUse" cx="680" cy="0" r="420"><stop offset="0" stop-color="#FF5A4A" stop-opacity=".16"/><stop offset="1" stop-color="#FF5A4A" stop-opacity="0"/></radialGradient>
+<linearGradient id="perde" x1="0" y1="0" x2="0" y2="1"><stop offset=".45" stop-color="#0B0B0B" stop-opacity="0"/><stop offset=".75" stop-color="#0B0B0B" stop-opacity=".75"/><stop offset="1" stop-color="#0B0B0B" stop-opacity=".95"/></linearGradient>
+</defs>
+<rect width="800" height="1000" fill="url(#taban)"/>
+<rect width="800" height="1000" fill="url(#isik)"/>
+<rect width="800" height="1000" fill="url(#serit)" mask="url(#maske)" opacity=".72"/>
+<rect width="800" height="1000" fill="url(#parilti)"/>
+<path d="M0 1000 L720 0" stroke="#FFFFFF" stroke-opacity=".08" stroke-width="2"/>
+<rect width="800" height="1000" fill="url(#perde)"/>
+</svg>

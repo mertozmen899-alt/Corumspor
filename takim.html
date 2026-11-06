@@ -33,6 +33,7 @@
 <link rel="modulepreload" href="assets/foto-kaynaklari.js">
 <link rel="modulepreload" href="assets/onbellek.js">
 <link rel="modulepreload" href="assets/takvim.js">
+<link rel="modulepreload" href="assets/mac-gunu.js">
 <script type="module" src="assets/sayfa/takim.js"></script>
 </head>
 <body>
@@ -40,7 +41,7 @@
 <header class="ust">
   <div class="ust-bar">
     <div class="ust-sol"></div>
-    <a class="logo" href="index.html" aria-label="Çorumspor Taraftar ana sayfa"><span class="amblem"><img data-amblem src="assets/logo/amblem-yedek.svg" alt="" width="34" height="34"></span><span class="logo-ad">Çorumspor Taraftar</span></a>
+    <a class="logo" href="index.html" aria-label="Çorumspor Taraftar ana sayfa"><span class="amblem"><img data-amblem src="assets/logo/corum-fk-amblem.svg" alt="" width="34" height="34"></span><span class="logo-ad">Çorumspor Taraftar</span></a>
     <div class="ust-sag" id="oturum-alani"><a class="ikon-dugme" href="profil.html" id="profil-baglanti"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg><span class="gorunmez">Profil</span></a></div>
   </div>
 </header>
@@ -49,10 +50,11 @@
 <div class="kap">
   <h1 class="sayfa-baslik">Takım</h1>
   <div class="sekme-yapiskan">
-    <div class="sekme-iz" role="tablist" aria-label="Takım bölümleri">
+    <div class="sekme-iz kayan-gosterge" role="tablist" aria-label="Takım bölümleri">
       <button type="button" role="tab" id="sekme-kadro" aria-controls="panel-kadro" aria-selected="true">Kadro</button>
       <button type="button" role="tab" id="sekme-sakatlik" aria-controls="panel-sakatlik" aria-selected="false">Sakatlık</button>
       <button type="button" role="tab" id="sekme-fikstur" aria-controls="panel-fikstur" aria-selected="false">Fikstür</button>
+      <button type="button" role="tab" id="sekme-puan" aria-controls="panel-puan" aria-selected="false">Puan<span class="dar-gizli"> durumu</span></button>
     </div>
   </div>
   <section id="panel-kadro" role="tabpanel" aria-labelledby="sekme-kadro" tabindex="0">
@@ -79,6 +81,10 @@
     </div>
     <div id="fikstur-takvim" class="takvim" hidden></div>
   </section>
+  <section id="panel-puan" role="tabpanel" aria-labelledby="sekme-puan" tabindex="0" hidden>
+    <h2 class="gorunmez">Puan durumu</h2>
+    <div id="puan-icerik" data-durum="bekliyor"><span class="iskelet iskelet-satir uzun" aria-hidden="true"></span><span class="iskelet iskelet-satir uzun" aria-hidden="true"></span></div>
+  </section>
 </div>
 <noscript><p class="kap uyari">Bu site JavaScript ile çalışır. Tarayıcında JavaScript'i aç.</p></noscript>
 </main>
@@ -92,7 +98,7 @@
 </nav>
 <footer class="alt">
   <div class="kap">
-    <p><strong>Çorumspor Taraftar</strong> · bağımsız taraftar uygulaması. <strong>Çorum FK'nın resmî uygulaması değildir</strong>; kulüple bir bağı yoktur. Kulüp adı hak sahibine aittir.</p>
+    <p><strong>Çorumspor Taraftar</strong> · bağımsız taraftar uygulaması. <strong>Çorum FK'nın resmî uygulaması değildir</strong>; kulüple bir bağı yoktur. Kulüp adı ve amblemi hak sahibine aittir.</p>
     <p>Künye: <span data-ayar="SAHIP_ADI">uygulama sahibi</span> · İletişim ve kaldırma talepleri: <a data-ayar="ILETISIM_EPOSTA" href="kurallar.html#iletisim">iletişim adresi</a> (kaldırma taleplerine en geç 24 saat içinde dönülür).</p>
     <p class="baglantilar"><a href="gizlilik.html">Gizlilik ve KVKK</a><a href="kurallar.html">Topluluk kuralları</a><a href="kaynaklar.html">Fotoğraf kaynakları</a></p>
   </div>

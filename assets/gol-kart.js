@@ -63,7 +63,7 @@ export function golAniSatiri(gol, mac) {
   const sure = sureMetni(golSuresi(gol));
   return h('a', { class: 'gol-satir gol-ani', href: 'gol.html?id=' + encodeURIComponent(gol.id), 'data-gol-id': gol.id, 'aria-label': golAdi(gol, mac, { video, sure }) },
     h('span', { class: 'dakika', 'aria-hidden': 'true' }, dakikaMetni(gol)),
-    h('span', null, h('span', { class: 'oyuncu' }, gol.oyuncu), gol.penalti ? h('span', { class: 'soluk' }, ' (P)') : null,
+    h('span', { 'data-begeni-yer': '' }, h('span', { class: 'oyuncu' }, gol.oyuncu), gol.penalti ? h('span', { class: 'soluk' }, ' (P)') : null,
       asistMetni(gol) ? h('span', { class: 'asist' }, ' · ', asistMetni(gol)) : null),
     h('span', { class: video ? 'oynat-isaret' : 'soluk', 'aria-hidden': 'true' }, video ? '▶' : '›'));
 }
