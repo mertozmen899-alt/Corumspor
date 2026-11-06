@@ -348,6 +348,39 @@ async function performansTestleri() {
       cf.close();
     });
   }
+  // Son tur (performans 3. tur 6): güncellemede açık eski sekme karışık sürüm görmez. Yeni dağıtım (yeni SURUM, değişmiş ortak.js)
+  // etkinleşince eski sekmenin sonradan istediği dosya ÖNCEKİ kabuktan gelir; yeni gezinme yeni sürümü alır; en çok 2 kabuk kalır.
+  await guvenli('service worker güncelleme (karışık sürüm yok)', async () => {
+    const cf = await sunucuAc({ kok: yayinKok, cf: true });
+    const A = 'http://127.0.0.1:' + cf.address().port;
+    const ctx = await tarayici.newContext({ viewport: { width: 390, height: 844 }, locale: 'tr-TR', timezoneId: 'Europe/Istanbul' });
+    await ctx.route((u) => !u.href.startsWith(A), (r) => r.abort());
+    const p = await ctx.newPage();
+    p.setDefaultTimeout(20000);
+    await p.goto(A + '/');
+    await p.evaluate(async () => { await navigator.serviceWorker.register('sw.js'); await navigator.serviceWorker.ready; });
+    await p.reload();
+    await p.waitForFunction(() => !!navigator.serviceWorker.controller);
+    const swYol = path.join(yayinKok, 'sw.js'), ortakYol = path.join(yayinKok, 'assets', 'ortak.js');
+    const eskiSurum = (/const SURUM = '([^']+)';/.exec(fs.readFileSync(swYol, 'utf8')) || [])[1];
+    fs.writeFileSync(ortakYol, fs.readFileSync(ortakYol, 'utf8') + '\n// yeni-surum-isareti\n');
+    fs.writeFileSync(swYol, fs.readFileSync(swYol, 'utf8').replace(`const SURUM = '${eskiSurum}';`, "const SURUM = 'y-ikincisurum0';"));
+    const degisti = await p.evaluate(() => new Promise((tamam) => {
+      navigator.serviceWorker.addEventListener('controllerchange', () => tamam(true), { once: true });
+      navigator.serviceWorker.getRegistration().then((k) => k.update());
+      setTimeout(() => tamam(false), 15000);
+    }));
+    const eskiSekme = await p.evaluate(async () => (await (await fetch('assets/ortak.js')).text()).includes('yeni-surum-isareti'));
+    const p2 = await ctx.newPage();
+    await p2.goto(A + '/goller');
+    const yeniSekme = await p2.evaluate(async () => (await (await fetch('assets/ortak.js')).text()).includes('yeni-surum-isareti'));
+    const kabuklar = await p2.evaluate(async () => (await caches.keys()).filter((k) => k.startsWith('kabuk-')).sort());
+    kontrol('SW güncelleme (son tur): yeni sürüm etkinleşince açık eski sekme dosyaları ÖNCEKİ kabuktan alır (karışık sürüm yok), yeni sekme yeni sürümü; en çok 2 kabuk',
+      degisti && !eskiSekme && yeniSekme && kabuklar.length === 2 && kabuklar.includes('kabuk-y-ikincisurum0') && kabuklar.includes('kabuk-' + eskiSurum), JSON.stringify({ degisti, eskiSekme, yeniSekme, kabuklar }));
+    await ctx.close();
+    cf.kapat(false);
+    cf.close();
+  });
   fs.rmSync(yayinKok, { recursive: true, force: true });
 
   kontrol('performans testlerinde JavaScript hatası yok', !hatalar.length, [...new Set(hatalar)].join(' | '));

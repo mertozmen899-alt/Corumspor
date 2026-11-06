@@ -9,6 +9,14 @@
 // yeni HTML + eski JS karışmaz). Depodaki 'gelistirme' sürümünde (derlemesiz) sayfalar ağdan, dosyalar arkada tazelenerek gelir.
 // Cloudflare Pages /x.html'i 308 ile /x'e yönlendirir: yönlendirilmiş yanıt navigasyona verilemez, bu yüzden kurulumda gövdeden
 // yeni yanıt kurulur ve sayfa anahtarı uzantısız, sorgusuz tutulur (/goller.html, /goller, /goller?x=1 → tek kayıt).
+//
+// GÜNCELLEMEDE KARIŞIK SÜRÜM YOK (performans 3. tur 6): yeni sürüm hemen etkinleşir (skipWaiting + clients.claim), ama bir ÖNCEKİ
+// kabuk bir sürüm daha saklanır. Etkinleşme anında açık olan sekmeler (eski sayfa) "önceki sürümün istemcileri" diye kaydedilir
+// (surum-meta önbelleği); onların sonradan istediği dosyalar (ör. tembel import('../yorumlar.js')) önceki kabuktan gelir: eski sayfa
+// yeni modülle buluşmaz. Yeni gezinmeler yeni sürümü alır. Daha eski kabuklar silinir.
+// Kurulum indirmesi (performans 3. tur 5): kod ve sayfalar cache: 'no-cache' (HTTP önbelleğindeki kopya ETag ile doğrulanır: değişmediyse
+// 304, gövde yeniden inmez; değiştiyse taze), adı sürümlü / değişmeyen dosyalar (assets/fonts, assets/vendor, assets/logo) varsayılan
+// önbellekle (sayfanın az önce indirdiği kopya yeniden indirilmez).
 const SURUM = 'gelistirme';
 const GELISTIRME = SURUM === 'gelistirme';
 const KABUK = 'kabuk-' + SURUM;
@@ -16,6 +24,8 @@ const VERI = 'veri-v1';
 const VERI_EN_COK = 40;
 const GORSEL = 'gorsel-v1';
 const GORSEL_EN_COK = 60;
+const META = 'surum-meta';   // { guncel, onceki, oncekiIstemciler: [...] } (yalnız sürüm adları ve istemci kimlikleri; kişisel veri yok)
+const META_ANAHTAR = new URL('surum-meta.json', self.location.href).href;
 const SAYFALAR = ['./', 'index.html', 'goller.html', 'takim.html', 'profil.html', 'haber.html', 'mac.html', 'gol.html', 'giris.html', 'sifre.html',
   'kurallar.html', 'gizlilik.html', 'kaynaklar.html', 'maclar.html', 'cevrimdisi.html'];
 const DOSYALAR = ['assets/stil.css', 'assets/tema.js', 'assets/ortak.js', 'assets/istemci.js', 'assets/ayar.js', 'assets/kurallar.js', 'assets/foto-kaynaklari.js',
@@ -39,11 +49,33 @@ async function temizYanit(y) {
   return new Response(await y.blob(), { status: y.status, statusText: y.statusText, headers: y.headers });
 }
 
+/** Değişmeyen (adı sürümlü) dosya mı: yazı tipleri, supabase-js sürüm klasörü, logo ve simgeler. */
+const degismez = (adres) => /(^|\/)assets\/(fonts|vendor|logo)\//.test(adres);
+
 async function getir(adres) {
-  // cache: 'reload' → HTTP önbelleği atlanır (max-age=300 + stale-while-revalidate yüzünden eski dosya yeni sürüme girmesin)
-  const y = await fetch(new Request(adres, { cache: 'reload' }));
+  // cache: 'no-cache' → HTTP önbelleğindeki kopya sunucuyla doğrulanır (max-age=300 + stale-while-revalidate yüzünden eski dosya yeni
+  // sürüme girmez; değişmediyse 304 ile gövde yeniden inmez). Değişmeyen dosyalar varsayılan önbellekten (yeniden indirme yok).
+  const y = await fetch(new Request(adres, { cache: degismez(adres) ? 'default' : 'no-cache' }));
   if (!y.ok) throw new Error(`${adres}: ${y.status}`);
   return y;
+}
+
+let metaSozu = null;
+// Etkinleşme (activate) bitmeden gelen dosya isteği eski kaydı okumasın: controllerchange'ten hemen sonraki istek bekler
+let etkinlesti = () => {};
+const etkinSozu = new Promise((tamam) => { etkinlesti = tamam; });
+function etkinBekle() {
+  if (self.serviceWorker && self.serviceWorker.state === 'activated') return Promise.resolve();
+  return Promise.race([etkinSozu, new Promise((tamam) => setTimeout(tamam, 3000))]);
+}
+function metaOku() {
+  if (!metaSozu) metaSozu = caches.open(META).then((c) => c.match(META_ANAHTAR)).then((y) => (y ? y.json() : {})).catch(() => ({}));
+  return metaSozu;
+}
+async function metaYaz(m) {
+  metaSozu = Promise.resolve(m);
+  const c = await caches.open(META);
+  await c.put(META_ANAHTAR, new Response(JSON.stringify(m), { headers: { 'Content-Type': 'application/json' } }));
 }
 
 self.addEventListener('install', (e) => {
@@ -55,9 +87,21 @@ self.addEventListener('install', (e) => {
   })());
 });
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys()
-    .then((l) => Promise.all(l.filter((k) => k.startsWith('kabuk-') && k !== KABUK).map((k) => caches.delete(k))))
-    .then(() => self.clients.claim()));
+  e.waitUntil((async () => {
+    const m = await metaOku();
+    const anahtarlar = await caches.keys();
+    // Önceki sürüm: kayıttaki güncel sürüm (kayıt yoksa, ör. bu kodu bilmeyen eski SW'den geçişte, var olan başka kabuk)
+    const baska = anahtarlar.find((k) => k.startsWith('kabuk-') && k !== KABUK);
+    let onceki = !m.guncel ? (baska ? baska.slice('kabuk-'.length) : null) : m.guncel !== SURUM ? m.guncel : m.onceki;
+    if (onceki && !anahtarlar.includes('kabuk-' + onceki)) onceki = null;
+    // Şu an açık sekmeler önceki sürümle yüklendi (bu sürümün ilk etkinleşmesinde): dosyaları önceki kabuktan alacaklar
+    const yeniEtkin = m.guncel !== SURUM;
+    const istemciler = yeniEtkin ? (await self.clients.matchAll({ includeUncontrolled: true, type: 'window' })).map((c) => c.id) : (m.oncekiIstemciler || []);
+    await metaYaz({ guncel: SURUM, onceki, oncekiIstemciler: onceki ? istemciler : [] });
+    await Promise.all(anahtarlar.filter((k) => k.startsWith('kabuk-') && k !== KABUK && k !== 'kabuk-' + onceki).map((k) => caches.delete(k)));
+    etkinlesti();
+    await self.clients.claim();
+  })().finally(() => etkinlesti()));
 });
 
 const zamanAsimi = (ms, p) => Promise.race([p, new Promise((_, red) => setTimeout(() => red(new Error('zaman aşımı')), ms))]);
@@ -83,7 +127,20 @@ async function sayfa(istek) {
   }
 }
 
-async function kabukDosyasi(istek) {
+/** İsteği yapan sekme önceki sürümle mi yüklendi? Öyleyse önceki kabuk (yoksa güncel). */
+async function kabukAdi(istemciId) {
+  if (GELISTIRME || !istemciId) return KABUK;
+  await etkinBekle();
+  const m = await metaOku();
+  return m.onceki && (m.oncekiIstemciler || []).includes(istemciId) ? 'kabuk-' + m.onceki : KABUK;
+}
+
+async function kabukDosyasi(istek, istemciId) {
+  const ad = await kabukAdi(istemciId);
+  if (ad !== KABUK) {
+    const eski = await (await caches.open(ad)).match(istek, { ignoreSearch: true });
+    if (eski) return eski; // eski sayfa eski modülle kalır (yoksa güncel kabuğa düşer)
+  }
   const c = await caches.open(KABUK);
   const m = await c.match(istek, { ignoreSearch: true });
   if (m && !GELISTIRME) return m; // cache-first: dosyalar sürümle birlikte yenilenir
@@ -120,7 +177,7 @@ self.addEventListener('fetch', (e) => {
     if (/\/yonetim(\.html)?$/.test(u.pathname) || /\/assets\/(sayfa\/yonetim|reklam\/yonetim)/.test(u.pathname)) return;
     if (r.mode === 'navigate') return e.respondWith(sayfa(r));
     if (u.pathname.includes('/assets/img/')) return e.respondWith(gorselOnce(r));
-    if (u.pathname.includes('/assets/') || u.pathname.endsWith('/manifest.webmanifest')) return e.respondWith(kabukDosyasi(r));
+    if (u.pathname.includes('/assets/') || u.pathname.endsWith('/manifest.webmanifest')) return e.respondWith(kabukDosyasi(r, e.clientId));
     return;
   }
   // Supabase: yalnız herkese açık okuma tabloları, yalnız anon anahtarla (kullanıcıya özel yanıt saklanmaz)

@@ -273,6 +273,14 @@ export function skorMetni(mac) {
   if (!skorVar(mac)) return null;
   return mac.ic_saha ? skorYaz(mac.corum_skor, mac.rakip_skor) : skorYaz(mac.rakip_skor, mac.corum_skor);
 }
+/** Skor (ya da ayraç) TEK parça: span.skor-blok { white-space: nowrap }. Tarayıcı en dash'ten sonra satırı kırabiliyordu
+ *  ("3 –" bir satırda, "0 DENEME FK" altta; Unicode LB12a, taraftar 3. tur 1). */
+export function skorOgesi(metin) { return h('span', { class: 'skor-blok' }, metin); }
+/** "Çorum FK 2 – 1 Örnekköy Spor" düğüm dizisi: skor bölünmez parça (metin hâli: gol-kart.js macEtiketi). */
+export function eslesmeOgeleri(mac) {
+  const [ev, dep] = evSahibiDeplasman(mac);
+  return [ev, ' ', skorOgesi(skorMetni(mac) || '–'), ' ', dep];
+}
 
 /** Biten maçın sonucu: { harf: 'G'|'B'|'M', ad: 'Galibiyet'|… } (renk tek başına anlam taşımaz). */
 export function sonucBilgisi(mac) {
@@ -334,31 +342,36 @@ export function altyaziGecerli(url) {
   return typeof url === 'string' && /^https:\/\/[a-z0-9-]+\.supabase\.co\/storage\/v1\/object\/public\/[\w\-./%]+\.vtt$/i.test(url) && !/\.\./.test(url);
 }
 
-export function videoFasad(url, { baslik = 'Gol videosu', kapak = null, sure = null, altyazi = null } = {}) {
+/** ops.baslik: "Ali Örnek, 23. dakika, Örnekköy Spor maçı" (düğme adı "Videoyu oynat: <baslik>"; tekrar yok, erişilebilirlik 3. tur 2);
+ *  ops.tur: oynatıcının adındaki ön ek ("Gol videosu: …"); ops.oncelik: kapak görseli LCP ise 'high' (performans 3. tur 2). */
+export function videoFasad(url, { baslik = 'Gol', tur = 'Gol videosu', kapak = null, sure = null, altyazi = null, oncelik = null } = {}) {
   const id = youtubeKimlik(url);
   const mp4 = !id && mp4Mu(url) ? url : null;
   if (!id && !mp4) return null;
   const k = kapakKaynagi(kapak, { varsayilan: 800, kutu: tamGenislik() });
   const kap = h('div', { class: 'video tam-genis', 'data-video': id ? 'youtube' : 'mp4' });
   const dugme = h('button', { type: 'button', class: 'video-baslat', 'aria-describedby': 'video-not' },
-    k ? kapakGorseli(k, { width: '800', height: '450' }) : h('span', { class: 'kapak-yok', 'aria-hidden': 'true' }),
+    k ? kapakGorseli(k, { width: '800', height: '450', fetchpriority: oncelik }) : h('span', { class: 'kapak-yok', 'aria-hidden': 'true' }),
     h('span', { class: 'oynat', 'aria-hidden': 'true' }, simge(OYNAT_YOLU, { dolu: true })),
     h('span', { class: 'yazi', 'aria-hidden': 'true' }, 'Oynat', sure ? ` · ${sure}` : ''),
     // Odak halkası kapak görselinin ÜSTÜNDE çizilir (düğmenin kendi outline'ı görselin altında kalıyordu; 2.4.7)
     h('span', { class: 'odak-halka', 'aria-hidden': 'true' }),
     h('span', { class: 'gorunmez' }, `Videoyu oynat: ${baslik}${sure ? ` (${sure})` : ''}`));
+  const ad = tur ? `${tur}: ${baslik}` : baslik;
   dugme.addEventListener('click', () => {
+    // Kapağın fotoğraf künyesi oynayan videoya ait değil: oynatma başlayınca gizlenir (taraftar 3. tur 4)
+    kap.querySelectorAll('.foto-atif').forEach((x) => { x.hidden = true; });
     let oynatici;
     if (id) {
       oynatici = h('iframe', {
         src: `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1&rel=0&cc_load_policy=1&cc_lang_pref=tr&hl=tr`,
-        title: baslik + ' (YouTube)', allow: 'autoplay; encrypted-media; picture-in-picture; fullscreen', allowfullscreen: '',
+        title: ad + ' (YouTube)', allow: 'autoplay; encrypted-media; picture-in-picture; fullscreen', allowfullscreen: '',
         referrerpolicy: 'strict-origin-when-cross-origin',
       });
     } else {
       const vtt = altyaziGecerli(altyazi) ? altyazi : null;
       // Altyazı (1.2.2): kendi depomuzdaki .vtt; başka kökenden <track> için CORS gerekir (crossorigin)
-      oynatici = h('video', { src: mp4, controls: true, preload: 'none', playsinline: '', 'aria-label': baslik, poster: k ? k.src : null, crossorigin: vtt ? 'anonymous' : null },
+      oynatici = h('video', { src: mp4, controls: true, preload: 'none', playsinline: '', 'aria-label': ad, poster: k ? k.src : null, crossorigin: vtt ? 'anonymous' : null },
         vtt ? h('track', { kind: 'captions', srclang: 'tr', label: 'Türkçe', src: vtt, default: '' }) : null);
     }
     dugme.replaceWith(oynatici);
@@ -558,18 +571,38 @@ function swKaydet() {
  * Sayfalar içerik sorgusunu bu sözü BEKLEMEDEN başlatır (const oturumS = sayfaBaslat(); … await oturumS).
  */
 // Yapışkan filtre / sekme çubuğu varsa yüksekliği scroll-padding'e eklenir (--yapiskan-h): klavyeyle odaklanan kart çubuğun altında kalmaz
-// Çubuk ekranın %20'sinden uzunsa (büyük yazı tipi, %200) yapışmaz (.yapiskan-degil): sabit alan ekranın yarısını yemesin (1.4.10)
+// TOPLAM sabit alan (üst bar + alt menü + bu çubuk) ekranın %25'inden fazlaysa (büyük yazı tipi, %200) çubuk yapışmaz
+// (.yapiskan-degil): sabit alan ekranın üçte birini yemesin (1.4.10; erişilebilirlik 3. tur 3). Yapışkan değilken de boyu aynı: karar
+// konuma göre değişip titremez.
+export const SABIT_ALAN_ORANI = 0.25;
 function yapiskanIzle() {
   const el = document.querySelector('.filtreler, .sekme-yapiskan');
   if (!el || typeof ResizeObserver !== 'function') return;
+  const ust = document.querySelector('header.ust'), nav = document.getElementById('alt-nav');
+  const boyu = (e) => (e && getComputedStyle(e).position !== 'static' ? Math.ceil(e.getBoundingClientRect().height) : 0);
   const yaz = () => {
     const boy = Math.ceil(el.getBoundingClientRect().height);
-    el.classList.toggle('yapiskan-degil', boy > innerHeight * 0.2);
+    el.classList.toggle('yapiskan-degil', boyu(ust) + boyu(nav) + boy > innerHeight * SABIT_ALAN_ORANI);
     document.documentElement.style.setProperty('--yapiskan-h', (getComputedStyle(el).position === 'sticky' ? boy : 0) + 'px');
   };
-  new ResizeObserver(yaz).observe(el);
+  const ro = new ResizeObserver(yaz);
+  for (const e of [el, ust, nav]) if (e) ro.observe(e);
   addEventListener('resize', yaz); // kısa ekranda çubuk yapışkan değil (stil.css): pay sıfır
   yaz();
+}
+
+// Büyük yazı tipi (tarayıcı/sistem yazı boyu ≥ 150 %): satır kırpma (line-clamp) kalkar, uzun adlar sarar (1.4.4; erişilebilirlik 3. tur 5)
+function yaziBoyuIzle() {
+  const kok = document.documentElement;
+  const yaz = () => kok.classList.toggle('buyuk-yazi', parseFloat(getComputedStyle(kok).fontSize) >= 24);
+  yaz();
+  addEventListener('resize', yaz);
+  if (typeof ResizeObserver === 'function') {
+    // Yazı boyu değişince "M" ölçüsündeki gizli öğenin boyu değişir (yeniden yükleme gerekmez)
+    const olcu = h('span', { 'aria-hidden': 'true', class: 'yazi-olcu' }, 'M');
+    document.body.append(olcu);
+    new ResizeObserver(yaz).observe(olcu);
+  }
 }
 
 // Üst bar ve alt menünün GERÇEK yüksekliği (büyük yazı tipinde 56/64 px'ten uzun): scroll-padding, künye alt boşluğu ve yapışkan
@@ -587,6 +620,7 @@ function cubukIzle() {
 }
 
 export function sayfaBaslat() {
+  yaziBoyuIzle();
   cubukIzle();
   yapiskanIzle();
   amblemKur();

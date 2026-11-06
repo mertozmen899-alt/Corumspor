@@ -22,10 +22,9 @@
 <link rel="apple-touch-icon" href="assets/logo/apple-touch-icon-180.png">
 <link rel="preload" href="assets/fonts/oswald-700-tr.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/source-sans-3-400-tr.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="assets/fonts/source-sans-3-700-tr.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/stil.css">
 <script src="assets/tema.js"></script>
-<script defer fetchpriority="high" src="assets/vendor/supabase-js-2.45.4/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o"></script>
+<script defer src="assets/vendor/supabase-js-2.45.4/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o"></script>
 <link rel="modulepreload" href="assets/sayfa/profil.js">
 <link rel="modulepreload" href="assets/ortak.js">
 <link rel="modulepreload" href="assets/istemci.js">
@@ -66,6 +65,13 @@
     <a class="ayar-satir" href="kaynaklar.html">Fotoğraf kaynakları<span class="ok" aria-hidden="true">›</span></a>
     <p class="ayar-metin">Taraftarlar için, taraftarlarca. Sorunu, önerini ya da kaldırma talebini künyedeki adrese yaz.</p>
   </div>
+  <div id="ana-ekran" hidden>
+    <h2 class="grup-baslik-k" id="ana-ekran-baslik">Uygulama</h2>
+    <div class="ayar-kart">
+      <button type="button" class="ayar-satir ayar-dugme" id="ana-ekran-ekle" hidden>Ana ekrana ekle<span class="ok" aria-hidden="true">›</span></button>
+      <p class="ayar-metin" id="ana-ekran-ios" hidden>Ana ekrana eklemek için Safari'de <strong>Paylaş</strong> düğmesine (yukarı oklu kare) dokun, sonra <strong>Ana Ekrana Ekle</strong>'yi seç.</p>
+    </div>
+  </div>
   <div id="cikis-alani"></div>
 </div>
 <dialog id="cikis-onay" class="sayfa-alt" aria-labelledby="cikis-onay-baslik">
@@ -88,7 +94,7 @@
 <footer class="alt">
   <div class="kap">
     <p><strong>Çorumspor Taraftar</strong> · bağımsız taraftar uygulaması. <strong>Çorum FK'nın resmî uygulaması değildir</strong>; kulüple bir bağı yoktur. Kulüp adı hak sahibine aittir.</p>
-    <p>Künye: <span data-ayar="SAHIP_ADI">uygulama sahibi</span> · İletişim ve kaldırma talepleri: <a data-ayar="ILETISIM_EPOSTA" href="kurallar.html#iletisim">iletişim adresi</a> (kaldırma taleplerine en kısa sürede dönülür).</p>
+    <p>Künye: <span data-ayar="SAHIP_ADI">uygulama sahibi</span> · İletişim ve kaldırma talepleri: <a data-ayar="ILETISIM_EPOSTA" href="kurallar.html#iletisim">iletişim adresi</a> (kaldırma taleplerine en geç 24 saat içinde dönülür).</p>
     <p class="baglantilar"><a href="gizlilik.html">Gizlilik ve KVKK</a><a href="kurallar.html">Topluluk kuralları</a><a href="kaynaklar.html">Fotoğraf kaynakları</a></p>
   </div>
 </footer>

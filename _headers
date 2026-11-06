@@ -18,7 +18,8 @@
 # HTML için Cloudflare varsayılanı (yeniden doğrula + ETag) kalır. Değişmeyenler: dosya adı değişirse yeni ad verilir
 # (ör. hero-2026-11.webp; supabase-js sürüm klasörüyle). Kod: 5 dk taze + 7 güne kadar arka planda yenileme. Karışık sürüm
 # (yeni HTML + eski JS) service worker'la ÖNLENİR: sw.js her dağıtımda içerik özetiyle yeni sürüm olur, kabuğu HTTP önbelleğini
-# atlayarak (cache: 'reload') baştan indirir ve sayfayı da JS'i de aynı sürümden verir. SW'siz ilk ziyarette HTML her seferinde
+# doğrulayarak (cache: 'no-cache'; değişmeyen fonts/vendor/logo varsayılan önbellekle) kurar, sayfayı da JS'i de aynı sürümden verir,
+# açık eski sekmeye bir önceki kabuktan verir. SW'siz ilk ziyarette HTML her seferinde
 # doğrulanır; JS en çok 5 dk eski kalabilir, sonra arka planda yenilenir.
 /assets/fonts/*
   Cache-Control: public, max-age=31536000, immutable

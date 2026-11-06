@@ -409,7 +409,8 @@ metni kullanılmadı. Ekran görüntüleri: `docs/ekran/onizleme-ana-360.png`, `
   üstte çubuk, `aria-current="page"` (detay sayfasında bölümü `"true"`). `env(safe-area-inset-*)`; `html { scroll-padding }` üst bar,
   yapışkan filtre/sekme (`--yapiskan-h`) ve alt menü kadar: klavye odağı hiçbir çubuğun altında kalmaz. Sanal klavye açılınca
   (görünür yükseklik küçülünce) menü gizlenir ve `inert` olur. Yükseklik ≤ 500 px'te çubuklar yapışkan değildir.
-- **Alt bilgi künyesi:** ad, bağımsızlık cümlesi, `SAHIP_ADI`, `ILETISIM_EPOSTA` + "kaldırma taleplerine en kısa sürede dönülür" (tek kişilik işletme: saat sözü verilmez),
+- **Alt bilgi künyesi:** ad, bağımsızlık cümlesi, `SAHIP_ADI`, `ILETISIM_EPOSTA` + "kaldırma taleplerine en geç 24 saat içinde dönülür" (son tur kararı: süre sözü yalnız kaldırma taleplerine;
+  şikâyet edilen yoruma bakış "en kısa sürede"; 5651 m.9 süresi avukata sorulur, README),
   Gizlilik · Topluluk kuralları · Fotoğraf kaynakları.
 - Kalıcı canlı bölgeler `#durum` (status) ve `#uyari` (alert); listelerde `aria-live` yok. Atlama bağlantısı "İçeriğe geç".
 
@@ -471,7 +472,9 @@ metni kullanılmadı. Ekran görüntüleri: `docs/ekran/onizleme-ana-360.png`, `
 ### 9.5 Performans kuralları
 
 - LCP ≤ 2,5 sn (Yavaş 4G), ≤ 4 sn (Hızlı 3G); CLS < 0,05 her sayfada (`testler/performans-testleri.js` ölçer).
-- 3 yazı tipi dosyası (~37 KB; latin + Türkçe), `font-display: optional` + metrik eşlenmiş yedekler, üçü de `preload` (2. tur: kalın gövde ilk ziyarette yedeğe düşmesin).
+- 3 yazı tipi dosyası (~37 KB; latin + Türkçe), `font-display: optional` + metrik eşlenmiş yedekler; yalnız Oswald 700 ve Source Sans 400
+  `preload` (3. tur performans 1: kalın gövdenin preload'u ve supabase-js'in `fetchpriority=high`'ı CSS, yazı ve hero ile bant genişliği
+  yarışı yapıyordu; kalın gövde ilk ziyarette yedek yüzle çizilebilir, metrikler eşli: kayma yok).
 - İçerik görsellerinde `sizes` etkin piksel oranı 2 ile sınırlı (`boyutlar()` / `kapakKaynagi({ kutu })`): DPR 3 telefonda -1600 kopyası inmez; LCP DPR 3'te de ölçülür.
 - Hero ≤ 60 KB WebP, srcset/sizes. Küçük kapaklar `loading=lazy` + width/height. Reklam görselinin yuvaya uygun küçük kopyası.
 - Modül zinciri derinliği ≤ 2: her sayfanın statik içe aktarmaları `<link rel="modulepreload">`; yorumlar ve reklam modülü tembel.
@@ -503,7 +506,7 @@ seçili hapta ayrıca ✓ var). Tasarım testi betiği çalıştırır, 0 başar
 - **Tek skor biçimi** `skorYaz()`: "2 – 1" (kısa çizgi, iki yanında bölünmez ince boşluk) kartlarda, maç başlığında, fikstürde.
   **Tek tarih biçimi** kartlarda "29 Ekim". Gol arşivinde kart maç satırını tekrar etmez; fikstür meta satırı "Sal · İç saha · Lig"
   (tarih kutuda); kadro kartında fotoğraf yoksa meta satırı yok (forma no kartın büyük rakamı).
-- **Gol arşivi filtresi:** Sezon akışta, yalnız tek satırlık rakip çipleri yapışır (sabit alan ≤ %25); çubuk ekranın %20'sinden
+- **Gol arşivi filtresi:** Sezon akışta, yalnız tek satırlık rakip çipleri yapışır (sabit alan ≤ %25); üst bar + alt menü + çubuk ekranın %25'inden
   uzunsa (%200 yazı) yapışmaz. Tek sezonda iz yok (düz çerçeveli etiket). "Maç →" başlığın temel çizgisinde.
 - **Odak:** hero bağlantısında kendi halkası (outline), video "Oynat"ta görselin üstünde halka; testler ekran görüntüsü farkıyla dener.
 - **Künye sayfaları** (kurallar, kaynaklar, gizlilik): Profil sekmesi etkin (`aria-current="true"`) ve geri düğmesi.
@@ -518,3 +521,30 @@ seçili hapta ayrıca ✓ var). Tasarım testi betiği çalıştırır, 0 başar
   nötr (metin rengi zemin, kulüp kırmızısı değil), ikincisi çerçeveli, ikisi de ≥ 44×44.
 - **PWA:** `manifest.webmanifest` (standalone, `#0B0B0B`, 192/512 + maskable PNG, `apple-touch-icon` 180; `araclar/simge-olustur.js`
   özgün ÇT işaretinden üretir). Paylaşım görselinin rozeti: "Bağımsız taraftar uygulaması · Çorum FK'nın resmî uygulaması değildir".
+
+### 9.9 Son tur düzeltmeleri (6 Kasım 2026)
+
+- **Skor bölünmez:** skor `span.skor-blok { white-space: nowrap }` (`skorOgesi()` / `eslesmeOgeleri()`, `assets/ortak.js`): tarayıcı en
+  dash'ten sonra satırı kırabiliyordu ("ÇORUM FK 3 –" / "0 DENEME FK"). Hero (maç sonu), gol arşivi grup başlığı, gol kartı meta
+  satırı, gol sayfasının maç bağlantısı; fikstürde skor zaten `nowrap` (test 360 px'te tek satır denetler).
+- **"Sıradaki" şeridi:** bölünmez parçalar (`.serit-parca`: takım adları, "· gün saat", "· 5 g 15 sa"); ayraç "·" parçanın başında
+  (satır sonunda asılı nokta yok). Geri sayım görünürde kısa "5 g 15 sa", ekran okuyucuya "5 gün 15 saat kaldı". %200 yazıda parçalar
+  içeriden de sarar (yatay taşma yok). Şerit ve alttaki maç kartı ikisi de kalır (karar).
+- **Hero etiketi** yüklenirken iskelet (`.hero-etiket-iskelet`, gerçek etiketle aynı boy): "MANŞET" mi "MAÇ GÜNÜ" mü henüz belli değil.
+- **Manşet kapağı:** varsayılan fotoğrafın yerine yalnız `decode()` bittikten sonra tek seferde geçilir; açılıştan 2,5 sn sonra hâlâ
+  hazır değilse o ziyarette varsayılan kalır (`#hero[data-kapak]`).
+- **Maç sayfası:** oynanmamış maçta ortada dev "VS" yerine başlama saati kutusu (`.mac-saat`, `--mac-saat-zemin`: beyaz yazı 12.4:1),
+  takım adları `text-wrap: balance`. Maç notu yalnız maç bitmeden; altında sabit soluk satır "Kesin bilgi için kulübün resmî
+  duyurusuna bak." Maç ve gol sayfasındaki gol kartları maç satırını tekrar etmez (`macSatiri: false`).
+- **Sakatlık satırı** iki satır: kalın "Dönüş: 20 Kasım" (`.donus`, yalnız yönetici girdiyse), altında soluk "Kaynak: … · 5 Kasım 2026 ·
+  Güncellendi 5 saat önce"; tarih parçaları `nowrap` (`.parca`).
+- **Haber düzeltmesi:** "Düzeltme (5 Kasım 2026, 14:20): …" (`duzeltme_tarihi`, Türkiye saati).
+- **Gol videosu:** düğme adı "Videoyu oynat: <başlık> (süre)" (tekrar yok); oynatıcının adı "Gol videosu: …". Oynatma başlayınca
+  kapağın fotoğraf künyesi gizlenir (künye oynayan videoya ait değil).
+- **Profil › Uygulama › "Ana ekrana ekle":** yalnız tarayıcı yüklemeyi sunduğunda (`beforeinstallprompt` saklanır, dokununca
+  tarayıcının kendi onayı); yüklüyse ya da destek yoksa bölüm gizli; iPhone/iPad'de "Paylaş › Ana Ekrana Ekle" ipucu. Açılır pencere yok.
+- **Büyük yazı** (kök yazı ≥ 24 px, `html.buyuk-yazi`): haber ve gol kartı başlıklarında satır kırpma yok, stadyum adı sarar.
+  Yapışkan filtre/sekme çubuğu: üst bar + alt menü + çubuk ekranın %25'ini aşarsa yapışmaz (önceden yalnız çubuğun kendi boyu %20).
+- **Performans:** yalnız 2 yazı tipi preload (kalın gövde preload edilmez), supabase-js `fetchpriority`'siz `defer`; gol arşivinin ilk
+  kartı ve gol sayfasının video kapağı `fetchpriority=high`; haber ve gol sayfası önce son görülen kayıttan (`onbellek.js` `sonKayit`,
+  yoksa ana sayfa listesindeki satır) çizilir, sonra ağdan tazelenir (aynı kapak `<img>`'i yeniden kurulmaz). 800w içerik kopyaları ≤ 60 KB.

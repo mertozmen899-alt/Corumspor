@@ -89,10 +89,13 @@ function yerTutucular(kok) {
 const META_CSP = /<meta http-equiv="Content-Security-Policy" content="([^"]+)">\n?/;
 
 /** CSP metnini projenin tam Supabase adresine daraltır (yoksa olduğu gibi). */
+// media-src da daraltılır (denetçi 3. tur 5): gol videoları yalnız projenin kendi deposundan (.mp4, gol-videolari kovası; 014) ya da
+// sitenin kendisinden gelir; "her https adresi" gerekmez. YouTube yalnız frame-src'de (iframe), medya kaynağı değildir.
 function cspDaralt(csp, supabaseUrl) {
   if (!gecerliSupabase(supabaseUrl)) return csp;
   const host = new URL(supabaseUrl).host;
-  return csp.replace(/https:\/\/\*\.supabase\.co/g, 'https://' + host).replace(/wss:\/\/\*\.supabase\.co/g, 'wss://' + host);
+  return csp.replace(/https:\/\/\*\.supabase\.co/g, 'https://' + host).replace(/wss:\/\/\*\.supabase\.co/g, 'wss://' + host)
+    .replace(/(^|;\s*)media-src [^;]*/, (m, bas) => `${bas}media-src 'self' https://${host} blob:`);
 }
 
 /** _headers'taki /* kuralının CSP satırını tam CSP ile değiştirir (frame-ancestors meta'da çalışmaz: eklenir). */

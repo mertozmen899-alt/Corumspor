@@ -62,7 +62,10 @@ y013=[("Açık","alt menü edilgin / zemin","#5C5A57","#FFFFFF",4.5),("Açık","
 ("Açık","düzeltme kutusu: metin / ilan zemini","#141414","#FFF6DB",4.5),("Koyu","düzeltme kutusu: metin / ilan zemini","#F3F1EC","#2A2312",4.5),
 ("Açık","Sıradaki etiketi / zemin","#A80000","#FFFFFF",4.5),("Koyu","Sıradaki etiketi / zemin","#FF8A85","#0B0B0B",4.5),
 ("Her iki","maç sayfası geri sayım rozeti: beyaz / koyu kırmızı başlık zemini","#FFFFFF","#2B0A10",4.5),
-("Açık","maç sponsoru alt notu (etiketle aynı) / kart","#6B4F00","#FFF6DB",4.5),("Koyu","maç sponsoru alt notu / kart","#F0CF73","#2A2312",4.5)]
+("Açık","maç sponsoru alt notu (etiketle aynı) / kart","#6B4F00","#FFF6DB",4.5),("Koyu","maç sponsoru alt notu / kart","#F0CF73","#2A2312",4.5),
+# son tur: maç başlığında başlama saati kutusu (beyaz / %14 beyaz, koyu kırmızı degrade ucunda: #492C32), maç notu kaynak satırı
+("Her iki","maç saati kutusu: beyaz / %14 beyaz + #2B0A10","#FFFFFF","#492C32",4.5),
+("Açık","maç notu kaynak satırı: soluk / yüzey","#5C5A57","#F6F4F0",4.5),("Koyu","maç notu kaynak satırı: soluk / yüzey","#A9A6A0","#161618",4.5)]
 bad013=0
 print("\n**013 çiftleri**\n\n| Tema | Kullanım | Ön plan | Arka plan | Oran | Eşik | Sonuç |\n|---|---|---|---|---|---|---|")
 for m,r,a,b,need in y013:

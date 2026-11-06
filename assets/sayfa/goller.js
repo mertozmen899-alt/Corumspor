@@ -1,7 +1,7 @@
 // Gol arşivi: Sezon (Temmuz–Haziran, "2026-27") ve Rakip filtreleri (fieldset/legend + yerel radyo düğmeleri; rakip çoksa
 // <select>), sonuç sayısı #durum'a duyurulur, seçim adrese yazılır (?sezon=&rakip=). Goller maç maç gruplanır; her gol
 // gol.html?id= sayfasına giden TEK bağlantı. Video bu sayfada yüklenmez (YouTube'a istek yok).
-import { supabase, hazir, h, $, sayfaBaslat, hataMetni, duyur, cevrimdisiKutusu } from '../ortak.js';
+import { supabase, hazir, h, $, sayfaBaslat, hataMetni, duyur, cevrimdisiKutusu, eslesmeOgeleri } from '../ortak.js';
 import { sezonAdi } from '../kurallar.js';
 import { golKarti, macEtiketi, kartTarihi } from '../gol-kart.js';
 import { sonVeri, sonVeriYaz } from '../onbellek.js';
@@ -69,7 +69,7 @@ function macGrubu(mac) {
   return h('section', { class: 'arsiv-mac', 'data-mac-id': mac.id, 'aria-labelledby': 'mac-' + mac.id },
     h('div', { class: 'grup-baslik' },
       h('span', { class: 'grup-ust' }, kartTarihi(mac.tarih), ' · ', mac.ic_saha ? 'İç saha' : 'Deplasman'),
-      h('h2', { id: 'mac-' + mac.id }, macEtiketi(mac)),
+      h('h2', { id: 'mac-' + mac.id }, eslesmeOgeleri(mac)),
       h('a', { href: 'mac.html?id=' + encodeURIComponent(mac.id), 'aria-label': `Maç ayrıntısı: ${macEtiketi(mac)}` }, 'Maç →')),
     // Grup başlığı maçı zaten söylüyor: kartta maç satırı tekrar edilmez (tasarımcı 5)
     h('ul', { class: 'gol-listesi' }, goller.map((g, i) => h('li', { class: 'gol' }, golKarti(g, mac, { ilk: gosterilenMac === 0 && i === 0, macSatiri: false, kutu: Math.min(innerWidth, 720) - 32 })))));

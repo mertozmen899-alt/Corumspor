@@ -5,6 +5,34 @@ import { supabase, hazir, h, $, sayfaBaslat, tarihYaz, cikisYap, hataMetni, simg
 const kok = $('#profil');
 const oturumS = sayfaBaslat();
 
+// "Ana ekrana ekle" (taraftar 3. tur 3): tarayıcının yükleme olayı (beforeinstallprompt) saklanır, düğmeye basınca tarayıcının KENDİ
+// onay penceresi açılır (bizim açılır penceremiz yok). Uygulama zaten yüklüyse ya da tarayıcı desteklemiyorsa bölüm gizli kalır;
+// iPhone/iPad Safari'de (olay yok) "Paylaş › Ana Ekrana Ekle" ipucu yazılır.
+function anaEkranKur() {
+  const bolum = $('#ana-ekran'), dugme = $('#ana-ekran-ekle'), ios = $('#ana-ekran-ios');
+  if (!bolum) return;
+  const yuklu = () => (typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  let olay = null;
+  const gizle = () => { bolum.hidden = true; dugme.hidden = true; olay = null; };
+  if (yuklu()) return;
+  if (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) { ios.hidden = false; bolum.hidden = false; }
+  addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault(); // tarayıcının kendi alt şeridi açılmasın; öneri yalnız bu düğmede
+    olay = e;
+    dugme.hidden = false; bolum.hidden = false;
+  });
+  addEventListener('appinstalled', gizle);
+  dugme.addEventListener('click', async () => {
+    if (!olay) return;
+    const o = olay;
+    try { await o.prompt(); const secim = await o.userChoice; if (secim && secim.outcome === 'accepted') gizle(); } catch (x) { /* yok say */ }
+    olay = null; // olay bir kez kullanılır; tarayıcı yeniden sunarsa düğme geri gelir
+    dugme.hidden = true;
+    if (ios.hidden) bolum.hidden = true;
+  });
+}
+anaEkranKur();
+
 function misafir() {
   kok.replaceChildren(h('div', { class: 'profil-bas' },
     h('span', { class: 'avatar misafir-avatar', 'aria-hidden': 'true' }, simge('M12 4a4 4 0 1 1 0 8 4 4 0 0 1 0-8zM4 21c0-4.4 3.6-7 8-7s8 2.6 8 7', { boyut: 36 })),

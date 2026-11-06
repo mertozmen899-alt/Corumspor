@@ -1,5 +1,5 @@
-// Maç ayrıntısı: başlık/skor (planlıda "4 gün kaldı" / "Bugün maç var!" rozeti), maç notu (bilet / yayın / kapı saati:
-// maclar.mac_notu), Paylaş, "Maçın sponsoru" yuvası (alt satırı: Çorum FK'nın sponsoru değildir), goller (gol sayfasına
+// Maç ayrıntısı: başlık/skor (planlıda "4 gün kaldı" / "Bugün maç var!" rozeti; ortada dev "VS" yerine başlama saati kutusu),
+// maç notu (bilet / yayın / kapı saati: maclar.mac_notu; yalnız maç bitmeden, altında "resmî duyuruya bak" satırı), Paylaş, "Maçın sponsoru" yuvası (alt satırı: Çorum FK'nın sponsoru değildir), goller (gol sayfasına
 // bağlantılı kartlar; video burada YÜKLENMEZ), yorumlar (tembel yüklenir).
 import { supabase, hazir, h, $, sayfaBaslat, param, kimlikGecerli, tarihYaz, saatYaz, evSahibiDeplasman, skorMetni, macRozeti, sonucBilgisi, cevrimdisiKutusu, paylasDugmesi, TAKIM_ADI } from '../ortak.js';
 import { reklamYuvalariniDoldur } from '../reklam-yukle.js';
@@ -37,18 +37,25 @@ async function yukle() {
   const sonuc = sonucBilgisi(mac);
   const paylasMetni = skor ? `${ev} ${skor} ${dep}${mac.durum === 'bitti' ? ' (maç sonu)' : ''}`
     : `${ev} – ${dep} · ${tarihYaz(mac.tarih, { saat: false, gun: true, yil: false })} ${saatYaz(mac.tarih)}${mac.stadyum ? ' · ' + mac.stadyum : ''}`;
-  const not = typeof mac.mac_notu === 'string' && mac.mac_notu.trim() ? mac.mac_notu.trim() : null;
+  // Maç notu maç öncesi bilgisidir (bilet, kapı saati): biten maçta gösterilmez (taraftar 3. tur 2)
+  const not = mac.durum !== 'bitti' && typeof mac.mac_notu === 'string' && mac.mac_notu.trim() ? mac.mac_notu.trim() : null;
+  // Oynanmamış maç: ortada başlama saati (ana sayfa kartı ve fikstürle aynı kutu; tasarımcı 3. tur 4)
+  const orta = skor ? h('span', { class: 'orta', id: 'skor' }, skor)
+    : mac.durum === 'canli' ? h('span', { class: 'orta', id: 'skor' }, '–')
+      : h('span', { class: 'orta saat-kutu mac-saat', id: 'skor' }, h('time', { datetime: mac.tarih }, saatYaz(mac.tarih)), h('span', { class: 'gorunmez' }, ' (TSİ) başlama saati'));
   kok.replaceChildren(...[h('header', { class: 'mac-basi gunes-motif', id: 'mac-basi' },
     h('div', { class: 'ust-satir' }, macRozeti(mac), mac.organizasyon ? h('span', null, mac.organizasyon) : null, sonuc ? h('span', { class: 'sonuc-rozet ' + sonuc.sinif, title: sonuc.ad }, h('span', { 'aria-hidden': 'true' }, sonuc.harf), h('span', { class: 'gorunmez' }, sonuc.ad)) : null),
     h('h1', { class: 'takimlar' },
       h('span', { class: 'takim-ad' + (ev === TAKIM_ADI ? ' biz' : '') }, ev), ' ',
-      h('span', { class: 'orta', id: 'skor' }, skor || 'vs'), ' ',
+      orta, ' ',
       h('span', { class: 'takim-ad' + (dep === TAKIM_ADI ? ' biz' : '') }, dep)),
     h('div', { class: 'meta' },
       h('time', { datetime: mac.tarih, id: 'mac-tarihi' }, tarihYaz(mac.tarih, { gun: true }), ' (TSİ)'),
       mac.stadyum ? h('span', null, mac.stadyum) : null,
       h('span', null, mac.ic_saha ? 'İç saha maçı' : 'Deplasman maçı'))),
-    not ? h('aside', { class: 'mac-notu', id: 'mac-notu', 'aria-label': 'Maç notu' }, h('p', null, h('strong', null, 'Maç notu: '), not)) : null,
+    not ? h('aside', { class: 'mac-notu', id: 'mac-notu', 'aria-label': 'Maç notu' }, h('p', null, h('strong', null, 'Maç notu: '), not),
+      // Not bağımsız uygulamanın özetidir, kulübün açıklaması değil (başkan 3. tur 5)
+      h('p', { class: 'mac-notu-kaynak', id: 'mac-notu-kaynak' }, 'Kesin bilgi için kulübün resmî duyurusuna bak.')) : null,
     h('div', { class: 'eylem-satir' }, paylasDugmesi(paylasMetni))].filter(Boolean));
   kok.dataset.durum = 'tamam';
 
@@ -61,7 +68,8 @@ async function yukle() {
   const goller = golS.data || [];
   if (goller.length) {
     goller.sort((a, b) => a.dakika - b.dakika || (a.ek_dakika || 0) - (b.ek_dakika || 0));
-    $('#gol-listesi').replaceChildren(...goller.map((g) => h('li', { class: 'gol' }, golKarti(g, mac))));
+    // Başlık maçı zaten söylüyor: kartta maç satırı tekrar edilmez (tasarımcı 3. tur 2)
+    $('#gol-listesi').replaceChildren(...goller.map((g) => h('li', { class: 'gol' }, golKarti(g, mac, { macSatiri: false }))));
     $('#mac-golleri').hidden = false;
   }
   const [{ yorumlariKur }, oturum] = await Promise.all([import('../yorumlar.js'), oturumS, reklamYerlesti]);

@@ -133,6 +133,7 @@
   --hap-aktif-metin: #FFFFFF;
 
   --saat-zemin: var(--yuzey-2);
+  --mac-saat-zemin: rgb(255 255 255 / .14); /* maç başlığı (her iki temada koyu) üstünde saat kutusu: beyaz yazı ≥ 11:1 (docs/kontrast.py) */
   /* İskelet parıltısı: açık temada beyaz bant; koyu temada çok hafif (beyaz leke gibi durmasın) */
   --iskelet-parilti: rgb(255 255 255 / .35);
 
@@ -213,11 +214,15 @@ h3 { font-size: var(--fs-kart); line-height: var(--lh-kart); }
 p { margin: 0 0 .9em; }
 [hidden] { display: none !important; }
 time, .skor, .saat, .sayi { font-variant-numeric: tabular-nums; }
+/* Skor tek parça: tarayıcı en dash'ten sonra satırı kırabiliyordu ('3 –' / '0 DENEME FK'; taraftar 3. tur 1) */
+.skor-blok { white-space: nowrap; }
 
 /* Görsel olarak gizli ama ekran okuyucuda var (clip deseni; display:none DEĞİL) */
 .gorunmez, .gorunmez-baslik { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
 .atla { position: absolute; left: 8px; top: -100px; z-index: 100; background: var(--zemin); color: var(--metin); padding: 10px 16px; border-radius: var(--r-saat); font-weight: 700; text-decoration: none; min-height: var(--dokunma); display: inline-flex; align-items: center; }
 .atla:focus { top: 8px; }
+/* Yazı boyu ölçüsü (assets/ortak.js yaziBoyuIzle): büyük yazıda html.buyuk-yazi */
+.yazi-olcu { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; font-size: 1rem; line-height: 1; }
 
 .kap { width: 100%; max-width: var(--icerik-max); margin: 0 auto; padding: 0 var(--sayfa-kenar); }
 .kap.genis { max-width: 1240px; } /* yönetim: reklam önizlemesinin 600 px masaüstü çerçevesi sığsın */
@@ -404,6 +409,8 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
 .hero:active .hero-gorsel { transform: scale(1.02); }
 .hero .iskelet { background-color: rgb(255 255 255 / .2); }
 .hero-iskelet { display: block; height: 30px; width: 88%; margin: 6px 0; border-radius: var(--r-rozet); }
+/* Etiket yüklenirken iskelet (MANŞET mi MAÇ GÜNÜ mü henüz belli değil; tasarımcı 3. tur 7); boyu gerçek etiketle aynı: kayma yok */
+.hero-etiket-iskelet { width: 64px; height: calc(var(--fs-etiket) * 1.2 + 8px); vertical-align: top; }
 @media (min-width: 600px) { .hero { min-height: clamp(360px, 56.25vw, 560px); } }
 @media (min-width: 1000px) { .hero { min-height: clamp(360px, 42.857vw, 560px); } }
 
@@ -433,6 +440,10 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
 .serit-metin { flex: 1; min-width: 0; }
 .serit-metin b { font-family: var(--font-baslik); text-transform: uppercase; letter-spacing: .02em; }
 .serit-baglanti .git { flex: none; color: var(--vurgu); font-weight: 700; }
+/* Bölünmez parçalar (takım adı, gün + saat, '5 g 15 sa'); ayraç parçanın başında: satır sonunda asılı '·' yok (taraftar 3. tur 5) */
+.serit-parca { white-space: nowrap; }
+/* Büyük yazıda (%200) tek parça satıra sığmayabilir: yatay taşma olmasın diye parça içinde de sarar (1.4.10) */
+.buyuk-yazi .serit-parca { white-space: normal; }
 
 /* ---------- 12. Yatay video şeridi + video kapak kartı ---------- */
 .video-kaydir { list-style: none; display: flex; gap: var(--kart-aralik); overflow-x: auto; scroll-snap-type: x proximity; scroll-padding-inline: var(--sayfa-kenar); padding: 4px var(--sayfa-kenar) 8px; margin: 0 calc(-1 * var(--sayfa-kenar)); scrollbar-width: none; }
@@ -469,6 +480,9 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
 .saat-kutu .rozet { font-size: .6875rem; }
 .sonraki-mac .tarih-satir { margin: 12px 0 0; font-size: .875rem; }
 .sonraki-mac .stadyum { margin: 0; font-size: .875rem; color: var(--metin-soluk); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Büyük yazıda (%200) kırpma yok: başlıklar ve stadyum adı sarar (1.4.4; erişilebilirlik 3. tur 5) */
+.buyuk-yazi .haber-satir h3, .buyuk-yazi .video-kart .baslik { display: block; -webkit-line-clamp: unset; overflow: visible; }
+.buyuk-yazi .sonraki-mac .stadyum { white-space: normal; text-overflow: clip; }
 .sonraki-mac .alt-satir { margin-top: 12px; border-top: 1px solid var(--kenar); min-height: 44px; display: flex; align-items: center; justify-content: space-between; font-size: var(--fs-meta); color: var(--metin-soluk); }
 .sonraki-mac .alt-satir .git { color: var(--vurgu); font-weight: 700; font-size: .9375rem; }
 
@@ -481,8 +495,8 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
 .kim-yok .git { display: block; margin-top: 10px; color: var(--vurgu); font-weight: 700; font-size: .9375rem; }
 
 /* ---------- 14. Hap (segmentli) filtreler: yerel radyo düğmeleri ---------- */
-/* Gol arşivi: sezon akışta (.sezon-formu), yalnız tek satırlık rakip çipleri yapışır (sabit alan ≤ %25). Çubuk ekranın %20'sinden
-   uzunsa (%200 yazı) yapışmaz: .yapiskan-degil (assets/ortak.js yapiskanIzle). */
+/* Gol arşivi: sezon akışta (.sezon-formu), yalnız tek satırlık rakip çipleri yapışır (sabit alan ≤ %25). Üst bar + alt menü + çubuk ekranın %25'inden
+   fazlaysa (%200 yazı) yapışmaz: .yapiskan-degil (assets/ortak.js yapiskanIzle). */
 .sezon-formu { margin: 0 0 6px; }
 .sezon-formu legend { font-size: var(--fs-etiket); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--metin-soluk); margin-bottom: 4px; }
 .sezon-formu fieldset { margin: 0; }
@@ -641,12 +655,16 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
 .haber-kaynak { margin: 8px 0 0; padding-top: 10px; border-top: 1px solid var(--kenar); color: var(--metin-soluk); font-size: var(--fs-meta); overflow-wrap: anywhere; }
 .mac-notu { margin: 12px 0 0; padding: 10px 12px; border-radius: var(--r-kucuk-gorsel); background: var(--yuzey); border: 1px solid var(--kenar); color: var(--metin); font-size: .9375rem; }
 .mac-notu p { margin: 0; overflow-wrap: anywhere; }
+.mac-notu .mac-notu-kaynak { margin-top: 6px; color: var(--metin-soluk); font-size: var(--fs-meta); }
 
 .mac-basi { background: linear-gradient(160deg, #0B0B0B 0%, #2B0A10 100%); color: #fff; padding: 20px var(--sayfa-kenar) 18px; margin: 0 calc(-1 * var(--sayfa-kenar)); border-bottom: 4px solid var(--kulup-kirmizi); }
 @media (min-width: 760px) { .mac-basi { margin: 16px 0 0; border-radius: var(--r-kart); } }
 .mac-basi .ust-satir { display: flex; justify-content: center; gap: 8px; margin-bottom: 12px; align-items: center; color: var(--ust-soluk); font-size: var(--fs-meta); }
 .mac-basi h1 { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: center; margin: 0; font-size: 1.125rem; text-align: center; }
 .mac-basi h1 .takim-ad { overflow-wrap: anywhere; }
+/* İki takım adı dengeli kırılır; oynanmamış maçta ortada dev 'VS' yerine başlama saati kutusu (tasarımcı 3. tur 4) */
+.mac-basi h1 .takim-ad { text-wrap: balance; }
+.mac-basi .orta.mac-saat { display: inline-grid; min-width: 84px; height: 48px; padding: 0 12px; font-size: var(--fs-saat); background: var(--mac-saat-zemin); color: #fff; border-radius: var(--r-saat); }
 .mac-basi h1 .biz { color: #FF8A85; }
 .mac-basi .orta { font-family: var(--font-govde); font-size: 2.25rem; font-weight: 700; white-space: nowrap; }
 .mac-basi .meta { text-align: center; color: #E4E1DB; font-size: .9rem; margin-top: 12px; display: grid; gap: 2px; }
@@ -698,6 +716,10 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
 .sakatlik .ad small { font-weight: 400; color: var(--metin-soluk); font-size: var(--fs-meta); margin-left: 6px; }
 .sakatlik .aciklama { grid-column: 1 / -1; margin: 0; font-size: .9375rem; }
 .sakatlik .kaynak { grid-column: 1 / -1; margin: 0; color: var(--metin-soluk); font-size: var(--fs-meta); }
+/* İki satır: kalın 'Dönüş: 20 Kasım', altında soluk kaynak satırı; tarih parçaları bölünmez (tasarımcı 3. tur 6) */
+.sakatlik .donus { grid-column: 1 / -1; margin: 0; font-weight: 700; color: var(--metin); font-size: .9375rem; }
+.sakatlik .parca { white-space: nowrap; }
+.buyuk-yazi .sakatlik .parca { white-space: normal; } /* %200'de tek parça satıra sığmayabilir: taşma yok */
 .kvkk-not { font-size: var(--fs-meta); color: var(--metin-soluk); background: var(--yuzey); border-radius: var(--r-saat); padding: 8px 12px; margin: 0 0 8px; }
 .fikstur-listesi { list-style: none; margin: 0; padding: 0; }
 .ay-baslik { margin: 16px 0 0; padding: 6px 0; font-size: var(--fs-etiket); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--metin-soluk); border-bottom: 1px solid var(--kenar); }
@@ -731,6 +753,7 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
 .ayar-satir { display: grid; grid-template-columns: 1fr auto; align-items: center; min-height: 56px; padding: 0 16px; color: var(--metin); text-decoration: none; font-weight: 700; }
 .ayar-satir:hover { background: var(--yuzey-2); color: var(--metin); }
 .ayar-satir .ok { color: var(--metin-soluk); }
+.ayar-dugme { width: 100%; background: none; border: 0; font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
 .ayar-metin { padding: 12px 16px; margin: 0; color: var(--metin-soluk); font-size: .9375rem; }
 .ayar-kart fieldset { padding: 12px 16px; margin: 0; }
 .ayar-kart fieldset legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

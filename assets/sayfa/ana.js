@@ -5,7 +5,7 @@
 // kez yok, reklam yoksa yuva tamamen kaldırılır; geç gelen kart okunan yerin üstüne eklenmez (reklam.js gecGelirseAtla).
 import {
   supabase, hazir, h, $, sayfaBaslat, tarihYaz, saatYaz, goreceZaman, gunAnahtari, kapakKaynagi, fotoAtfi, hataMetni, duyur,
-  evSahibiDeplasman, durumRozeti, cevrimdisiKutusu, skorMetni, sonucBilgisi, SAKATLIK_ETIKETI, TAKIM_ADI,
+  evSahibiDeplasman, durumRozeti, cevrimdisiKutusu, skorMetni, skorOgesi, sonucBilgisi, SAKATLIK_ETIKETI, TAKIM_ADI,
 } from '../ortak.js';
 import { reklamYuvalariniDoldur, reklamOnYukle } from '../reklam-yukle.js';
 import { sonVeri, sonVeriYaz } from '../onbellek.js';
@@ -20,6 +20,7 @@ const HABER_SUTUNLARI = 'id, baslik, ozet, kapak_url, kapak_kaynak, kapak_alt, y
 const MAC_SUTUNLARI = 'id, rakip, tarih, stadyum, ic_saha, organizasyon, corum_skor, rakip_skor, durum';
 const MAC_SURESI = 2 * 3600e3;          // başlama → bitiş (yaklaşık; uzatmalar dahil)
 const MAC_SONU_SURESI = 36 * 3600e3;    // maç bittikten sonra hero'da skor bu kadar kalır (ertesi sabah "3–0 aldık")
+const HERO_GEC = 2500;                  // manşet kapağı açılıştan bu kadar ms sonra hâlâ çözülmediyse varsayılan fotoğraf kalır
 
 const akis = $('#akis');
 const dugme = $('#daha-fazla');
@@ -32,31 +33,60 @@ let yukleniyor = false;
 const oturumS = sayfaBaslat();
 
 // ------------------------------------------------------------ hero
+// Etiket yüklenirken iskelettir (MANŞET / MAÇ GÜNÜ / MAÇ SONU henüz belli değil; tasarımcı 3. tur 7)
+function etiketYaz(metin) {
+  const e = $('#hero-etiket');
+  e.classList.remove('iskelet', 'hero-etiket-iskelet');
+  e.removeAttribute('aria-hidden');
+  e.textContent = metin;
+}
+
+let heroKapak = null; // şu an gösterilen / çözülmekte olan kapak adresi (önbellek + ağ iki kez çağırır: tek indirme)
+
+/**
+ * Manşetin kendi kapağı: varsayılan fotoğrafın (Saat Kulesi) yerine ancak tamamen ÇÖZÜLDÜKTEN sonra, tek seferde geçilir
+ * (yarım çizilen ikinci görsel / çift değişim görünmez; performans 3. tur 4). Varsayılan fotoğraf zaten ekrandaysa ve kapak
+ * açılıştan HERO_GEC ms sonra hâlâ hazır değilse bu ziyarette varsayılan kalır (kapak HTTP önbelleğinde: sonraki açılışta
+ * son görülen veriyle hemen çizilir).
+ */
+function heroKapakDegistir(kapak, h0) {
+  if (heroKapak === kapak.src) return;
+  heroKapak = kapak.src;
+  const yeni = new Image();
+  if (kapak.crossorigin) yeni.crossOrigin = kapak.crossorigin;
+  yeni.sizes = kapak.sizes || '100vw';
+  if (kapak.srcset) yeni.srcset = kapak.srcset;
+  yeni.src = kapak.src;
+  const coz = typeof yeni.decode === 'function' ? yeni.decode() : new Promise((tamam, red) => { yeni.onload = tamam; yeni.onerror = red; });
+  coz.then(() => {
+    if (heroKapak !== kapak.src) return;
+    const img = $('#hero-gorsel');
+    const varsayilanEkranda = img.complete && img.naturalWidth > 0;
+    if (varsayilanEkranda && performance.now() > HERO_GEC) { $('#hero').dataset.kapak = 'varsayilan'; return; }
+    img.closest('picture').querySelectorAll('source').forEach((x) => x.remove());
+    if (kapak.crossorigin) img.crossOrigin = kapak.crossorigin; else img.removeAttribute('crossorigin');
+    img.alt = h0.kapakAlt || '';
+    img.sizes = yeni.sizes;
+    if (kapak.srcset) img.srcset = kapak.srcset; else img.removeAttribute('srcset');
+    img.src = yeni.currentSrc || kapak.src; // çözülmüş kopya: aynı adres önbellekten, anında
+    const atif = fotoAtfi(h0.kapak, h0.kapakKaynak);
+    $('#hero-atif').hidden = !atif;
+    if (atif) $('#hero-atif').textContent = atif;
+    $('#hero').dataset.kapak = 'haber';
+  }).catch(() => { if (heroKapak === kapak.src) $('#hero').dataset.kapak = 'varsayilan'; }); // kapak açılmadı: varsayılan fotoğraf kalır
+}
+
 function heroCiz(h0) {
-  const etiket = $('#hero-etiket'), baslik = $('#hero-baslik'), alt = $('#hero-alt');
-  if (!h0) { baslik.replaceChildren(h('a', { href: 'takim.html' }, 'Kırmızı-siyah gündem')); alt.textContent = 'Haberler yakında burada.'; return; }
-  etiket.textContent = h0.etiket;
+  const baslik = $('#hero-baslik'), alt = $('#hero-alt');
+  if (!h0) { etiketYaz('Gündem'); baslik.replaceChildren(h('a', { href: 'takim.html' }, 'Kırmızı-siyah gündem')); alt.textContent = 'Haberler yakında burada.'; return; }
+  etiketYaz(h0.etiket);
   $('#hero').dataset.tur = h0.tur;
   baslik.replaceChildren(h('a', { href: h0.href, 'data-hero': h0.tur }, h0.baslik));
   alt.replaceChildren(...h0.alt);
   // Haberin kendi kapağı varsa (panelden yüklenen, hakkı olan fotoğraf) hero görseli o olur; atfı altında.
   // Etkin DPR ≤ 2 (sizes): DPR 3 telefonda -1600 (268 KB) değil -800 (~65 KB) iner (performans §4)
   const kapak = h0.kapak && !HERO_VARSAYILAN.test(h0.kapak) ? kapakKaynagi(h0.kapak, { varsayilan: 800, kutu: innerWidth }) : null;
-  if (kapak) {
-    const img = $('#hero-gorsel');
-    const ilk = { src: img.getAttribute('src'), srcset: img.getAttribute('srcset') };
-    img.closest('picture').querySelectorAll('source').forEach((s) => s.remove());
-    if (kapak.crossorigin) img.crossOrigin = kapak.crossorigin; else img.removeAttribute('crossorigin');
-    img.alt = h0.kapakAlt || '';
-    img.sizes = kapak.sizes || '100vw';
-    if (kapak.srcset) img.srcset = kapak.srcset; else img.removeAttribute('srcset');
-    img.src = kapak.src;
-    // Kapak açılmazsa varsayılan fotoğrafa (Saat Kulesi) dön: kırık görsel yok
-    img.addEventListener('error', () => { img.removeAttribute('crossorigin'); img.alt = ''; img.srcset = ilk.srcset; img.src = ilk.src; $('#hero-atif').textContent = fotoAtfi(ilk.src) || ''; }, { once: true });
-    const atif = fotoAtfi(h0.kapak, h0.kapakKaynak);
-    $('#hero-atif').hidden = !atif;
-    if (atif) $('#hero-atif').textContent = atif;
-  }
+  if (kapak) heroKapakDegistir(kapak, h0);
 }
 
 function haberHero(haber) {
@@ -72,7 +102,8 @@ function macSonuHero(mac) {
   const [ev, dep] = evSahibiDeplasman(mac);
   const sonuc = sonucBilgisi(mac);
   return {
-    tur: 'macsonu', etiket: 'Maç sonu', baslik: `${ev} ${skorMetni(mac)} ${dep}`, href: 'mac.html?id=' + encodeURIComponent(mac.id),
+    // Skor tek parça (nowrap): "3 –" / "0 DENEME FK" diye bölünmez (taraftar 3. tur 1)
+    tur: 'macsonu', etiket: 'Maç sonu', baslik: [ev, ' ', skorOgesi(skorMetni(mac)), ' ', dep], href: 'mac.html?id=' + encodeURIComponent(mac.id),
     alt: [sonuc ? sonuc.ad + ' · ' : '', h('time', { datetime: mac.tarih }, goreceZaman(mac.tarih)), ' · Golleri izle →'], kapak: null, id: null,
   };
 }
@@ -179,6 +210,15 @@ function kalanSure(iso) {
   if (gun >= 1) return `${gun} gün ${saat} saat kaldı`;
   return saat >= 1 ? `${saat} saat kaldı` : 'Az kaldı';
 }
+/** Şeritte kısa, bölünmez geri sayım: görünen "5 g 15 sa", ekran okuyucuya "5 gün 15 saat kaldı" (tasarımcı 3. tur 5). */
+function kalanOgesi(iso) {
+  const uzun = kalanSure(iso);
+  if (!uzun) return null;
+  const fark = Date.parse(iso) - Date.now();
+  const gun = Math.floor(fark / 864e5), saat = Math.floor((fark % 864e5) / 3600e3);
+  const kisa = gun >= 1 ? `${gun} g ${saat} sa` : saat >= 1 ? `${saat} sa kaldı` : 'Az kaldı';
+  return h('span', { class: 'serit-parca serit-kalan' }, h('span', { 'aria-hidden': 'true' }, '· ', kisa), h('span', { class: 'gorunmez' }, ', ' + uzun));
+}
 
 const basHarf = (ad) => ad.replace(/^(\S)\S*\s+(\S).*$/u, '$1$2').slice(0, 2).toLocaleUpperCase('tr-TR');
 // Bizim takımda baş harf rozeti YOK ("ÇF" kulüp kısaltmasına çok yakın; kural 7): uygulamanın özgün "ÇT" işareti
@@ -198,11 +238,14 @@ function seritCiz(mac) {
   const yakin = Date.parse(mac.tarih) - Date.now() < 6 * 864e5;
   const gun = gunAnahtari(mac.tarih) === gunAnahtari(new Date().toISOString()) ? 'Bugün'
     : yakin ? new Intl.DateTimeFormat('tr-TR', { timeZone: 'Europe/Istanbul', weekday: 'long' }).format(new Date(mac.tarih)) : tarihYaz(mac.tarih, { saat: false, yil: false });
-  const kalan = mac.durum === 'canli' ? null : kalanSure(mac.tarih);
+  // Bölünmez parçalar (takım adları, gün + saat, geri sayım); ayraç "·" parçanın BAŞINDA: satır sonunda asılı nokta kalmaz
+  // (taraftar 3. tur 5). Parçalar arasında yalnız normal boşluk kırılır.
   kutu.replaceChildren(h('a', { class: 'serit-baglanti', href: 'mac.html?id=' + encodeURIComponent(mac.id), id: 'siradaki-serit-baglanti' },
     h('span', { class: 'serit-etiket' }, 'Sıradaki'),
-    h('span', { class: 'serit-metin' }, h('b', null, `${ev} – ${dep}`), ' · ', gun, ' ', h('time', { datetime: mac.tarih }, saatYaz(mac.tarih)),
-      mac.durum === 'canli' ? [' · ', durumRozeti('canli')] : kalan ? ' · ' + kalan : ''),
+    h('span', { class: 'serit-metin' },
+      h('b', null, h('span', { class: 'serit-parca' }, ev, ' –'), ' ', h('span', { class: 'serit-parca' }, dep)), ' ',
+      h('span', { class: 'serit-parca' }, '· ', gun, ' ', h('time', { datetime: mac.tarih }, saatYaz(mac.tarih))),
+      mac.durum === 'canli' ? [' ', h('span', { class: 'serit-parca' }, '· ', durumRozeti('canli'))] : [' ', kalanOgesi(mac.tarih)]),
     h('span', { class: 'git', 'aria-hidden': 'true' }, '→')));
 }
 
@@ -214,7 +257,7 @@ function macKarti(mac) {
   const kalan = mac.durum === 'canli' ? null : kalanSure(mac.tarih);
   kutu.replaceChildren(h('a', { class: 'sonraki-mac', href: 'mac.html?id=' + encodeURIComponent(mac.id), id: 'sonraki-mac-karti',
     'aria-label': `Sıradaki maç: ${ev} – ${dep}, ${tarih} ${saatYaz(mac.tarih)}${mac.stadyum ? ', ' + mac.stadyum : ''}${kalan ? ', ' + kalan : ''}` },
-    h('div', { class: 'ust-satir' }, mac.organizasyon || 'Maç', kalan ? ' · ' + kalan : ''),
+    h('div', { class: 'ust-satir' }, mac.organizasyon || 'Maç', kalan ? [' ', h('span', { class: 'serit-parca' }, '· ', kalan)] : ''),
     h('div', { class: 'takimlar' },
       takimOgesi(ev),
       h('span', { class: 'saat-kutu' }, mac.durum === 'canli' ? durumRozeti('canli') : h('time', { datetime: mac.tarih }, saatYaz(mac.tarih))),
@@ -312,7 +355,7 @@ async function yukle() {
 // Bağlantı yok ve önbellek yok: iskelet SONSUZA KADAR kalmaz. Hero "Bağlantı yok", gol şeridi ve maç bölümü gizlenir
 // (tek "Tekrar dene" akışın başında), şerit fikstür bağlantısına döner.
 function iskeletleriKaldir() {
-  if ($('#hero-baslik .iskelet')) { $('#hero-etiket').textContent = 'Bağlantı yok'; $('#hero-baslik').replaceChildren('İnternet gitti, maç gitmedi'); $('#hero').dataset.tur = 'hata'; }
+  if ($('#hero-baslik .iskelet')) { etiketYaz('Bağlantı yok'); $('#hero-baslik').replaceChildren('İnternet gitti, maç gitmedi'); $('#hero').dataset.tur = 'hata'; }
   if ($('#son-goller .iskelet')) $('#goller-bolumu').hidden = true;
   if ($('#sonraki-mac .iskelet')) $('#sonraki-bolumu').hidden = true;
   if ($('#siradaki-serit .iskelet')) seritCiz(null);
@@ -327,6 +370,6 @@ if (hazir) {
   window.addEventListener('online', () => { if (akis.dataset.durum !== 'tamam') yukle(); });
 } else {
   akis.replaceChildren(); $('#son-goller').replaceChildren(); $('#sonraki-mac').replaceChildren(); $('#siradaki-serit').replaceChildren();
-  $('#hero-baslik').replaceChildren('Çorumspor Taraftar');
+  etiketYaz('Gündem'); $('#hero-baslik').replaceChildren('Çorumspor Taraftar');
 }
 await oturumS;

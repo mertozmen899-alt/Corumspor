@@ -477,6 +477,9 @@ async function tarayiciTestleri() {
     const robots = fs.existsSync(path.join(KOK, 'robots.txt')) ? fs.readFileSync(path.join(KOK, 'robots.txt'), 'utf8') : '';
     kontrol('statik: robots.txt var (User-agent)', /^User-agent: \*/m.test(robots), robots || '(dosya yok)');
     const sayfalar = fs.readdirSync(KOK).filter((d) => d.endsWith('.html')).sort();
+    // GEÇİCİ (son tur): gizlilik.html ve kurallar.html bu tur SUNUCU izindeydi; ortak satırlar (künye süresi, fetchpriority'siz supabase-js,
+    // kalın yazı tipi preload'u yok) orada birleştirmede uygulanır. Birleştirmeden sonra bu liste BOŞALTILMALI.
+    const SUNUCU_SAYFALARI_SON_TUR = ['gizlilik.html', 'kurallar.html'].filter((d) => /en kısa sürede dönülür|fetchpriority="high" src="assets\/vendor/.test(fs.readFileSync(path.join(KOK, d), 'utf8')));
     kontrol('statik: gizlilik.html var (KVKK aydınlatma + tarayıcı depolaması)', sayfalar.includes('gizlilik.html'), sayfalar.join(','));
     const cspler = new Set();
     for (const ad of sayfalar) {
@@ -487,9 +490,9 @@ async function tarayiciTestleri() {
       kontrol(`statik: ${ad} CSP'de 'unsafe-inline' / 'unsafe-eval' yok`, csp && !/unsafe-inline|unsafe-eval/.test(csp), csp);
       kontrol(`statik: ${ad} script-src yalnız 'self' (supabase-js de sitenin kendisinden; jsDelivr yok)`, JSON.stringify(yonerge('script-src')) === JSON.stringify(["'self'"]), yonerge('script-src').join(' '));
       kontrol(`statik: ${ad} hiçbir yerde jsDelivr adresi yok`, !/jsdelivr\.(net|com)/i.test(s), ad);
-      // fetchpriority=high: defer betiği Low öncelikle iniyordu, modüller onu bekliyordu (performans §9) — yonetim.html dahil
-      const sb = /<script defer fetchpriority="high" src="([^"]+)" integrity="([^"]+)"><\/script>/.exec(s) || [];
-      kontrol(`statik: ${ad} supabase-js <script defer fetchpriority="high"> yerel dosyadan, SRI ile`, sb[1] === SUPABASE_JS && sb[2] === SRI, sb[0] || '(etiket yok)');
+      // fetchpriority YOK (3. tur performans 1): high öncelik CSS, yazı tipleri ve hero ile bant genişliği yarışı yapıyordu — yonetim.html dahil
+      const sb = /<script defer src="([^"]+)" integrity="([^"]+)"><\/script>/.exec(s) || [];
+      if (!SUNUCU_SAYFALARI_SON_TUR.includes(ad)) kontrol(`statik: ${ad} supabase-js <script defer> (fetchpriority yok) yerel dosyadan, SRI ile`, sb[1] === SUPABASE_JS && sb[2] === SRI && !/fetchpriority="high" src="assets\/vendor/.test(s), sb[0] || '(etiket yok)');
       kontrol(`statik: ${ad} img-src yalnız 'self' + Supabase deposu + data:/blob: (her https adresi değil)`,
         JSON.stringify(yonerge('img-src')) === JSON.stringify(["'self'", 'https://*.supabase.co', 'data:', 'blob:']), yonerge('img-src').join(' '));
       kontrol(`statik: ${ad} og:image 1200×630 (assets/img/og-1200x630.png) + boyut + alt metin`,
@@ -498,6 +501,8 @@ async function tarayiciTestleri() {
       const alt = (/<footer class="alt">([\s\S]*?)<\/footer>/.exec(s) || [])[1] || '';
       kontrol(`statik: ${ad} alt bilgide "Çorum FK'nın resmî uygulaması değildir" (künye), gizlilik, kurallar ve fotoğraf kaynakları bağlantısı`,
         /Çorum FK'nın resmî uygulaması değildir/.test(alt) && /<a href="gizlilik\.html"/.test(alt) && /<a href="kurallar\.html"/.test(alt) && /<a href="kaynaklar\.html"/.test(alt) && /data-ayar="ILETISIM_EPOSTA"/.test(alt) && /kaldırma/i.test(alt), alt.slice(0, 120));
+      // Son tur kararı (başkan 1): kaldırma taleplerine süre sözü geri geldi (yalnız kaldırma; şikâyete bakış "en kısa sürede" kalır)
+      if (!SUNUCU_SAYFALARI_SON_TUR.includes(ad)) kontrol(`statik: ${ad} künyede "kaldırma taleplerine en geç 24 saat içinde dönülür"`, /\(kaldırma taleplerine en geç 24 saat içinde dönülür\)/.test(alt) && !/en kısa sürede dönülür/.test(alt), alt.slice(0, 200));
       kontrol(`statik: ${ad} şerit "Bağımsız taraftar uygulaması", "Biz Anadoluyuz" / "Kırmızı Şimşekler" / "ÇFK" yok`, s.includes('Bağımsız taraftar uygulaması</p>') && !/Biz Anadoluyuz|Kırmızı Şimşekler|ÇFK/.test(s), ad);
       kontrol(`statik: ${ad} viewport-fit=cover, CSP worker-src 'self', alt gezinme (4 bağlantı) main'den sonra`,
         /<meta name="viewport" content="[^"]*viewport-fit=cover/.test(s) && yonerge('worker-src')[0] === "'self'" && (/<nav class="alt-nav" id="alt-nav" aria-label="Ana gezinme">[\s\S]*?<\/nav>/.exec(s) || [''])[0].match(/<a href=/g)?.length === 4 && s.indexOf('</main>') < s.indexOf('class="alt-nav"'), ad);
@@ -525,6 +530,7 @@ async function tarayiciTestleri() {
     const hero = (/<img class="hero-gorsel"[^>]*>/.exec(anaHtml) || [''])[0];
     kontrol('statik (013): hero görseli HTML\'de (önyükleme tarayıcısı bulur), fetchpriority=high, srcset/sizes, width/height, alt="", tek "high"',
       /fetchpriority="high"/.test(hero) && /srcset="/.test(hero) && /sizes="100vw"/.test(hero) && /width="1280" height="720"/.test(hero) && / alt=""/.test(hero) && (anaHtml.match(/<img[^>]*fetchpriority="high"/g) || []).length === 1, hero);
+    kontrol('statik (son tur, tasarımcı 7): hero etiketi HTML\'de iskelet, "Manşet" yazmaz (yüklenirken yanlış etiket yok)', /<p class="hero-etiket iskelet hero-etiket-iskelet" id="hero-etiket" aria-hidden="true"><\/p>/.test(anaHtml));
     const heroDosyalari = [...new Set([...anaHtml.matchAll(/assets\/img\/(corum-saat-kulesi[^ "]+\.webp)/g)].map((m) => m[1]))];
     const enBuyuk = Math.max(...heroDosyalari.map((d) => fs.statSync(path.join(KOK, 'assets/img', d)).size));
     kontrol('statik (013): hero kopyalarının her biri ≤ 60 KB WebP', heroDosyalari.length >= 6 && enBuyuk <= 60 * 1024, `${heroDosyalari.length} dosya, en büyük ${enBuyuk} B`);
@@ -1104,6 +1110,182 @@ async function tarayiciTestleri() {
     const pm = await metin(p, '#profil');
     kontrol('profil (2. tur): üye (yönetici değil) profilinde "null" yazmıyor ("nullnull" hatası)', !/null/i.test(pm) && /ayse_19/.test(pm), pm);
     kontrol('2. tur ön yüz sayfalarında JavaScript hatası yok', !hatalar.length, hatalar.join(' | '));
+    await ctx.close();
+  });
+
+  // ------------------------------------------------ son tur (3. tur incelemesi) ön yüz
+  await guvenli('son tur ön yüz', async () => {
+    const { ctx, p, hatalar } = await baglam({ width: 360, height: 740 });
+    // data-durum geçişlerini ve ayrıntı sayfasındaki ilk kapak <img>'ini kaydet (önbellekten çizim → ağdan tazeleme)
+    await ctx.addInitScript(() => {
+      window.__durumlar = [];
+      new MutationObserver((l) => {
+        for (const m of l) {
+          if (m.type === 'attributes' && m.attributeName === 'data-durum' && /^(haber|gol)$/.test(m.target.id)) window.__durumlar.push(m.target.dataset.durum);
+          if (!window.__ilkKapak) window.__ilkKapak = document.querySelector('#makale img.kapak-buyuk, #gol .video-baslat img');
+        }
+      }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-durum'] });
+    });
+    const tekSatir = (sec) => p.$$eval(sec, (l) => l.map((e) => { const r = [...e.getClientRects()]; const lh = parseFloat(getComputedStyle(e).lineHeight) || parseFloat(getComputedStyle(e).fontSize) * 1.4; return { t: e.textContent, satir: new Set(r.map((x) => Math.round(x.top))).size, h: Math.round(e.getBoundingClientRect().height), lh: Math.round(lh) }; }));
+    // ---- taraftar 1: maç sonu hero'sunda skor bölünmez (360 px)
+    await git(p, 'index.html?sahte=1');
+    await p.waitForSelector(AKIS);
+    await dbYaz(p, (db) => { const m = db.maclar.find((x) => x.id.endsWith('02')); m.tarih = new Date(Date.now() - 14 * 3600e3).toISOString(); m.corum_skor = 3; m.rakip_skor = 0; m.durum = 'bitti'; m.rakip = 'Hayal Belediyespor Deneme'; });
+    await dbYaz(p, (db) => { db.maclar.find((x) => x.id.endsWith('03')).rakip = 'Hayal Belediyespor Kulübü'; });
+    await git(p, 'index.html?sahte=1');
+    await p.waitForSelector(AKIS);
+    const hs = await tekSatir('#hero-baslik .skor-blok');
+    kontrol('son tur (taraftar 1): 360 px maç sonu hero\'sunda skor tek parça, tek satırda (nowrap)', hs.length === 1 && hs[0].t.replace(/\s+/g, ' ') === '0 – 3' && hs[0].satir === 1 && await p.$eval('#hero-baslik .skor-blok', (e) => getComputedStyle(e).whiteSpace === 'nowrap'), JSON.stringify(hs));
+    // ---- tasarımcı 7: etiket yüklenirken iskelet (HTML'de "Manşet" yazmaz); veri gelince gerçek etiket
+    const et = await p.$eval('#hero-etiket', (e) => ({ metin: e.textContent, iskelet: e.classList.contains('iskelet') }));
+    kontrol('son tur (tasarımcı 7): veri gelince hero etiketi gerçek metin, iskelet sınıfı kalkar', et.metin === 'Maç sonu' && !et.iskelet, JSON.stringify(et));
+    // ---- taraftar 5 / tasarımcı 5: "Sıradaki" şeridi bölünmez parçalar, ayraç parçanın başında, geri sayım "5 g 15 sa"
+    const sp = await tekSatir('#siradaki-serit .serit-parca');
+    const kalanMetin = await p.$eval('#siradaki-serit .serit-kalan [aria-hidden="true"]', (e) => e.textContent).catch(() => '');
+    const okunus = await p.$eval('#siradaki-serit .serit-kalan .gorunmez', (e) => e.textContent).catch(() => '');
+    kontrol('son tur (taraftar 5): şerit parçaları (takım adları, gün + saat, geri sayım) tek satırda; ayraç "·" parçanın başında (satır sonunda asılı nokta yok)',
+      sp.length >= 4 && sp.every((x) => x.satir === 1) && sp.slice(2).every((x) => /^· /.test(x.t)) && !sp.some((x) => /·\s*$/.test(x.t)), JSON.stringify(sp));
+    kontrol('son tur (tasarımcı 5): geri sayım tek parça "N g M sa", ekran okuyucuya "N gün M saat kaldı"', /^· \d+ g \d+ sa$/.test(kalanMetin) && /^, \d+ gün \d+ saat kaldı$/.test(okunus), JSON.stringify({ kalanMetin, okunus }));
+    // ---- fikstür ve gol arşivi satırlarında skor bölünmez
+    await git(p, 'takim.html?sahte=1#fikstur');
+    await p.waitForSelector('#sonuclar .fikstur-satir');
+    const fs1 = await tekSatir('#sonuclar .fikstur-satir .skor');
+    kontrol('son tur (taraftar 1): fikstür satırlarında skor tek satırda', fs1.length >= 2 && fs1.every((x) => x.satir === 1), JSON.stringify(fs1));
+    await git(p, 'goller.html?sahte=1');
+    await p.waitForSelector('#arsiv[data-durum="tamam"] .arsiv-mac');
+    const gs = await tekSatir('#arsiv .grup-baslik h2 .skor-blok');
+    kontrol('son tur (taraftar 1): gol arşivi grup başlıklarında skor tek parça, tek satırda', gs.length >= 2 && gs.every((x) => x.satir === 1), JSON.stringify(gs));
+    // ---- performans 2: gol arşivinin ilk kart kapağı (LCP) fetchpriority=high; başka high yok
+    const yuksek = await p.$$eval('img[fetchpriority="high"]', (l) => l.map((i) => i.closest('.video-kart')?.dataset.golId || i.id));
+    const ilkKart = await p.$eval('#arsiv .video-kart', (a) => a.dataset.golId);
+    kontrol('son tur (performans 2): gol arşivinde YALNIZ ilk kartın kapağı fetchpriority=high', yuksek.length === 1 && yuksek[0] === ilkKart, JSON.stringify({ yuksek, ilkKart }));
+
+    // ---- maç: oynanmamış maçta ortada başlama saati (dev VS yok), maç notu + resmî duyuru satırı; bitince not yok; maç satırı tekrar yok
+    await git(p, 'mac.html?sahte=1&id=11111111-0000-4000-8000-000000000003');
+    await p.waitForSelector('#mac[data-durum="tamam"]');
+    const mo = await p.evaluate(() => ({ orta: document.querySelector('#skor').textContent, saat: !!document.querySelector('#skor.mac-saat time'), denge: getComputedStyle(document.querySelector('.mac-basi h1 .takim-ad')).textWrap || getComputedStyle(document.querySelector('.mac-basi h1 .takim-ad')).textWrapStyle, not: document.querySelector('#mac-notu')?.textContent || '', kaynak: document.querySelector('#mac-notu-kaynak')?.textContent }));
+    kontrol('son tur (tasarımcı 4): oynanmamış maçta ortada "19:00" saat kutusu (VS yok), takım adları text-wrap: balance', mo.saat && /^19:00/.test(mo.orta) && !/vs/i.test(mo.orta) && /balance/.test(mo.denge), JSON.stringify(mo));
+    kontrol('son tur (başkan 5): maç notunun altında sabit "Kesin bilgi için kulübün resmî duyurusuna bak."', mo.kaynak === 'Kesin bilgi için kulübün resmî duyurusuna bak.' && /^Maç notu: /.test(mo.not), JSON.stringify(mo));
+    await dbYaz(p, (db) => { const m = db.maclar.find((x) => x.id.endsWith('03')); m.durum = 'bitti'; m.corum_skor = 1; m.rakip_skor = 0; m.tarih = new Date(Date.now() - 60 * 864e5).toISOString(); });
+    await git(p, 'mac.html?sahte=1&id=11111111-0000-4000-8000-000000000003');
+    await p.waitForSelector('#mac[data-durum="tamam"]');
+    kontrol('son tur (taraftar 2): biten maçta maç öncesi notu (bilet, kapı saati) gösterilmez', !(await p.$('#mac-notu')) && (await p.textContent('#mac-basi .rozet')) === 'Bitti');
+    await git(p, 'mac.html?sahte=1&id=' + M1);
+    await p.waitForSelector('#mac-golleri:not([hidden]) #gol-listesi .gol');
+    kontrol('son tur (tasarımcı 2): maç sayfasındaki gol kartlarında maç satırı tekrar etmez', (await p.$$('#gol-listesi .meta')).length === 0 && (await p.$$('#gol-listesi .video-kart')).length >= 1);
+
+    // ---- gol: düğme adı "Videoyu oynat: <başlık>" (tekrar yok), kapak fetchpriority=high, oynatınca fotoğraf künyesi gizli
+    await git(p, 'gol.html?sahte=1&id=22222222-0000-4000-8000-000000000001');
+    await p.waitForSelector('#gol[data-durum="tamam"] .video-baslat');
+    const gf = await p.evaluate(() => ({ ad: document.querySelector('.video-baslat .gorunmez').textContent, fp: document.querySelector('.video-baslat img')?.getAttribute('fetchpriority'), atif: !!document.querySelector('.video .foto-atif:not([hidden])') }));
+    kontrol('son tur (erişilebilirlik 2): facade adı "Videoyu oynat: Ali Örnek, 23. dakika, Örnekköy Spor maçı (0:42)" ("Gol videosu:" tekrarı yok)', gf.ad === 'Videoyu oynat: Ali Örnek, 23. dakika, Örnekköy Spor maçı (0:42)', gf.ad);
+    kontrol('son tur (performans 2): gol sayfasının video kapağı (LCP) fetchpriority=high', gf.fp === 'high', gf.fp);
+    await p.click('.video-baslat');
+    await p.waitForSelector('.video iframe');
+    const go = await p.evaluate(() => ({ atif: [...document.querySelectorAll('.video .foto-atif')].map((x) => x.hidden || getComputedStyle(x).display === 'none'), title: document.querySelector('.video iframe').title }));
+    kontrol('son tur (taraftar 4): video oynayınca kapağın fotoğraf künyesi gizlenir; oynatıcının adı "Gol videosu: …"', go.atif.length === 1 && go.atif.every(Boolean) && /^Gol videosu: Ali Örnek, 23\. dakika/.test(go.title), JSON.stringify(go));
+    await p.waitForSelector('#diger-goller-bolumu:not([hidden]) #diger-goller li');
+    kontrol('son tur (tasarımcı 2): gol sayfasındaki "diğer goller" kartlarında maç satırı tekrar etmez', (await p.$$('#diger-goller .meta')).length === 0);
+
+    // ---- performans 2: haber ve gol önce son görülen kayıttan çizilir, sonra ağdan; aynı kapak <img>'i yeniden kurulmaz
+    await p.evaluate(() => { const k = 'son-veri-v1-sahte'; const v = JSON.parse(localStorage.getItem(k) || '{}'); delete v.haber; delete v.gol; localStorage.setItem(k, JSON.stringify(v)); });
+    await git(p, 'index.html?sahte=1');
+    await p.waitForSelector(AKIS);
+    const h5 = '33333333-0000-4000-8000-000000000005';
+    await git(p, 'haber.html?sahte=1&id=' + h5);
+    await p.waitForSelector('#haber[data-durum="tamam"] #haber-metni p');
+    const ilk = await p.evaluate(() => ({ durumlar: window.__durumlar, ayni: window.__ilkKapak === document.querySelector('#makale img.kapak-buyuk'), fp: document.querySelector('#makale img.kapak-buyuk')?.getAttribute('fetchpriority') }));
+    kontrol('son tur (performans 2): haber ana sayfa listesindeki satırdan ANINDA çizilir (onbellek → tamam), kapak <img>\'i aynı düğüm',
+      JSON.stringify(ilk.durumlar.slice(-2)) === '["onbellek","tamam"]' && ilk.ayni && ilk.fp === 'high', JSON.stringify(ilk));
+    await git(p, 'haber.html?sahte=1&id=' + h5);
+    await p.waitForSelector('#haber[data-durum="tamam"] #haber-metni p');
+    const ikinci = await p.evaluate(() => ({ durumlar: window.__durumlar, kayit: (JSON.parse(localStorage.getItem('son-veri-v1-sahte')).haber || {}).veri.map((x) => x.id) }));
+    kontrol('son tur (performans 2): açılan haber son görülen kayda yazılır, tekrar açılışta önce o çizilir', JSON.stringify(ikinci.durumlar.slice(-2)) === '["onbellek","tamam"]' && ikinci.kayit[0] === '33333333-0000-4000-8000-000000000005', JSON.stringify(ikinci));
+    await git(p, 'gol.html?sahte=1&id=22222222-0000-4000-8000-000000000003');
+    await p.waitForSelector('#gol[data-durum="tamam"] #video-not');
+    const gc = await p.evaluate(() => ({ durumlar: window.__durumlar, ayni: window.__ilkKapak === document.querySelector('#gol .video-baslat img'), not: document.querySelector('#video-not').textContent }));
+    kontrol('son tur (performans 2): gol ana sayfa şeridindeki satırdan anında çizilir (onbellek → tamam), kapak aynı düğüm, video notu ağdan', JSON.stringify(gc.durumlar.slice(-2)) === '["onbellek","tamam"]' && gc.ayni && /Video: /.test(gc.not), JSON.stringify(gc));
+
+    // ---- başkan 3: düzeltme kutusunda tarih "Düzeltme (5 Kasım 2026, 14:20): …"
+    await dbYaz(p, (db, id) => Object.assign(db.haberler.find((x) => x.id === id), { duzeltme_notu: 'Skor yanlış yazılmıştı.', duzeltme_tarihi: '2026-11-05T11:20:00Z' }), H1);
+    await git(p, 'haber.html?sahte=1&id=' + H1);
+    await p.waitForSelector('#haber[data-durum="tamam"] #haber-duzeltme');
+    const dz = (await metin(p, '#haber-duzeltme'));
+    kontrol('son tur (başkan 3): düzeltme kutusunda düzeltme tarihi (Türkiye saati) "Düzeltme (5 Kasım 2026, 14:20): …"', dz === 'Düzeltme (5 Kasım 2026, 14:20): Skor yanlış yazılmıştı.', dz);
+
+    // ---- tasarımcı 6: sakatlık iki satır: kalın "Dönüş: …", soluk kaynak satırı; tarih parçaları bölünmez
+    await git(p, 'takim.html?sahte=1#sakatlik');
+    await p.waitForSelector('#sakatlik-icerik[data-durum="tamam"] .sakatlik');
+    const sd = await p.evaluate(() => { const li = [...document.querySelectorAll('.sakatlik')].find((x) => x.querySelector('.donus')); const d = li && li.querySelector('.donus'); return li ? { donus: d.textContent, kalin: getComputedStyle(d).fontWeight, kaynak: li.querySelector('.kaynak').textContent, parca: [...li.querySelectorAll('.kaynak .parca')].map((x) => [x.textContent, getComputedStyle(x).whiteSpace]), ayri: d.getBoundingClientRect().bottom <= li.querySelector('.kaynak').getBoundingClientRect().top + 1 } : null; });
+    kontrol('son tur (tasarımcı 6): sakatlıkta 1. satır kalın "Dönüş: 20 Kasım", 2. satır "Kaynak: … · tarih · Güncellendi …" (tarih parçaları nowrap)',
+      sd && /^Dönüş: \d+ \S+$/.test(sd.donus) && Number(sd.kalin) >= 700 && sd.ayri && /^Kaynak: /.test(sd.kaynak) && !/dönüş/i.test(sd.kaynak) && sd.parca.length >= 2 && sd.parca.every(([t, w]) => /^· /.test(t) && w === 'nowrap'), JSON.stringify(sd));
+
+    // ---- taraftar 3: Profil'de "Ana ekrana ekle" (yükleme olayı gelince), tarayıcının kendi onayı; yoksa gizli
+    await git(p, 'profil.html?sahte=1');
+    await p.waitForSelector('#profil[data-durum="tamam"]');
+    const once = await p.evaluate(() => document.querySelector('#ana-ekran').hidden);
+    await p.evaluate(() => { const e = new Event('beforeinstallprompt', { cancelable: true }); e.prompt = async () => { window.__soruldu = true; }; e.userChoice = Promise.resolve({ outcome: 'accepted' }); window.__olay = e; dispatchEvent(e); });
+    const sonra = await p.evaluate(() => ({ bolum: document.querySelector('#ana-ekran').hidden, dugme: document.querySelector('#ana-ekran-ekle').hidden, engel: window.__olay.defaultPrevented, ad: document.querySelector('#ana-ekran-ekle').textContent }));
+    await p.click('#ana-ekran-ekle');
+    await p.waitForFunction(() => document.querySelector('#ana-ekran').hidden);
+    const soruldu = await p.evaluate(() => window.__soruldu === true);
+    kontrol('son tur (taraftar 3): Profil\'de "Ana ekrana ekle" yalnız tarayıcı yüklemeyi sununca görünür; dokununca tarayıcının kendi onayı (prompt), kabul edince gizlenir',
+      once && !sonra.bolum && !sonra.dugme && sonra.engel && /^Ana ekrana ekle/.test(sonra.ad) && soruldu, JSON.stringify({ once, sonra, soruldu }));
+    kontrol('son tur ön yüz sayfalarında JavaScript hatası yok', !hatalar.length, hatalar.join(' | '));
+    await ctx.close();
+    // yüklüyse (standalone) bölüm hiç açılmaz; iPhone'da (olay yok) "Paylaş › Ana Ekrana Ekle" ipucu
+    const y = await baglam({ width: 360, height: 740 });
+    await y.ctx.addInitScript(() => { const asil = window.matchMedia.bind(window); window.matchMedia = (q) => (q === '(display-mode: standalone)' ? { matches: true, media: q, addEventListener() {}, removeEventListener() {} } : asil(q)); });
+    await git(y.p, 'profil.html?sahte=1');
+    await y.p.waitForSelector('#profil[data-durum="tamam"]');
+    await y.p.evaluate(() => { const e = new Event('beforeinstallprompt', { cancelable: true }); e.prompt = async () => {}; e.userChoice = Promise.resolve({ outcome: 'dismissed' }); dispatchEvent(e); });
+    kontrol('son tur (taraftar 3): uygulama zaten yüklüyse (standalone) "Ana ekrana ekle" bölümü gizli', await y.p.evaluate(() => document.querySelector('#ana-ekran').hidden));
+    await y.ctx.close();
+    const ios = await baglam({ width: 390, height: 844 }, { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1' });
+    await git(ios.p, 'profil.html?sahte=1');
+    await ios.p.waitForSelector('#profil[data-durum="tamam"]');
+    const ii = await ios.p.evaluate(() => ({ bolum: document.querySelector('#ana-ekran').hidden, ipucu: document.querySelector('#ana-ekran-ios').hidden, dugme: document.querySelector('#ana-ekran-ekle').hidden, metin: document.querySelector('#ana-ekran-ios').textContent }));
+    kontrol('son tur (taraftar 3): iPhone Safari\'de düğme yok, "Paylaş … Ana Ekrana Ekle" ipucu var (açılır pencere yok)', !ii.bolum && !ii.ipucu && ii.dugme && /Paylaş/.test(ii.metin) && /Ana Ekrana Ekle/.test(ii.metin), JSON.stringify(ii));
+    await ios.ctx.close();
+  });
+
+  // ------------------------------------------------ son tur (performans 4): manşet kapağı varsayılan hero'nun yerine yalnız ÇÖZÜLDÜKTEN sonra,
+  // tek seferde geçer; açılıştan 2,5 sn sonra hâlâ hazır değilse varsayılan fotoğraf kalır (ikinci görsel değişimi görünmez)
+  await guvenli('son tur hero kapağı', async () => {
+    for (const [gecikme, beklenen] of [[0, 'haber'], [3500, 'varsayilan']]) {
+      const { ctx, p } = await baglam({ width: 390, height: 844 });
+      await git(p, 'index.html?sahte=1');
+      await p.waitForSelector(AKIS);
+      await dbYaz(p, (db) => { const h = db.haberler.find((x) => x.id.endsWith('02')); h.kapak_url = 'assets/img/hattusa-aslanli-kapi-1600.webp'; h.kapak_kaynak = null; });
+      await p.evaluate(() => { localStorage.removeItem('son-veri-v1-sahte'); });
+      if (gecikme) await ctx.route(/hattusa-aslanli-kapi-\d+\.webp/, async (r) => { await new Promise((c) => setTimeout(c, gecikme)); await r.continue(); });
+      await git(p, 'index.html?sahte=1');
+      await p.waitForSelector('#hero[data-kapak]', { timeout: 10000 });
+      const d = await p.evaluate(() => ({ kapak: document.querySelector('#hero').dataset.kapak, src: document.querySelector('#hero-gorsel').currentSrc, atif: document.querySelector('#hero-atif').textContent }));
+      kontrol(`son tur (performans 4): manşet kapağı ${gecikme ? 'geç (3,5 sn) gelince varsayılan hero kalır' : 'çözülünce tek seferde hero olur (atfıyla)'}`,
+        d.kapak === beklenen && (beklenen === 'haber' ? /hattusa-aslanli-kapi-\d+\.webp$/.test(d.src) && /Hattuşa|Hattusa|CC BY/.test(d.atif) : /corum-saat-kulesi/.test(d.src) && /Alienatedplus/.test(d.atif)), JSON.stringify(d));
+      await ctx.close();
+    }
+  });
+
+  // ------------------------------------------------ son tur: büyük yazı (32 px, 320×640): yapışkan alan ≤ %25, başlıklar kırpılmaz
+  await guvenli('son tur büyük yazı', async () => {
+    const { ctx, p } = await baglam({ width: 320, height: 640 });
+    const cdp = await ctx.newCDPSession(p);
+    await cdp.send('Page.enable');
+    await cdp.send('Page.setFontSizes', { fontSizes: { standard: 32, fixed: 32 } });
+    for (const [url, bekle] of [['goller.html?sahte=1', '#arsiv[data-durum="tamam"] .arsiv-mac'], ['takim.html?sahte=1', '#kadro-icerik[data-durum="tamam"]']]) {
+      await git(p, url);
+      await p.waitForSelector(bekle);
+      await p.waitForTimeout(200);
+      const d = await p.evaluate(() => { const e = document.querySelector('.filtreler, .sekme-yapiskan'); const b = (s) => document.querySelector(s).getBoundingClientRect().height; return { sinif: e.classList.contains('yapiskan-degil'), konum: getComputedStyle(e).position, toplam: Math.round(b('header.ust') + b('#alt-nav') + e.getBoundingClientRect().height), ekran: innerHeight }; });
+      kontrol(`son tur (erişilebilirlik 3): ${url.split('?')[0]} 320×640 + 32 px yazı: üst bar + alt menü + çubuk ekranın %25'ini aşınca çubuk yapışkan değil`, d.toplam > d.ekran * 0.25 && d.sinif && d.konum === 'static', JSON.stringify(d));
+    }
+    await git(p, 'index.html?sahte=1');
+    await p.waitForSelector(AKIS);
+    await p.waitForSelector('#sonraki-mac .stadyum');
+    const k = await p.evaluate(() => ({ sinif: document.documentElement.classList.contains('buyuk-yazi'), kirpik: [...document.querySelectorAll('.haber-satir h3, .video-kart .baslik')].filter((e) => { const c = getComputedStyle(e); return c.overflow !== 'visible' || (c.webkitLineClamp && c.webkitLineClamp !== 'none'); }).map((e) => e.textContent), clamp: getComputedStyle(document.querySelector('.haber-satir h3')).webkitLineClamp, stadyum: getComputedStyle(document.querySelector('#sonraki-mac .stadyum')).whiteSpace }));
+    kontrol('son tur (erişilebilirlik 5): büyük yazıda haber ve gol kartı başlıkları kırpılmaz (line-clamp yok), stadyum adı sarar', k.sinif && !k.kirpik.length && /none|unset/.test(k.clamp || 'none') && k.stadyum === 'normal', JSON.stringify(k));
     await ctx.close();
   });
 

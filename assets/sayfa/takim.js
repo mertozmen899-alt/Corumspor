@@ -71,12 +71,14 @@ function sakatlikCiz(liste) {
     // Ad ve mevki ekran okuyucuda bitişik okunmasın ("Deniz DefansDefans" değil "Deniz, Defans")
     h('p', { class: 'ad' }, s.oyuncular ? s.oyuncular.ad : 'Oyuncu', s.oyuncular ? h('small', null, h('span', { class: 'gorunmez' }, ', '), MEVKI_TEKIL[s.oyuncular.mevki] || '') : null),
     h('span', { class: 'durum-cip ' + s.durum }, SAKATLIK_ETIKETI[s.durum] || s.durum),
+    // İki satır (tasarımcı 3. tur 6): asıl bilgi "Dönüş: 20 Kasım" kalın; altında soluk "Kaynak: … · tarih · Güncellendi …".
+    // Tarih parçaları bölünmez (nowrap): "5 / Kasım 2026" diye kırılmaz.
+    s.beklenen_donus ? h('p', { class: 'donus' }, 'Dönüş: ', h('time', { datetime: s.beklenen_donus, class: 'parca' }, tarihYaz(s.beklenen_donus + 'T12:00:00Z', { saat: false, yil: false }))) : null,
     h('p', { class: 'kaynak' },
-      s.beklenen_donus ? `Tahmini dönüş: ${tarihYaz(s.beklenen_donus + 'T12:00:00Z', { saat: false, yil: false })} · ` : '',
       'Kaynak: ', typeof s.kaynak_url === 'string' && KAYNAK_URL.test(s.kaynak_url)
         ? h('a', { href: s.kaynak_url, rel: 'noopener nofollow', target: '_blank' }, s.kaynak, h('span', { class: 'gorunmez' }, ' (yeni sekmede açılır)')) : s.kaynak,
-      s.kaynak_tarihi ? [' · ', h('time', { datetime: s.kaynak_tarihi, class: 'kaynak-tarihi' }, tarihYaz(String(s.kaynak_tarihi).slice(0, 10) + 'T12:00:00Z', { saat: false }))] : null,
-      ' · Güncellendi ', h('time', { datetime: s.guncellendi }, goreceZaman(s.guncellendi)))))));
+      s.kaynak_tarihi ? [' ', h('span', { class: 'parca' }, '· ', h('time', { datetime: s.kaynak_tarihi, class: 'kaynak-tarihi' }, tarihYaz(String(s.kaynak_tarihi).slice(0, 10) + 'T12:00:00Z', { saat: false })))] : null,
+      ' ', h('span', { class: 'parca' }, '· Güncellendi ', h('time', { datetime: s.guncellendi }, goreceZaman(s.guncellendi))))))));
 }
 
 // ------------------------------------------------------------ fikstür

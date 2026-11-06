@@ -186,6 +186,10 @@ test('yayın (2. tur): gerçek ayarla CSP sayfadan _headers\'a taşınır, tam S
     assert.match(csp, /img-src 'self' https:\/\/abcdefgh\.supabase\.co data: blob:/);
     assert.match(csp, /connect-src 'self' https:\/\/abcdefgh\.supabase\.co wss:\/\/abcdefgh\.supabase\.co/);
     assert.match(csp, /frame-ancestors 'none'/);
+    // Son tur (denetçi 5): media-src her https adresi değil; site + proje deposu. YouTube yalnız frame-src'de
+    assert.match(csp, /media-src 'self' https:\/\/abcdefgh\.supabase\.co blob:(;|$)/);
+    assert.ok(!/media-src[^;]*https:(\s|;|$)/.test(csp), 'media-src\'te çıplak https: yok: ' + csp);
+    assert.ok(!/media-src[^;]*youtube/.test(csp) && /frame-src https:\/\/www\.youtube-nocookie\.com/.test(csp), 'YouTube yalnız frame-src');
     assert.ok(!/\*\.supabase\.co/.test(csp), 'her Supabase projesi değil, yalnız bu proje: ' + csp);
     assert.equal((basliklar.match(/Content-Security-Policy:/g) || []).length, 1, 'tek CSP başlığı');
     assert.match(basliklar, /Strict-Transport-Security: max-age=31536000; includeSubDomains/);
@@ -241,10 +245,18 @@ test('yayın (2. tur): iç bağlantılar uzantısız (Cloudflare 308 yok), JS di
   } finally { rmSync(h1, { recursive: true, force: true }); rmSync(h2, { recursive: true, force: true }); }
 });
 
-test('service worker (2. tur): Cloudflare 308 yönlendirmesine dayanıklı, cache: reload, sınırlı önbellekler', () => {
+test('service worker (son tur): Cloudflare 308 yönlendirmesine dayanıklı, kurulumda no-cache / değişmeyene varsayılan, önceki kabuk bir sürüm daha, sınırlı önbellekler', () => {
   const sw = readFileSync(path.join(KOK, 'sw.js'), 'utf8');
   assert.match(sw, /const SURUM = 'gelistirme';/, 'depoda geliştirme sürümü (yayında özet)');
-  assert.match(sw, /cache: 'reload'/);
+  assert.ok(!/cache: 'reload'/.test(sw), 'kurulum HTTP önbelleğini baştan atlamaz (performans 3. tur 5)');
+  assert.match(sw, /cache: degismez\(adres\) \? 'default' : 'no-cache'/);
+  const degismez = new Function(/const degismez = [^\n]+/.exec(sw)[0] + '; return degismez;')();
+  for (const d of ['assets/fonts/oswald-700-tr.woff2', 'assets/vendor/supabase-js-2.45.4/supabase.js', 'assets/logo/simge-192.png']) assert.ok(degismez(d), d);
+  for (const d of ['assets/ortak.js', 'assets/stil.css', 'assets/sayfa/ana.js', 'index.html', 'goller.html', 'manifest.webmanifest']) assert.ok(!degismez(d), d);
+  // Karışık sürüm yok (performans 3. tur 6): önceki kabuk silinmez, etkinleşme anındaki sekmeler önceki kabuktan beslenir
+  assert.match(sw, /k !== KABUK && k !== 'kabuk-' \+ onceki/);
+  assert.match(sw, /kabukDosyasi\(r, e\.clientId\)/);
+  assert.match(sw, /clients\.matchAll\(\{ includeUncontrolled: true, type: 'window' \}\)/);
   assert.match(sw, /y\.redirected/);
   assert.match(sw, /new Response\(await y\.blob\(\)/);
   assert.match(sw, /VERI_EN_COK = \d+/);
@@ -283,14 +295,25 @@ test('PWA (2. tur): manifest (standalone, #0B0B0B, 192/512 + maskable PNG), her 
   assert.ok(require('../araclar/yayin-hazirla.js').yayinListesi(KOK).includes('manifest.webmanifest'));
 });
 
-test('bağımsızlık (2. tur): her sayfanın og:description\'ı "Çorum FK\'nın resmî uygulaması değildir"; açıklamalar "Çorum FK"; künyede 24 saat sözü yok', () => {
+// GEÇİCİ (son tur): gizlilik.html ve kurallar.html bu tur SUNUCU izindeydi; ortak satırlar birleştirmede uygulanır (sonra liste boşalır)
+const SUNUCU_SAYFALARI_SON_TUR = ['gizlilik.html', 'kurallar.html'].filter((d) => /en kısa sürede dönülür|source-sans-3-700-tr\.woff2" as="font"/.test(readFileSync(path.join(KOK, d), 'utf8')));
+
+test('bağımsızlık (son tur): her sayfanın og:description\'ı "Çorum FK\'nın resmî uygulaması değildir"; açıklamalar "Çorum FK"; künyede "kaldırma taleplerine en geç 24 saat içinde dönülür"; kalın yazı tipi preload\'u yok', () => {
   for (const d of readdirSync(KOK).filter((x) => x.endsWith('.html'))) {
     const h = readFileSync(path.join(KOK, d), 'utf8');
     assert.match((/<meta property="og:description" content="([^"]*)">/.exec(h) || [])[1] || '', /Çorum FK'nın resmî uygulaması değildir\.$/, d);
-    assert.ok(!/24 saat içinde/.test(h), d + ': "24 saat içinde dönülür" sözü yumuşatıldı');
     assert.ok(!/content="Çorumspor (taraftarları|golleri|kadrosu)/.test(h), d + ': takımdan "Çorum FK" diye söz edilir');
-    assert.ok(h.includes('<link rel="preload" href="assets/fonts/source-sans-3-700-tr.woff2" as="font" type="font/woff2" crossorigin>'), d + ': kalın gövde yazı tipi önden yüklenir');
+    if (SUNUCU_SAYFALARI_SON_TUR.includes(d)) continue;
+    const alt = (/<footer class="alt">([\s\S]*?)<\/footer>/.exec(h) || [])[1] || '';
+    assert.ok(alt.includes('(kaldırma taleplerine en geç 24 saat içinde dönülür)') && !/en kısa sürede dönülür/.test(h), d + ': künyede kaldırma talebi süresi (yalnız kaldırma; başkan 3. tur 1)');
+    // Performans 3. tur 1: kalın gövde yazısı preload edilmez (@font-face kalır; font-display: optional): kritik yolda bant genişliği yarışı
+    assert.ok(!h.includes('source-sans-3-700-tr.woff2" as="font"'), d + ': kalın gövde yazı tipi önden YÜKLENMEZ');
+    assert.equal((h.match(/<link rel="preload" href="assets\/fonts\/[^"]+" as="font"/g) || []).length, 2, d + ': 2 yazı tipi preload (Oswald 700, Source Sans 400)');
+    assert.ok(!/fetchpriority="high" src="assets\/vendor/.test(h), d + ': supabase-js fetchpriority=high DEĞİL');
   }
+  const tasarim = readFileSync(path.join(KOK, 'docs/TASARIM.md'), 'utf8'), beni = readFileSync(path.join(KOK, 'README.md'), 'utf8');
+  assert.ok(tasarim.includes('kaldırma taleplerine en geç 24 saat içinde dönülür') && beni.includes('en geç 24 saat içinde dönülür'), 'TASARIM.md ve README.md künyeyle aynı sözü söyler');
+  assert.ok(!/saat sözü verilmez/.test(tasarim), 'TASARIM.md eski "saat sözü verilmez" gerekçesi kalktı');
 });
 
 test('varlıklar (2. tur): sahte-supabase.js\'teki her assets/ yolu ve fotoğraf kopyaları gerçekten var (404 yok)', async () => {

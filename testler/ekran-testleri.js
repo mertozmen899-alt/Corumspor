@@ -21,6 +21,9 @@ async function ekranTestleri() {
   const ADRES = 'http://127.0.0.1:' + sunucu.address().port;
   const gecen = [], kalan = [];
   const kontrol = (ad, ok, detay) => (ok ? gecen.push('görünüm: ' + ad) : kalan.push(`görünüm: ${ad}` + (detay !== undefined ? ` -> ${String(detay).slice(0, 400)}` : '')));
+  // Denetçi 3. tur 9: yoğun makinede 10 sn'lik sabit bekleme bir kez aşılınca bütün grup (12 test) düşüyordu. Bekleme 30 sn ve her
+  // ekran kendi adımında (guvenli): bir adımın zaman aşımı yalnız o adımı "yarıda kaldı" yazar, gruptaki öbür ekranlar yine denenir.
+  const BEKLEME = 30000;
   const guvenli = async (ad, f) => { try { await f(); } catch (e) { kalan.push(`görünüm: ${ad}: yarıda kaldı -> ${String(e.message || e).split('\n')[0]}`); } };
   const tarayici = await chromium.launch();
   const disIstek = [], hatalar = [];
@@ -42,7 +45,7 @@ async function ekranTestleri() {
       return ornek ? r.fulfill({ status: 200, contentType: gorselTuru(yol), headers: cors, body: ornek }) : r.fulfill({ status: 404, body: '' });
     });
     ctx.on('page', (p) => { p.on('response', (r) => { const y = r.url().startsWith(ADRES) && r.url().replace(ADRES, '').split('?')[0]; if (r.status() === 404 && y && !KASITLI_404.test(y)) yok404.add(y); });
-      p.setDefaultTimeout(10000); p.on('pageerror', (e) => hatalar.push(p.url() + ': ' + e.message)); p.on('dialog', (d) => d.accept()); });
+      p.setDefaultTimeout(BEKLEME); p.on('pageerror', (e) => hatalar.push(p.url() + ': ' + e.message)); p.on('dialog', (d) => d.accept()); });
     const p = await ctx.newPage();
     // Sahte verinin örnek reklamı: ilk reklam veren Narçil Cafe yayında (ana akış, haber sonu, M1 maçında "Maçın sponsoru").
     // Görselleri docs/ilk-reklam/'dan sunulur (yukarıdaki depo taklidi).
@@ -103,6 +106,7 @@ async function ekranTestleri() {
         kontrol(t('tema cihaz tercihini izliyor'), zemin === (tema === 'koyu' ? 'rgb(11, 11, 11)' : 'rgb(255, 255, 255)'), zemin);
 
         // ana sayfa (reklam 3. haberden sonra)
+        await guvenli(t('ana adımı'), async () => {
         await p.goto(ADRES + '/index.html');
         await p.locator('#akis .reklam-kart').waitFor();
         await p.locator('#akis .reklam-kart').evaluate((e) => e.scrollIntoView({ block: 'center' }));
@@ -120,8 +124,10 @@ async function ekranTestleri() {
         await p.waitForTimeout(300);
         await p.evaluate(() => window.scrollTo(0, 0));
         await foto(p, `ana-${gen}-${tema}`);
+        });
 
         // haber + yorumlar (reklam makale ile yorumlar arasında, örtüşme yok)
+        await guvenli(t('haber adımı'), async () => {
         await p.goto(ADRES + '/haber.html?id=' + H1);
         await p.locator('.reklam-yuvasi[data-reklam-alan="haber_sonu"] .reklam-kart').waitFor();
         await p.waitForSelector('#yorum-listesi .yorum');
@@ -131,8 +137,10 @@ async function ekranTestleri() {
         const hb = await p.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(); const k = r('.reklam-yuvasi[data-reklam-alan="haber_sonu"] .reklam-kart'), m = r('#makale'), y = r('#yorumlar > *'); return { ust: k.top - m.bottom, alt: y.top - k.bottom }; });
         kontrol(t('haber: reklam kartı makale ile yorumlar arasında, örtüşme yok'), hb.ust >= 0 && hb.alt >= 0, JSON.stringify(hb));
         await foto(p, `haber-${gen}-${tema}`);
+        });
 
         // maç (sponsor skorun altında, gol videosunun üstünde, örtüşme yok)
+        await guvenli(t('maç adımı'), async () => {
         await p.goto(ADRES + '/mac.html?id=' + M1);
         await p.locator('.reklam-yuvasi[data-reklam-alan="mac_sponsoru"] .reklam-kart').waitFor();
         await p.waitForSelector('#gol-listesi .gol');
@@ -149,16 +157,20 @@ async function ekranTestleri() {
         });
         kontrol(t('maç: sponsor kartı skorun altında, goller ve yorumlarla örtüşmüyor'), !mb.ortusme && mb.basAlti >= 0 && mb.videoUstu >= 0, JSON.stringify(mb));
         await foto(p, `mac-${gen}-${tema}`);
+        });
 
         for (const [ad, url, bekle] of [['takim', 'takim.html#fikstur', '#sonuclar .fikstur-satir'], ['goller', 'goller.html', '#arsiv[data-durum="tamam"] .arsiv-mac'], ['gol', 'gol.html?id=22222222-0000-4000-8000-000000000001', '#gol[data-durum="tamam"] .video-baslat'],
           ['profil', 'profil.html', '#profil[data-durum="tamam"]'], ['giris', 'giris.html', '#g-eposta'], ['gizlilik', 'gizlilik.html', '#son-guncelleme'], ['kurallar', 'kurallar.html', '#kurallar'], ['kaynaklar', 'kaynaklar.html', '#kaynak-listesi']]) {
-          await p.goto(ADRES + '/' + url);
-          await p.waitForSelector(bekle);
-          await genel(p, t(ad));
-          await foto(p, `${ad}-${gen}-${tema}`);
+          await guvenli(t(ad + ' adımı'), async () => {
+            await p.goto(ADRES + '/' + url);
+            await p.waitForSelector(bekle);
+            await genel(p, t(ad));
+            await foto(p, `${ad}-${gen}-${tema}`);
+          });
         }
 
         // yönetim (yönetici): haberler sekmesi + reklam paneli (liste, form/önizleme, rapor)
+        await guvenli(t('yönetim adımı'), async () => {
         await p.goto(ADRES + '/giris.html?donus=yonetim.html');
         await p.fill('#g-eposta', 'yonetici@ornek.test');
         await p.fill('#g-sifre', 'sifre1234');
@@ -179,6 +191,7 @@ async function ekranTestleri() {
         const sayi = await p.locator('#ry-rapor-sonuc td.ry-sayi').first().evaluate((e) => [getComputedStyle(e).fontFamily, getComputedStyle(e).fontVariantNumeric]);
         kontrol(t('rapor: sayılar Source Sans 3 tabular-nums'), /^"?Source Sans 3/.test(sayi[0]) && /tabular-nums/.test(sayi[1]), JSON.stringify(sayi));
         await foto(p, `yonetim-rapor-${gen}-${tema}`);
+        });
         await ctx.close();
       });
     }
@@ -238,7 +251,7 @@ async function ekranTestleri() {
       await guvenli(`telefon ${gen}-${tema}`, async () => {
         const { ctx, p } = await baglam(vp, tema);
         const t = (x) => `${x} (${gen} px, ${tema === 'koyu' ? 'koyu' : 'açık'})`;
-        for (const [ad, url, bekle] of [['ana', 'index.html', '#akis[data-sponsor-durum="tamam"]'], ['goller', 'goller.html', '#arsiv[data-durum="tamam"] .arsiv-mac']]) {
+        for (const [ad, url, bekle] of [['ana', 'index.html', '#akis[data-sponsor-durum="tamam"]'], ['goller', 'goller.html', '#arsiv[data-durum="tamam"] .arsiv-mac']]) await guvenli(t(ad + ' adımı'), async () => {
           await p.goto(ADRES + '/' + url);
           await p.waitForSelector(bekle);
           await p.evaluate(async () => { for (const i of document.images) { i.loading = 'eager'; } await Promise.all([...document.images].map((i) => (i.complete ? 0 : new Promise((c) => { i.onload = i.onerror = c; })))); });
@@ -254,7 +267,7 @@ async function ekranTestleri() {
           });
           kontrol(t(`${ad} (013): sayfa sonunda alt menü son içeriği ve alt bilgi bağlantılarını örtmüyor`), alt.sonAlt <= alt.navUst && alt.icerikAlt <= alt.navUst, JSON.stringify(alt));
           await foto(p, `${ad}-${gen}-${tema}`, { kopya: tema === 'acik' ? `onizleme-${ad}-${gen}` : null });
-        }
+        });
         await ctx.close();
       });
     }
@@ -262,13 +275,13 @@ async function ekranTestleri() {
   await guvenli('telefon 390 yeni ekranlar', async () => {
     const { ctx, p } = await baglam({ width: 390, height: 844 }, 'acik');
     for (const [ad, url, bekle] of [['gol', 'gol.html?id=22222222-0000-4000-8000-000000000001', '#yorumlar .yorumlar'], ['takim', 'takim.html', '#kadro-icerik[data-durum="tamam"]'],
-      ['takim-sakatlik', 'takim.html#sakatlik', '#sakatlik-icerik[data-durum="tamam"]'], ['takim-fikstur', 'takim.html#fikstur', '#gelecek[data-durum="tamam"]'], ['profil', 'profil.html', '#profil[data-durum="tamam"]']]) {
+      ['takim-sakatlik', 'takim.html#sakatlik', '#sakatlik-icerik[data-durum="tamam"]'], ['takim-fikstur', 'takim.html#fikstur', '#gelecek[data-durum="tamam"]'], ['profil', 'profil.html', '#profil[data-durum="tamam"]']]) await guvenli(`${ad} (390, yeni ekran) adımı`, async () => {
       await p.goto(ADRES + '/' + url);
       await p.waitForSelector(bekle);
       await p.evaluate(async () => { for (const i of document.images) i.loading = 'eager'; await Promise.all([...document.images].map((i) => (i.complete ? 0 : new Promise((c) => { i.onload = i.onerror = c; })))); });
       await genel(p, `${ad} (390, yeni ekran)`);
       await foto(p, `${ad}-390-yeni`);
-    }
+    });
     await ctx.close();
   });
 

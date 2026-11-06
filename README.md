@@ -116,7 +116,8 @@ export const ILETISIM_EPOSTA = 'iletisim@alanadiniz.com'; // künye: iletişim v
 ```
 
 `SAHIP_ADI` ve `ILETISIM_EPOSTA` her sayfanın alt bilgisindeki künyede ve `gizlilik.html`'de kendiliğinden yazılır
-("Bir haber, fotoğraf ya da yorumun kaldırılmasını isteyen bu adrese yazar; 24 saat içinde dönülür"). Yayından önce doldurun.
+("Bir haber, fotoğraf ya da yorumun kaldırılmasını isteyen bu adrese yazar"; künyede: "kaldırma taleplerine en geç 24 saat içinde dönülür".
+Süre sözü yalnız kaldırma taleplerinedir; şikâyet edilen yoruma "en kısa sürede" bakılır). Yayından önce doldurun.
 
 Bu anahtarın sitede görünmesi normaldir; veriyi veritabanındaki kurallar (RLS) korur.
 **`service_role` (secret) anahtarını asla bu dosyaya ya da depoya koymayın.**
@@ -287,7 +288,10 @@ dosyayı `assets/logo/` klasörüne koyun ve `assets/ayar.js` içinde `AMBLEM_DO
   alenileştirdiği" istisnası bilgiyi **kişinin kendisi** açıkladığında geçerlidir; kulübün açıklaması üçüncü kişinin açıklamasıdır.
   Uygulama bu yüzden sitede yalnız durumu (Sakat, Cezalı, Durumu belirsiz, Döndü), kaynağı ve tarihi gösterir; tanı / sakatlık
   ayrıntısı yazılmaz, panelin "iç not" alanı (`sakatliklar.aciklama`) ziyaretçiye ve üyelere kapalıdır (014). Sorun: bu hâliyle
-  işlemenin hukuki dayanağı yeterli mi, sakatlık sekmesi hiç olmamalı mı, yalnız "kadroda yok" mu denmeli? Siteye yeni bir şey saklayan özellik eklenirse bu sayfa da güncellenmeli (test, koddaki tarayıcı
+  işlemenin hukuki dayanağı yeterli mi, sakatlık sekmesi hiç olmamalı mı, yalnız "kadroda yok" mu denmeli?
+  **5651 sayılı Kanun:** künyedeki "kaldırma taleplerine en geç 24 saat içinde dönülür" sözü m.9 (kişilik hakkı ihlalinde içerik
+  sağlayıcının talebe 24 saat içinde cevabı) ile uyumlu mu, uygulama "içerik sağlayıcı" mı "yer sağlayıcı" mı (yorumlar), künyede
+  başka zorunlu bilgi var mı? Siteye yeni bir şey saklayan özellik eklenirse bu sayfa da güncellenmeli (test, koddaki tarayıcı
   depolama anahtarlarının sayfada yazılı olduğunu denetler).
 
 ## 11. Testler (geliştiriciler için)
