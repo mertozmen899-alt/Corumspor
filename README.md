@@ -40,6 +40,11 @@ Sekiz dosya var ve **bu sırayla, her biri bir kez** çalıştırılır:
 
 **En kolayı: SQL Editor**
 
+**En kolayı (yeni, boş proje):** **Database → Extensions → pg_cron**'u açın, sonra **SQL Editor → New query**'ye
+`supabase/kurulum/tek-dosya-kurulum.sql` dosyasının tamamını yapıştırıp **Run** deyin (001→015'in hepsi sırayla; pg_cron'u da açmayı dener).
+Ardından aşağıdaki 015 adımındaki `ayrilmis_adlar` satırını ve pg_cron kontrolünü çalıştırın. Yeni migration eklenince dosyayı
+`araclar/kurulum-dosyasi-olustur.sh` ile yeniden üretin. Tek tek kurmak isterseniz:
+
 1. Supabase panelinde soldan **SQL Editor** → **New query**.
 2. `001_temel_sema.sql` dosyasını açın, içeriğin tamamını kopyalayıp yapıştırın, **Run** deyin. "Success" görmelisiniz.
 3. Yeni bir sorgu açıp aynısını `002_depolama.sql` için, sonra `010_reklamlar.sql`, `011_denetim_duzeltmeleri.sql` ve en son
