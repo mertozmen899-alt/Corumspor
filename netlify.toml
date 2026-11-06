@@ -1,0 +1,5 @@
+# Netlify yayını (Cloudflare Pages ile aynı derleme): yalnız yayin/ klasörü yayınlanır,
+# _headers (CSP, önbellek) Netlify'da da aynı biçimde okunur. Panel ayarlarından önce gelir.
+[build]
+  command = "node araclar/yayin-hazirla.js"
+  publish = "yayin"
