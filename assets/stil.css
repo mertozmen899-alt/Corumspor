@@ -67,7 +67,7 @@
   --fs-meta:   clamp(0.8125rem, 0.4911rem + 1.429vw, 0.875rem);
   --fs-etiket: 0.75rem;
   --fs-saat:   clamp(1.625rem, 0.9821rem + 2.857vw, 1.75rem);
-  --lh-hero: 1.02; --lh-baslik: 1.1; --lh-kart: 1.25; --lh-govde: 1.5; --lh-meta: 1.35;
+  --lh-hero: 1.12; --lh-baslik: 1.1; --lh-kart: 1.25; --lh-govde: 1.5; --lh-meta: 1.35;
 
   /* Boşluk (4 px taban) */
   --b-1: 4px; --b-2: 8px; --b-3: 12px; --b-4: 16px; --b-5: 20px; --b-6: 24px; --b-8: 32px; --b-10: 40px; --b-12: 48px;
