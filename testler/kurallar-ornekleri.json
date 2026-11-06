@@ -1,5 +1,5 @@
 {
-  "_aciklama": "Uygulama kuralları için ortak örnekler: JS (assets/kurallar.js) ve SQL (012_denetim_2.sql) aynı sonucu vermeli. Testler: testler/uygulama.test.mjs (JS) ve testler/reklam/sql.test.mjs (SQL ile karşılaştırma).",
+  "_aciklama": "Uygulama kuralları için ortak örnekler: JS (assets/kurallar.js) ve SQL (012_denetim_2.sql, 013, 014) aynı sonucu vermeli. Testler: testler/uygulama.test.mjs (JS) ve testler/reklam/sql.test.mjs (SQL ile karşılaştırma).",
   "kullanici_adi": [
     ["yonetici", true], ["Yönetici", true], ["YÖNETİCİ", true], ["yonetim", true], ["Yönetim_1", true], ["site.yonetimi", true],
     ["admin", true], ["ADMİN", true], ["Admin_2", true], ["superadmin", true],
@@ -10,7 +10,9 @@
     ["destek", true], ["DESTEK.2", true], ["mod", true], ["sistem", true], ["corumspor", true], ["Çorumspor", true], ["support", true],
     ["baskan", true], ["Başkan", true], ["Baskan_Savas", true], ["kulup_baskani", true], ["çorumspor", true], ["Çorumspor_1923", true], ["corumspor.resmi", true],
     ["TeknikDirektör", true], ["kaptan", true], ["antrenör", true],
-    ["ayse_19", false], ["emre", false], ["kirmizi_simsek", false], ["destekci_ali", false], ["corumlu", false],
+    ["Y0netici", true], ["Adm1n", true], ["C0rumFK_Resml", true], ["Bask4n_Resm1", true], ["m0d", true], ["r00t", true], ["ku1up", true], ["5istem", true], ["S1stem", true], ["yetk1l1", true], ["t3kn1kd1rekt0r", true], ["k4pt4n", true],
+    ["kirmizi_simsek", true], ["KIRMIZI.SIMSEK_19", true], ["kırmızışimşek", true], ["kirmizisimsekler", true],
+    ["ayse_19", false], ["emre", false], ["tribun_editor", false], ["kral_10", false], ["destekci_ali", false], ["corumlu", false],
     ["Çorumlu_Mert", false], ["modern_taraftar", false], ["sistematik", false], ["kaptanin_sesi", false], ["baskentli", false], ["taraftar1a2b3c", false]
   ],
   "kapak": [
@@ -33,5 +35,46 @@
     ["assets/img/x.gif", false],
     ["javascript:alert(1)", false],
     ["data:image/png;base64,iVBORw0KGgo=", false]
+  ],
+  "_yorum_kelime": "Yorum moderasyonu: [metin, kelime listesi, onay bekler mi]. Kelimeyle BAŞLAYAN sözcük eşleşir; Türkçe harf ve rakam benzerleri yok sayılır.",
+  "yorum_kelime": [
+    ["Bu ne salak pozisyon", ["salak"], true],
+    ["Bu ne SAL4KÇA pozisyon", ["Salak"], true],
+    ["Rakip salaktı", ["salak"], true],
+    ["Harika maç, tribün coştu", ["salak"], false],
+    ["kalasalak değil", ["salak"], false],
+    ["Hakem şerefsiz", ["serefsiz"], true],
+    ["Hakem ŞEREFSİZDİ", ["şerefsiz"], true],
+    ["Bugün 3 gol attık", ["salak"], false],
+    ["", ["salak"], false],
+    ["Herkes $alak", ["salak"], true]
+  ],
+  "gol_video": [
+    [null, true],
+    ["https://www.youtube.com/watch?v=aqz-KE-bpKQ", true],
+    ["https://youtu.be/aqz-KE-bpKQ", true],
+    ["https://abcd.supabase.co/storage/v1/object/public/gol-videolari/2026/gol.mp4", true],
+    ["https://abcd.supabase.co/storage/v1/object/public/gol-videolari/2026/gol.MP4", true],
+    ["https://baska-site.com/gol.mp4", false],
+    ["https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4", false],
+    ["https://abcd.supabase.co/storage/v1/object/public/haber-gorselleri/gol.mp4", false],
+    ["https://abcd.supabase.co/storage/v1/object/public/gol-videolari/../x.mp4", false],
+    ["https://abcd.supabase.co/storage/v1/object/public/gol-videolari/gol.mp4?x=1", false],
+    ["http://abcd.supabase.co/storage/v1/object/public/gol-videolari/gol.mp4", false],
+    ["javascript:alert(1)", false]
+  ],
+  "altyazi": [
+    [null, true],
+    ["https://abcd.supabase.co/storage/v1/object/public/gol-videolari/2026/gol.vtt", true],
+    ["https://baska-site.com/a.vtt", false],
+    ["https://abcd.supabase.co/storage/v1/object/public/gol-videolari/a.srt", false],
+    ["https://abcd.supabase.co/storage/v1/object/public/haber-gorselleri/a.vtt", false]
+  ],
+  "metin_katla": [
+    ["NARÇIL Cafe", "narcil cafe"],
+    ["İSKİLİP ŞÜKRÜ", "iskilip sukru"],
+    ["ığüşöç ĞÜŞİÖÇ", "igusoc gusioc"],
+    ["Âşık Îmâ Ûmut", "asik ima umut"],
+    ["Ünye É", "unye É"]
   ]
 }

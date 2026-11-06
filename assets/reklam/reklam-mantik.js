@@ -1,5 +1,5 @@
 // Çorumspor reklam modülü: saf mantık (DOM yok, ağ yok). Tarayıcıda ve Node'da aynı dosya çalışır.
-// Buradaki kurallar veritabanındaki kuralların AYNASIDIR (supabase/migrations/010_reklamlar.sql).
+// Buradaki kurallar veritabanındaki kuralların AYNASIDIR (supabase/migrations/010_reklamlar.sql, 012, 013, 014_inceleme_2.sql).
 // Birini değiştirirseniz ötekini de değiştirin; testler/baglanti-ornekleri.json iki tarafta da denenir.
 
 export const SAAT_DILIMI = 'Europe/Istanbul';
@@ -26,15 +26,22 @@ export const SINIRLAR = Object.freeze({
   oncelikEnCok: 100,
   gorselEnBuyukBayt: 2 * 1024 * 1024,
   gorselTurleri: ['image/jpeg', 'image/png', 'image/webp'],
-  // Sayım (SQL reklam_olay_kaydet ile aynı; 012_denetim_2.sql):
+  // Sayım (SQL reklam_olay_kaydet ile aynı; 014_inceleme_2.sql, test karşılaştırır):
   ziyaretTiklamaSiniri: 5,      // bir sayfa ziyaretinde en fazla 5 tıklama (bütün reklamlar)
-  gosterimDakikaSiniri: 120,    // bir reklama dakikada en fazla 120 gösterim (bütün ziyaretçiler); fazlası sayılmaz
-  tiklamaDakikaSiniri: 30,      // bir reklama dakikada en fazla 30 tıklama (bütün ziyaretçiler); fazlası sayılmaz
+  gosterimDakikaSiniri: 30,     // bir reklama dakikada en fazla 30 gösterim (bütün ziyaretçiler); fazlası sayılmaz (012'de 120)
+  tiklamaDakikaSiniri: 6,       // bir reklama dakikada en fazla 6 tıklama (bütün ziyaretçiler); fazlası sayılmaz (012'de 30)
+  yerlesimDakikaSiniri: 60,     // bir reklama dakikada en fazla 60 yerleşim (kartın konduğu sayfa açılışı)
+  sekmeSaatGosterimSiniri: 20,  // bir sekmede bir reklama saatte en fazla 20 gösterim
+  sekmeSaatTiklamaSiniri: 10,   // bir sekmede saatte en fazla 10 tıklama (bütün reklamlar)
+  akisYuvaSayisi: 3,            // akışta en fazla 3 farklı firma (ana.js 3 yuva açar; sunucu yalnız bunlara olay yazar)
   // 013_tasarim.sql:
   dugmeMetniEnAz: 2, dugmeMetniEnUzun: 24, // isteğe bağlı düğme yazısı (boşsa "Ayrıntılar")
   gorselMetniEnUzun: 200,       // görseldeki yazı / alt metin
-  kisaMetinOnerilen: 120,       // telefonda 3 satırı geçmesin diye önerilen (sınır 160)
+  kisaMetinOnerilen: 110,       // akış ve maç kartında önerilen üst sınır (telefonda ~3 satır; sınır 160)
 });
+
+/** Alana göre önerilen kısa metin uzunluğu (panel uyarır, kaydı engellemez). Haber sonu kartı geniş: sınırın tamamı. */
+export const ALAN_METIN_ONERISI = Object.freeze({ ana_akis: 110, mac_sponsoru: 110, haber_sonu: 160 });
 
 /** Yayına almadan önce yöneticinin onaylaması gereken yasaklı sektörler (başkan ve reklamveren değerlendirmesi; docs/REKLAM.md). */
 export const YASAKLI_SEKTORLER = Object.freeze([
@@ -244,6 +251,81 @@ export function reklamSec(reklamlar, { alan, macId = null } = {}, simdi = new Da
   return adaylar[0] || null;
 }
 
+// ---------------------------------------------------------------------------
+// Firma anahtarı (SQL: public.firma_anahtari / reklamlar.firma_anahtar, 014): akış, rapor ve CSV aynı firmayı aynı sayar.
+// Türkçe duyarlı küçük harf + katlama (İ/I/ı/i → i, Ç → c …), baş/son boşluk yok, art arda boşluk tek. Yerel ayardan bağımsız.
+// ---------------------------------------------------------------------------
+const KATLA_KAYNAK = 'ABCDEFGHIJKLMNOPQRSTUVWXYZÇĞİÖŞÜÂÎÛçğıöşüâîû';
+const KATLA_HEDEF = 'abcdefghijklmnopqrstuvwxyzcgiosuaiucgiosuaiu';
+export function firmaAnahtari(ad) {
+  return [...String(ad ?? '')].map((c) => { const i = KATLA_KAYNAK.indexOf(c); return i < 0 ? c : KATLA_HEDEF[i]; }).join('')
+    .replace(/[ \t\n\r\f\v]+/g, ' ').trim();
+}
+
+/** Akışta gösterilen reklamlar (SQL aktif_reklamlar'ın aynası): her firmadan en iyisi, aynı sırayla, en fazla adet. */
+export function akisReklamlari(reklamlar, adet = SINIRLAR.akisYuvaSayisi, simdi = new Date(), alan = 'ana_akis') {
+  const goruldu = new Set();
+  const sonuc = [];
+  let kalan = (reklamlar || []).filter((r) => reklamSunulabilir(r, simdi) && r.alan === alan);
+  while (kalan.length && sonuc.length < adet) {
+    const r = reklamSec(kalan, { alan }, simdi);
+    kalan = kalan.filter((x) => x.id !== r.id);
+    const f = firmaAnahtari(r.firma_adi);
+    if (goruldu.has(f)) continue;
+    goruldu.add(f);
+    sonuc.push(r);
+  }
+  return sonuc;
+}
+
+/** Bu reklam şu an yuvasında gösteriliyor mu? (SQL reklam_su_an_gosterilen) Akışta: { sira: 1..3 }; öteki alanlarda { sira: 1 } ya da null. */
+export function gosterimSirasi(reklamlar, r, simdi = new Date()) {
+  if (!r || !reklamSunulabilir(r, simdi)) return null;
+  if (r.alan === 'ana_akis') {
+    const i = akisReklamlari(reklamlar, SINIRLAR.akisYuvaSayisi, simdi).findIndex((x) => x.id === r.id);
+    return i < 0 ? null : { sira: i + 1 };
+  }
+  const k = reklamSec(reklamlar, { alan: r.alan, macId: r.mac_id }, simdi);
+  return k && k.id === r.id ? { sira: 1 } : null;
+}
+
+/**
+ * Yeni / düzenlenen reklam yayın süresi boyunca HİÇ görünür mü? (KARARLAR: dönüşüm yok; kazanan en yüksek öncelik, sonra en yeni.)
+ * Aday yayına alınmış sayılır (en yeni). Süredeki her değişim anında (başlangıç, ötekilerin başlama/bitişi) denenir.
+ * Döner: { gorunur: true } ya da { gorunur: false, onde: [{ firma_adi, oncelik }] } (yuvayı dolduran, en yüksek öncelikliler).
+ */
+export function alanDolulugu(reklamlar, aday, simdi = new Date()) {
+  const b = Math.max(ms(aday.baslangic), ms(simdi)), e = ms(aday.bitis);
+  if (!(e > b)) return { gorunur: false, onde: [] };
+  const digerleri = (reklamlar || []).filter((x) => x.id !== aday.id && x.durum === 'yayinda' && x.alan === aday.alan);
+  const anlar = new Set([b]);
+  for (const x of digerleri) for (const t of [ms(x.baslangic), ms(x.bitis)]) if (t > b && t < e) anlar.add(t);
+  // Yayında olan reklam düzenleniyorsa yayına alınma anı korunur (sunucu da korur); değilse en yeni sayılır
+  const yayinda = aday.durum === 'yayinda' && aday.yayina_alinma;
+  const yeni = { ...aday, durum: 'yayinda', yayina_alinma: yayinda ? aday.yayina_alinma : new Date(Math.max(ms(simdi), Date.now()) + 1000).toISOString() };
+  let onde = [];
+  for (const t of [...anlar].sort((x, y) => x - y)) {
+    const an = new Date(t);
+    const hepsi = [...digerleri, yeni];
+    if (gosterimSirasi(hepsi, yeni, an)) return { gorunur: true };
+    const kazananlar = aday.alan === 'ana_akis' ? akisReklamlari(hepsi, SINIRLAR.akisYuvaSayisi, an) : [reklamSec(hepsi, { alan: aday.alan, macId: aday.mac_id }, an)].filter(Boolean);
+    if (!onde.length) onde = kazananlar.map((x) => ({ firma_adi: x.firma_adi, oncelik: x.oncelik ?? 0 }));
+  }
+  return { gorunur: false, onde };
+}
+
+/** Metinde web adresi / alan adı var mı (bağlantısız reklamda metinde ve görselde de adres yazılmaz; başkan 2)? */
+const ADRES_DESENI = /(https?:\/\/|www\.|\b[a-z0-9çğıöşü-]+\.(com|net|org|info|biz|app|io|co|me|shop|online|site|store|cafe|tr|com\.tr|net\.tr|org\.tr)\b)/i;
+export function metindeAdresVar(metin) { return ADRES_DESENI.test(String(metin ?? '')); }
+
+/** Tıklanan düğmenin eylemi (SQL reklam_olaylari.eylem): tel: → 'ara', WhatsApp → 'whatsapp', öteki https → 'web'. */
+export function tiklamaEylemi(href) {
+  if (typeof href !== 'string' || !href) return null;
+  if (/^tel:/i.test(href)) return 'ara';
+  if (whatsappBaglantisiMi(href)) return 'whatsapp';
+  return /^https:\/\//i.test(href) ? 'web' : null;
+}
+
 /** Kartın üstündeki etiket. Akış: "Sponsor" (gerçek metin, ilk öğe); haber sonu: "Reklam"; maç: "Maçın sponsoru" / "Sponsor". */
 export function reklamEtiketi(r) {
   if (r && r.alan === 'mac_sponsoru') return r.mac_id != null && r.mac_id !== '' ? 'Maçın sponsoru' : 'Sponsor';
@@ -331,36 +413,63 @@ function csvHucre(v, metinMi) {
   return /[;"\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
-/** Rapor satırlarını tek firmaya süzer (firma adı büyük/küçük harf ve boşluk farkı gözetmeden). */
+/** Rapor satırlarını tek firmaya süzer (014: ortak firma anahtarı; SQL'deki reklamlar.firma_anahtar ile aynı). */
 export function firmaSuz(satirlar, firma) {
   if (!firma) return [...(satirlar || [])];
-  const n = (x) => String(x || '').trim().toLocaleLowerCase('tr-TR');
-  return (satirlar || []).filter((s) => n(s.firma_adi) === n(firma));
+  const k = firmaAnahtari(firma);
+  return (satirlar || []).filter((s) => (s.firma_anahtar || firmaAnahtari(s.firma_adi)) === k);
 }
+
+const tarihYaz = (an) => (an ? istanbulBicimle(an) : '');
+const sayiBicimi = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 1 });
 
 /** reklam_raporu satırlarından Excel'de düzgün açılan CSV metni (BOM dahil). Reklam verene giden dosya TEK firmalık olmalı
  *  (firmaSuz); panel de CSV'yi yalnız bir firma seçiliyken indirir.
- *  ops.donem: "2026-11-01 – 2026-11-30" (her satıra yazılır: dosya adı değişse de dönem kaybolmaz)
+ *  ops.donem: istenen aralık "2026-11-01 – 2026-11-30"; satırda reklamın yayınla KESİŞEN dönemi yazılır (donem_baslangic/bitis varsa).
  *  ops.macAdi: mac_id → "22 Ekim 2026 19:00 · Çorum FK – Örnekköy Spor" (maç sponsoru satırları için)
- *  "Sınıra takılan dakika": reklamın dakika sınırına (SINIRLAR) takıldığı dakika sayısı; 0'dan büyükse o aralıkta sayı
- *  şişirilmeye çalışılmış olabilir (fazlası zaten sayılmadı). */
+ *  014: yayın başlangıç / bitiş / gün, sayfa açılışı (yerleşim), görünürlük oranı, günlük ortalama, tıklama eylemleri (web / WhatsApp / ara).
+ *  "Şüpheli trafik (sayılmadı, dk)": reklamın sınıra takıldığı dakika sayısı; dosyadaki her satırda 0 ise sütun hiç yazılmaz. */
 export function raporCsv(satirlar, { donem = '', macAdi = () => '' } = {}) {
-  const basliklar = ['Firma', 'Alan', 'Maç', 'Dönem', 'Gösterim', 'Tıklama', 'Tıklama oranı (%)', 'Sınıra takılan dakika'];
+  const liste = satirlar || [];
+  const supheliVar = liste.some((s) => Number(s.supheli_dakika) > 0);
+  const basliklar = ['Firma', 'Alan', 'Maç', 'Dönem', 'Yayın başlangıç', 'Yayın bitiş', 'Yayın günü', 'Sayfa açılışı', 'Gösterim', 'Görünürlük oranı (%)',
+    'Günlük ortalama gösterim', 'Tıklama', 'Web tıklaması', 'WhatsApp tıklaması', 'Arama', 'Tıklama oranı (%)'];
+  if (supheliVar) basliklar.push('Şüpheli trafik (sayılmadı, dk)');
   const satir = [basliklar.map((b) => csvHucre(b, true)).join(';')];
-  for (const s of satirlar || []) {
+  for (const s of liste) {
     const oran = s.tiklama_orani != null ? Number(s.tiklama_orani) : tiklamaOrani(s.gosterim, s.tiklama);
-    satir.push([
+    const d = s.donem_baslangic && s.donem_bitis ? `${s.donem_baslangic} – ${s.donem_bitis}` : donem;
+    const hucreler = [
       csvHucre(s.firma_adi, true),
       csvHucre(ALANLAR[s.alan] || s.alan, true),
       csvHucre(s.alan === 'mac_sponsoru' ? (s.mac_id ? macAdi(s.mac_id) || '' : 'Tüm maçlar') : '', true),
-      csvHucre(donem, true),
+      csvHucre(d, true),
+      csvHucre(tarihYaz(s.yayin_baslangic), true),
+      csvHucre(tarihYaz(s.yayin_bitis), true),
+      csvHucre(s.yayin_gun != null ? Number(s.yayin_gun) : '', false),
+      csvHucre(Number(s.yerlesim) || 0, false),
       csvHucre(Number(s.gosterim) || 0, false),
+      csvHucre(oranBicimle(s.gorunurluk_orani), false),
+      csvHucre(s.gunluk_ortalama_gosterim != null ? sayiBicimi.format(Number(s.gunluk_ortalama_gosterim)) : '', false),
       csvHucre(Number(s.tiklama) || 0, false),
+      csvHucre(Number(s.tiklama_web) || 0, false),
+      csvHucre(Number(s.tiklama_whatsapp) || 0, false),
+      csvHucre(Number(s.tiklama_ara) || 0, false),
       csvHucre(oranBicimle(oran), false),
-      csvHucre(Number(s.supheli_dakika) || 0, false),
-    ].join(';'));
+    ];
+    if (supheliVar) hucreler.push(csvHucre(Number(s.supheli_dakika) || 0, false));
+    satir.push(hucreler.join(';'));
   }
-  return '﻿' + satir.join('\r\n') + '\r\n';
+  return '\ufeff' + satir.join('\r\n') + '\r\n';
+}
+
+/** Günlük rapor satırlarından (reklam_gunluk_raporu) en yoğun gün: { gun, gosterim } ya da null. */
+export function enYogunGun(gunluk) {
+  const t = new Map();
+  for (const g of gunluk || []) t.set(g.gun, (t.get(g.gun) || 0) + (Number(g.gosterim) || 0));
+  let en = null;
+  for (const [gun, gosterim] of t) if (gosterim > 0 && (!en || gosterim > en.gosterim)) en = { gun, gosterim };
+  return en;
 }
 
 /**

@@ -461,7 +461,7 @@ async function tasarimTestleri() {
       const odak = [...li.querySelectorAll('a[href], button, [tabindex]')].filter((e) => e.tabIndex >= 0);
       const a = li.querySelector('a.reklam-baglanti');
       const ilkMetin = (() => { const w = document.createTreeWalker(li, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.textContent.trim() && !n.parentElement.closest('[aria-hidden=true]') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP) }); const n = w.nextNode(); return n && n.textContent.trim(); })();
-      const yer = li.querySelector('[role=complementary], aside');
+      const yer = li.querySelector('[role=group][aria-label], [role=complementary], aside'); // 014: akışta div role=group (aside li içinde olmaz)
       let canli = false; for (let e = li; e; e = e.parentElement) if (e.hasAttribute && e.hasAttribute('aria-live')) canli = true;
       return {
         ilkMetin, gorunur: !!etiket && etiket.getBoundingClientRect().height > 0, oncesi: getComputedStyle(etiket, '::before').content,
@@ -471,7 +471,7 @@ async function tasarimTestleri() {
       };
     });
     kontrol('sponsor: kartın ilk okunan metni "Sponsor" (DOM metni, CSS content değil) ve görünür (T-100/T-14)', k.ilkMetin === 'Sponsor' && k.gorunur && (k.oncesi === 'none' || k.oncesi === 'normal'), JSON.stringify(k));
-    kontrol('sponsor: tamamlayıcı yer işareti, adı "Sponsor" içerir (T-100)', /Sponsor/.test(k.yerAd || ''), k.yerAd);
+    kontrol('sponsor: adlandırılmış grup (014: liste öğesinde aside değil), adı "Sponsor" içerir (T-100)', /Sponsor/.test(k.yerAd || ''), k.yerAd);
     kontrol('sponsor: kartta tek odak durağı: düğme bağlantısı; ad "Sponsor: <firma> – Ayrıntılar (yeni sekmede açılır)" (T-101/T-126)', k.odak === 1 && /^Sponsor: .+ – Ayrıntılar \(yeni sekmede açılır\)$/.test(k.adTam), k.adTam);
     kontrol('sponsor: rel sponsored + noopener, target=_blank (T-102)', k.rel.includes('sponsored') && k.rel.includes('noopener') && k.hedef === '_blank', k.rel.join(' '));
     kontrol('sponsor: kartta başlık öğesi yok, aria-live atası yok, görselde alt var ve "reklam görseli" değil (T-103/T-104/T-105)', k.baslik === 0 && !k.canli && k.alt.every((x) => x !== null && !/reklam görseli/i.test(x)), JSON.stringify(k));

@@ -91,12 +91,23 @@ async function pglite() {
   return { motor: 'PGlite (Postgres ' + surum + ')', gecen, kalan };
 }
 
+/** seed.sql'deki her assets/… yolu gerçekten var mı (014: seed'de olmayan gol-kapak-ornek.svg vardı; denetçi 9/11). */
+function seedYollari() {
+  const seed = fs.readFileSync(path.join(KOK, 'supabase', 'seed.sql'), 'utf8');
+  const yollar = [...new Set([...seed.matchAll(/'(assets\/[^'\s]+)'/g)].map((m) => m[1]))];
+  const yok = yollar.filter((y) => !fs.existsSync(path.join(KOK, y)));
+  return yok.length || !yollar.length
+    ? { gecen: [], kalan: [`seed (014): seed.sql'deki assets/ yolları var -> yok: ${yok.join(', ') || '(hiç yol bulunamadı)'}`] }
+    : { gecen: [`seed (014): seed.sql'deki ${yollar.length} assets/ yolunun hepsi var`], kalan: [] };
+}
+
 async function sqlTestleri() {
   const zorla = process.env.SQL_MOTOR; // 'postgres' | 'pglite'
   const bin = zorla === 'pglite' ? null : pgKlasoru();
-  if (bin) return gercekPostgres(bin);
+  const ekle = (s) => { const y = seedYollari(); return { ...s, gecen: [...s.gecen, ...y.gecen], kalan: [...s.kalan, ...y.kalan] }; };
+  if (bin) return ekle(gercekPostgres(bin));
   const p = await pglite();
-  if (p) return p;
+  if (p) return ekle(p);
   return { motor: 'yok', gecen: [], kalan: ['Postgres bulunamadı: Postgres kurun ya da `npm install --prefix testler` ile PGlite kurun'] };
 }
 

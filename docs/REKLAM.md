@@ -8,6 +8,91 @@
 
 > Uygulamanın her sayfasında üstteki şeritte ve alt bilgide **"Resmî Çorum FK uygulaması değildir."** yazar.
 
+## 00. 014 — 2. tur inceleme (6 Kasım 2026)
+
+Migration: `supabase/migrations/014_inceleme_2.sql` (013'ten sonra; tekrar çalıştırılabilir). Testler: `testler/reklam/sql.test.mjs`
+("014:" ile başlayanlar), `testler/sql/20_rls_testleri.sql` (014 bölümü), `testler/reklam/mantik.test.mjs`, `testler/reklam-tarayici-testleri.js`.
+
+**Sayım şişirmeye karşı (IP tutulmadan; denetçi 1)**
+- Reklam başına dakikada en çok **30 gösterim / 6 tıklama** (012'de 120 / 30), **60 yerleşim**. Fazlası sayılmaz, `reklam_sinir_dakikalari`'na
+  yazılır ve raporda **"Şüpheli trafik (sayılmadı, dk)"** olarak görünür. Çorum ölçeğinde gerçek trafik bu sınırın altında kalır;
+  maç sonrası ani yoğunlukta sınır dolarsa o dakika da "şüpheli" görünür (rakam yine yaklaşıktır).
+- **Sekme başına saatlik sınır:** istemci rastgele sekme kimliğini (`sessionStorage`) artık gösterimde de gönderir (`p_sekme_id`).
+  Sunucu bunu olaya YAZMAZ; yalnız `reklam_sekme_sayaclari`'nda (sekme × reklam × tür × saat, en çok 2 saat) sayar: bir sekmede bir
+  reklama saatte 20 gösterim, bir sekmede saatte toplam 10 tıklama. Fazlası "sinir" + şüpheli dakika. Sekme kimliği gelmezse sayfa
+  ziyaret kimliği kullanılır (eski önbellekli istemci de çalışır). Her istekte yeni kimlik üreten saldırgan bu sınırı aşar; ona karşı
+  asıl önlem reklam başına dakika sınırıdır (aşağıdaki "sonraki adım"a bakın).
+- **Yalnız gösterilen reklama olay:** `reklam_su_an_gosterilen()` — akışta ilk 3 farklı firma (`aktif_reklamlar(…, 3)`), haber sonu ve
+  maç sponsorunda o anki kazanan. Sırada bekleyen reklama gönderilen olay "Reklam şu an bu alanda gösterilmiyor (sırada bekliyor)" hatası alır.
+- **Tıklama eylemi:** `reklam_olaylari.eylem` = `web` | `whatsapp` | `ara` (`p_eylem`; istemci `tiklamaEylemi(href)`). 30 dakika tekrar
+  kuralı reklam + eylem bazında: WhatsApp'tan sonra "Ara" da sayılır. Rapor ve CSV'de üç ayrı sütun.
+- **Yerleşim:** kart sayfaya konunca `p_tur = 'yerlesim'` (sayfa ziyareti başına reklam başına bir; `reklam_yerlesimleri`). Görünürlük
+  oranı = gösterim ÷ yerleşim ("sayfa açılışı"). Yönetici sayılmaz.
+- **Görünür alan:** `IntersectionObserver` `rootMargin` yapışkan üst çubuğu ve sabit alt menüyü dışarıda bırakır (`ortulenKenarlar()`:
+  önce `--ust-gercek` / `--alt-menu-gercek` CSS değişkenleri, yoksa `.ust` ve `.alt-nav`'ın o anki boyu). Menünün arkasındaki kart görünür sayılmaz.
+
+**Günlük toplam ve saklama süresi**
+- `reklam_gunluk` (TSİ günü × reklam × alan × tür × eylem) + `reklam_gunluk_toplanan`. `reklam_bakim(90)`: dünden eski toplanmamış
+  günleri toplar, **toplanmış** günlerin 90 günden eski ham olaylarını ve yerleşimlerini siler, 1 günden eski tıklamalarda sekme kimliğini
+  boşaltır, eski sekme sayaçlarını ve 400 günden eski sınır kayıtlarını siler. Yalnız veritabanı sahibi çalıştırır (anon/yönetici değil).
+- **pg_cron** kuruluysa migration her gece 00:17 TSİ (21:17 UTC) için `reklam-bakim` işini kurar (`DO` bloğu; düz Postgres'te atlanır).
+  Supabase: **Database → Extensions → pg_cron** açın, sonra 014'ü yeniden çalıştırın. Açmasanız da raporlar doğrudur (toplanmamış
+  günler ham olaydan okunur); yalnız tablo büyür. Elle: SQL Editor'de `select public.reklam_bakim();`.
+- Raporlar (`reklam_raporu`, `reklam_gunluk_raporu`) toplanmış günleri toplamdan, bugünü ve toplanmamış günleri ham olaydan okur:
+  çift sayım yok (test).
+
+**Rapor (reklamveren 3/4/5)**
+- `reklam_raporu` ilk 8 sütun aynı; ek: `firma_anahtar, tiklama_web, tiklama_whatsapp, tiklama_ara, yerlesim, gorunurluk_orani,
+  yayin_baslangic, yayin_bitis, donem_baslangic, donem_bitis, yayin_gun, gunluk_ortalama_gosterim`. **Dönem** = istenen aralığın reklamın
+  yayın tarihleriyle kesişen günleri (7 günlük reklam 30 günlük gibi okunmaz). Duraklatılan günler bilinmez (tarih aralığı esas alınır).
+- `reklam_gunluk_raporu(bas, bit)`: gün gün; `mac_gunu` o gün maç varsa. Panelde "Gün gün" tablosu, maç günleri rozetli.
+- CSV: `Firma;Alan;Maç;Dönem;Yayın başlangıç;Yayın bitiş;Yayın günü;Sayfa açılışı;Gösterim;Görünürlük oranı (%);Günlük ortalama gösterim;
+  Tıklama;Web tıklaması;WhatsApp tıklaması;Arama;Tıklama oranı (%)` + yalnız bir satırda bile 0'dan büyükse `Şüpheli trafik (sayılmadı, dk)`.
+- **Özet sayfası** (firma seçiliyken): yerleşim başına sayfa açılışı / gösterim / görünürlük / tıklama (web/WhatsApp/ara) / oran,
+  en yoğun gün (maç günü işaretli), tanımlar ("gösterim kişi sayısı değildir"), kartın küçük görseli; "Yazdır / PDF" (CSP gereği yeni pencere
+  değil, `@media print` ile yalnız özet basılır). Şüpheli trafik özette yok.
+- **Erişim tahmini yok (reklamveren 10, bilerek):** "günlük tekil sekme / yaklaşık erişim" için sekme kimliğini gösterimle birlikte günlerce
+  saklamak gerekir; bu, bir tarayıcının hangi gün hangi reklamları gördüğünü birbirine bağlar (takip). KVKK'da "kişisel veri tutmuyoruz"
+  sözümüzü zayıflatır ve aydınlatma metninde yeni bir işleme gerektirir. Gösterim, sayfa açılışı ve görünürlük oranı bu yüzden yeterli
+  sayıldı. `utm_source` de eklenmez (firmanın kendi analitiğine bizden veri gider).
+
+**Ortak firma anahtarı (denetçi 8):** `reklamlar.firma_anahtar` (üretilen sütun) = `firma_anahtari(firma_adi)` = `metin_katla` (Türkçe küçük
+harf + İ/I/ı/i → i, Ç → c, Ş → s …) + baş/son boşluk yok + art arda boşluk tek. JS: `firmaAnahtari()` (`reklam-mantik.js`), örnekler
+`testler/reklam/baglanti-ornekleri.json` → `firma_anahtari` (SQL = JS). Akış (`aktif_reklamlar`), rapor süzgeci ve CSV bunu kullanır.
+
+**Yasaklı sektör onayı sunucuda (denetçi 2):** tetikleyici `reklamlar_sektor` + kısıt `reklamlar_yayin_sektor`: `sektor_onayi` olmadan
+`yayinda` olamaz. Firma, bağlantı, telefon, görsel ya da kısa metin değişince onay sıfırlanır; yeniden onay = `sektor_onay_zamani` alanını
+değiştirmek (panel kutular yeniden işaretlenince bunu yapar; sunucu anı kendisi yazar). Panel içerik değişince kutuları boşaltıp not gösterir.
+
+**Panel (denetçi 6, KARARLAR, reklamveren 1/7/9, başkan 2)**
+- Liste rozeti akışta **"Akışta N. sponsor (şu an gösteriliyor)"** (`gosterimSirasi` = `aktif_reklamlar` aynası); sıradakinde "Sırada (önde: …)".
+- **Dönüşüm (rotasyon) yok** (KARARLAR): kazanan en yüksek öncelik, eşitse en son yayına alınan; akışta en çok 3 farklı firma. Yeni reklam
+  yayın süresi boyunca hiç kazanamayacaksa önizleme: **"Bu alan bu tarihlerde dolu: "X" 20 öncelikte. Bu reklam yayına alınsa da hiç
+  görünmez…"** (`alanDolulugu`). Satışta: akışta aynı dönemde en çok 3 firma, haber sonu ve genel maç sponsoru tek firma.
+- Metin önerisi alana göre: akış ve maç **110**, haber sonu **160** (`ALAN_METIN_ONERISI`); fazlası "telefonda kesilebilir" diye işaretlenir
+  (kaydı engellemez). Önizleme kartı gerçek genişlikte (600 / 360 px) çizilir, dar ekranda `transform: scale` ile küçülür ("%49 ölçek"),
+  telefonda metin satır sınırına takılırsa çerçeve "metin kesiliyor" der.
+- Bağlantı "yok" iken metinde ya da görseldeki yazıda web adresi varsa uyarı: **bağlantısız reklamda metinde ve görselde de adres yazılmaz.**
+- Varsayılanlar: **Hemen başlasın** (yeni reklam), süre düğmeleri **1 hafta / 1 ay / Maç paketi** (maçtan 3 gün önce 00:00 → 1 gün sonra
+  23:59; maç seçilince kendiliğinden önerilir), WhatsApp hazır mesajı dolu gelir, alan değişince küçük kopya yeni ölçüyle (480 / kare 192) yeniden yüklenir.
+- Panel artık uygulamanın tek `h()` yardımcısını (`assets/ortak.js`) kullanır.
+
+**Kart:** akış kartı (liste öğesinin içinde) `aside` değil `div[role=group][aria-label="Sponsor: Firma"]`; haber sonu ve maçta `aside` kalır.
+Maç kartında **"Maçın sponsoru"** başlığı aynen; altındaki **"Uygulama sponsoru · Çorum FK'nın sponsoru değildir"** notu başlıkla aynı boyda
+ve aynı renkte (tam kontrast; `stil.css` `.reklam-alt-etiket`). Akış görseli `sizes="144px"`.
+
+**İlk reklam (Narçil Cafe, KARARLAR):** bağlantı yok ve metinde/görselde/alt metinde `narcil.net` YOK. Metin: "Espresso bazlı kahveler,
+Türk kahvesi, bitki çayları, taze meyve suları ve tatlılar. Çorum'da sizi bekliyoruz." (110). Alt metin İngilizce slogan yerine Türkçesiyle.
+Görseller `node docs/ilk-reklam/olustur.js` ile yeniden üretildi (küçük kopyalar dahil).
+
+**Sonraki adım (yapılmadı): Cloudflare Pages Function ile hız sınırı.** IP'yi saklamadan daha sıkı sınır için olay yazımı
+`functions/api/olay.js` arkasına alınabilir: Cloudflare'in Rate Limiting bağlaması (`[[unsafe.bindings]] type = "ratelimit"`) IP'yi yalnız
+bellekte tutar (örn. IP başına dakikada 20 olay), istek geçerse fonksiyon `reklam_olay_kaydet`'i sunucu tarafında saklı bir anahtarla
+(`service_role` DEĞİL; yalnız bu RPC'yi çalıştırabilen ayrı bir rol/JWT) çağırır; ardından `revoke execute on function
+public.reklam_olay_kaydet(...) from anon`. Gereken: Pages projesinde Functions, gizli anahtar (Cloudflare "Secrets"), `reklam.js`'te RPC
+yerine `fetch('/api/olay')`, gizlilik metnine "IP adresi yalnız hız sınırı için anlık işlenir, saklanmaz" cümlesi (avukat). Trafik
+gerçekten şişirilmeye başlarsa (rapor "şüpheli trafik" gösterirse) yapılmalı.
+
 ## 0. 013 mobil tasarımla gelen değişiklikler (5 Kasım 2026)
 
 - **Etiket:** ana sayfa akışında kartın ilk öğesi gerçek metin **"Sponsor"** (`p.reklam-etiket` > `span.nokta[aria-hidden]` +
@@ -30,7 +115,7 @@
   (`gorsel_kucuk_url`, panel `-k.webp` üretir: yatay 480, kare 192). **Yasaklı sektör kontrolü** (bahis, alkol, tütün/nargile, kulüp
   adı/amblemi) işaretlenmeden "Yayına al" çalışmaz (`sektor_onayi` saklanır; kontrol panelde). WhatsApp sonucu 390 px'te taşmaz.
 - **CSS:** kart stilleri artık `assets/stil.css` 17. bölümde; `assets/reklam/reklam.css` boş bir yer tutucudur (eski bağlantılar kırılmasın).
-  Akış kartı kompakt (solda 112 px görsel, ≤ 200 px yükseklik).
+  Akış kartı kompakt (solda 144 px görsel (014), ≤ 200 px yükseklik).
 - **Örnek reklam (Narçil Cafe):** varsayılan **bağlantı yok** (menü sitesinde nargile görünüyor; `docs/ilk-reklam/NASIL.md`).
 
 ## 1. Dosyalar

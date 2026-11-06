@@ -55,7 +55,8 @@ async function yukle() {
   // Maç sponsoru reklam yuvası: başlığın altında, gollerden ve yorumlardan önce
   const yuva = h('div', { class: 'reklam-yuvasi', 'data-reklam-alan': 'mac_sponsoru', 'data-mac-id': mac.id });
   $('#mac-sponsoru').replaceWith(yuva);
-  reklamYuvalariniDoldur();
+  // Yorumlar, yukarıdaki reklam yuvası yerleşince (en çok 1,5 sn) kurulur: geç gelen kart yorumları aşağı itmesin (CLS)
+  const reklamYerlesti = Promise.race([reklamYuvalariniDoldur().catch(() => {}), new Promise((r) => setTimeout(r, 1500))]);
 
   const goller = golS.data || [];
   if (goller.length) {
@@ -63,7 +64,7 @@ async function yukle() {
     $('#gol-listesi').replaceChildren(...goller.map((g) => h('li', { class: 'gol' }, golKarti(g, mac))));
     $('#mac-golleri').hidden = false;
   }
-  const [{ yorumlariKur }, oturum] = await Promise.all([import('../yorumlar.js'), oturumS]);
+  const [{ yorumlariKur }, oturum] = await Promise.all([import('../yorumlar.js'), oturumS, reklamYerlesti]);
   await yorumlariKur($('#yorumlar'), { macId: mac.id, oturum });
 }
 

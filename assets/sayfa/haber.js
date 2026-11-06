@@ -62,9 +62,10 @@ async function yukle() {
     kaynakSatiri(haber),
     haber.yayinda ? h('div', { class: 'eylem-satir' }, paylasDugmesi(haber.baslik)) : null));
   kok.dataset.durum = 'tamam';
-  reklamYuvalariniDoldur();
+  // Yorumlar, yukarıdaki reklam yuvası yerleşince (en çok 1,5 sn) kurulur: geç gelen kart yorumları aşağı itmesin (CLS)
+  const reklamYerlesti = Promise.race([reklamYuvalariniDoldur().catch(() => {}), new Promise((r) => setTimeout(r, 1500))]);
   if (haber.yayinda) {
-    const [{ yorumlariKur }, oturum] = await Promise.all([import('../yorumlar.js'), oturumS]);
+    const [{ yorumlariKur }, oturum] = await Promise.all([import('../yorumlar.js'), oturumS, reklamYerlesti]);
     await yorumlariKur($('#yorumlar'), { haberId: haber.id, oturum });
   }
 }

@@ -23,10 +23,10 @@ Bu sayfa, sitenin ilk gerçek reklamını (Narçil Cafe) yönetim panelinden ekl
 
 | Ne | Dosya / metin |
 |---|---|
-| Yatay görsel (ana sayfa akışı ve haber sonu) | `narcil-1200x628.webp` (1200×628 piksel, WebP, 23 KB; PNG kopyası `narcil-1200x628.png`, 141 KB) |
-| Kare görsel (maçın sponsoru) | `narcil-600x600.webp` (600×600 piksel, WebP, 11 KB; PNG kopyası `narcil-600x600.png`, 80 KB) |
+| Yatay görsel (ana sayfa akışı ve haber sonu) | `narcil-1200x628.webp` (1200×628 piksel, WebP, 25 KB; PNG kopyası `narcil-1200x628.png`, 142 KB) |
+| Kare görsel (maçın sponsoru) | `narcil-600x600.webp` (600×600 piksel, WebP, 11 KB; PNG kopyası `narcil-600x600.png`, 79 KB) |
 | Küçük kopyalar (telefondaki kart; panel yüklerken kendisi üretir) | `narcil-480x251.webp`, `narcil-192x192.webp` |
-| Görselleri yeniden üretmek (geliştirici) | `narcil-sablon.html` + `node docs/ilk-reklam/olustur.js` (PNG + WebP) |
+| Görselleri yeniden üretmek (geliştirici) | `narcil-sablon.html` + `node docs/ilk-reklam/olustur.js` (PNG + WebP + küçük kopyalar) |
 
 Panele **WebP** olanı yükleyin (sayfa hafif kalır). PNG seçerseniz panel de yüklemeden önce WebP'ye çevirir; sonuç aynıdır.
 Panel, kartın telefonda kullandığı küçük kopyayı da (480 ya da 192 piksel) kendisi yükler.
@@ -37,22 +37,26 @@ Panel, kartın telefonda kullandığı küçük kopyayı da (480 ya da 192 pikse
 Narçil Cafe
 ```
 
-**Kısa metin** (aynen kopyalayın; 123 harf, sınır 160):
+**Kısa metin** (aynen kopyalayın; 110 harf, sınır 160; akışta ve maçta 110 önerilir):
 
 ```
-Espresso bazlı kahveler, Türk kahvesi, bitki çayları, taze sıkılmış meyve suları ve tatlılar. Menünün tamamı narcil.net'te.
+Espresso bazlı kahveler, Türk kahvesi, bitki çayları, taze meyve suları ve tatlılar. Çorum'da sizi bekliyoruz.
 ```
 
-**Görseldeki yazı** (görme engelli ziyaretçiler için, aynen kopyalayın):
+Bağlantı olmadığı için metinde, görseldeki yazıda ve görselde **web adresi yok** (`narcil.net` yazılmaz: ziyaretçiyi yine o siteye
+yönlendirirdi; panel de bağlantısız reklamın metninde adres görürse uyarır).
+
+**Görseldeki yazı** (görme engelli ziyaretçiler için, aynen kopyalayın; İngilizce "Loves you" sloganı Türkçesiyle):
 
 ```
-Narçil Cafe; görseldeki yazı: Loves you, espresso bazlı kahveler, Türk kahvesi, bitki çayları, narcil.net
+Narçil Cafe logosu ve kalpli "seni seviyor" sloganı; görseldeki yazı: espresso bazlı kahveler, Türk kahvesi, bitki çayları, taze sıkılmış meyve suları, tatlılar; Çorum'da sizi bekliyoruz
 ```
 
 Metindeki her şey firmanın kendi menüsünde var (narcil.net'teki bölümler: Espresso bazlı kahveler, Sıcak içecekler / Türk kahvesi,
 Bitki çayları, Taze sıkılmış meyve suları, Tatlılar). "En iyi", "en ucuz" gibi kanıtlanamayan söz yok.
 Görsel özgündür: yazılar ve fincan çizimi sıfırdan yapıldı; firmanın fotoğrafı, logo dosyası ya da Çorum FK amblemi kullanılmadı.
-Renkler (siyah, beyaz, kırmızı kalp) ve "L♥VES YOU" sözü firmanın kendi tanıtım videosundan.
+Renkler (siyah, beyaz, kırmızı kalp) ve "L♥VES YOU" sözü firmanın kendi tanıtım videosundan. Görselin alt satırı:
+"Çorum'da sizi bekliyoruz." (014: önceki görseldeki `narcil.net` satırı kaldırıldı; görseller `olustur.js` ile yeniden üretildi).
 **Yayından önce görseli ve metni firmaya gösterip onay alın.**
 
 ## 1. Ana sayfa akışı reklamı
@@ -60,7 +64,7 @@ Renkler (siyah, beyaz, kırmızı kalp) ve "L♥VES YOU" sözü firmanın kendi 
 1. Sitede **Profil → Giriş yap** ile yönetici hesabınıza girin, **Profil → Yönetim paneli**'ne basın.
 2. **Reklamlar** sekmesini açın, sağ üstteki **+ Yeni reklam**'a basın.
 3. **Firma adı**: `Narçil Cafe` yapıştırın.
-4. **Kısa metin**: yukarıdaki metni yapıştırın. Altındaki sayaç **123/160** göstermeli (160'ı geçerse sayaç kırmızı
+4. **Kısa metin**: yukarıdaki metni yapıştırın. Altındaki sayaç **110/160** göstermeli (160'ı geçerse sayaç kırmızı
    "… karakter fazla" der; metin kesilmez, kısaltmanız istenir).
 5. **Görsel**: **Dosya seç** → bu klasördeki `narcil-1200x628.webp`. **"Görsel yüklendi."** yazısını bekleyin.
    **Görseldeki yazı** kutusuna yukarıdaki metni yapıştırın.

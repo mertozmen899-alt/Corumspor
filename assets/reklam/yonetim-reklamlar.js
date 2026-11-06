@@ -7,12 +7,15 @@
 // buradaki kontroller sadece yöneticiye erken ve Türkçe uyarı vermek içindir).
 
 import {
-  ALANLAR, SINIRLAR, YASAKLI_SEKTORLER, baglantiGecerli, baglantiNormallestir, buAyAraligi, durumEtiketi, firmaSuz, isoYerelGirise,
-  istanbulBicimle, oranBicimle, raporCsv, reklamDogrula, reklamDurumu, reklamSec, reklamSunulabilir, telefonKaydi,
-  telefonuUluslararasiYap, tiklamaOrani, whatsappBaglantisiOlustur, yerelGiristenIso,
+  ALANLAR, ALAN_METIN_ONERISI, SINIRLAR, YASAKLI_SEKTORLER, akisReklamlari, alanDolulugu, baglantiGecerli, baglantiNormallestir, buAyAraligi,
+  durumEtiketi, enYogunGun, firmaAnahtari, firmaSuz, gosterimSirasi, isoYerelGirise, istanbulBicimle, istanbulGunu, metindeAdresVar, oranBicimle,
+  raporCsv, reklamDogrula, reklamDurumu, reklamSec, reklamSunulabilir, telefonKaydi, telefonuUluslararasiYap, tiklamaOrani,
+  whatsappBaglantisiOlustur, yerelGiristenIso,
 } from './reklam-mantik.js';
 import { reklamKartiOlustur } from './reklam.js';
 import { gorselKucult, ENCOK_GIRDI_BAYT } from '../gorsel-kucult.js';
+// 014 (denetçi 10): uygulamanın TEK h() yardımcısı (assets/ortak.js); panel her zaman yonetim.html içinde yüklenir
+import { h } from '../ortak.js';
 
 // ---------------------------------------------------------------------------
 // Uygulamaya göre değiştirilecek ayarlar
@@ -32,19 +35,10 @@ export const TAKIM_ADI = 'Çorum FK'; // uygulamanın assets/ayar.js'teki TAKIM_
 // ---------------------------------------------------------------------------
 const SAYI = new Intl.NumberFormat('tr-TR');
 
-function h(etiket, ozellikler = {}, ...cocuklar) {
-  const e = document.createElement(etiket);
-  for (const [k, v] of Object.entries(ozellikler || {})) {
-    if (v == null || v === false) continue;
-    if (k === 'class') e.className = v;
-    else if (k === 'text') e.textContent = v;
-    else if (k.startsWith('on') && typeof v === 'function') e.addEventListener(k.slice(2), v);
-    else if (k in e && typeof v !== 'string') e[k] = v;
-    else e.setAttribute(k, v === true ? '' : v);
-  }
-  for (const c of cocuklar.flat()) if (c != null && c !== false) e.append(c instanceof Node ? c : String(c));
-  return e;
-}
+/** WhatsApp hazır mesajının varsayılanı (014, reklamveren 9): boş kalırsa esnaf uygulamadan gelen mesajı ayırt edemez. */
+export const WA_VARSAYILAN_MESAJ = 'Merhaba, Çorumspor Taraftar uygulamasındaki reklamınızı gördüm.';
+/** Önizleme çerçevelerinin gerçek genişliği (px): kart bu genişlikte çizilir, sığmazsa transform: scale ile küçültülür. */
+export const CERCEVE_GENISLIGI = Object.freeze({ masaustu: 600, telefon: 360 });
 
 function hataMesaji(error) {
   if (!error) return '';
@@ -167,10 +161,17 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       const kod = reklamDurumu(r, s);
       let gosterim = null;
       if (reklamSunulabilir(r, s)) {
-        const kazanan = reklamSec(durum.reklamlar, { alan: r.alan, macId: r.mac_id }, s);
-        gosterim = kazanan && kazanan.id === r.id
-          ? h('span', { class: 'ry-not ry-not-iyi', text: 'Şu an gösteriliyor' })
-          : h('span', { class: 'ry-not', text: `Sırada (önde: ${kazanan ? kazanan.firma_adi : '-'})` });
+        // 014 (denetçi 6): akışta aktif_reklamlar ile AYNI kural (en fazla 3 farklı firma); öteki alanlarda tek kazanan
+        const sira = gosterimSirasi(durum.reklamlar, r, s);
+        if (sira) {
+          gosterim = h('span', { class: 'ry-not ry-not-iyi', text: r.alan === 'ana_akis' ? `Akışta ${sira.sira}. sponsor (şu an gösteriliyor)` : 'Şu an gösteriliyor' });
+        } else {
+          const onde = r.alan === 'ana_akis'
+            ? akisReklamlari(durum.reklamlar, SINIRLAR.akisYuvaSayisi, s).filter((x) => firmaAnahtari(x.firma_adi) !== firmaAnahtari(r.firma_adi)).map((x) => x.firma_adi)
+            : [(reklamSec(durum.reklamlar, { alan: r.alan, macId: r.mac_id }, s) || {}).firma_adi].filter(Boolean);
+          const ayniFirma = r.alan === 'ana_akis' && akisReklamlari(durum.reklamlar, SINIRLAR.akisYuvaSayisi, s).some((x) => x.id !== r.id && firmaAnahtari(x.firma_adi) === firmaAnahtari(r.firma_adi));
+          gosterim = h('span', { class: 'ry-not', text: ayniFirma ? 'Sırada (aynı firmanın başka reklamı akışta)' : `Sırada (önde: ${onde.join(', ') || '-'})` });
+        }
       }
       const yayinaAl = kod !== 'yayinda' && kod !== 'suresi_doldu' && kod !== 'baslamadi';
       govde.append(h('tr', { 'data-reklam-id': r.id },
@@ -223,9 +224,14 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
   function formAc(r) {
     durum.duzenlenen = r;
     const s = simdi();
-    const yeniBas = new Date(Math.ceil(s.getTime() / 3600e3) * 3600e3);
+    // 014 (reklamveren 9): yeni reklam "Hemen başlasın" (kayıt anında başlar), süre 1 hafta; düğmelerle 1 ay ya da maç paketi
+    const yeniBas = new Date(Math.floor(s.getTime() / 60000) * 60000);
     const d = r || { firma_adi: '', kisa_metin: '', gorsel_url: '', gorsel_kucuk_url: null, gorsel_metni: '', dugme_metni: '', telefon: null, sektor_onayi: false, baglanti_url: null, alan: 'ana_akis', mac_id: null,
       baslangic: yeniBas.toISOString(), bitis: new Date(yeniBas.getTime() + 7 * 864e5).toISOString(), oncelik: 0, durum: 'taslak' };
+    // Yasaklı sektör onayı içerik değişince sıfırlanır (sunucu da sıfırlar, 014): ilk hâli sakla
+    const ICERIK = ['firma_adi', 'kisa_metin', 'gorsel_url', 'gorsel_kucuk_url', 'baglanti_url', 'telefon'];
+    const ilkIcerik = r ? Object.fromEntries(ICERIK.map((k) => [k, k === 'firma_adi' ? firmaAnahtari(r[k]) : r[k] ?? null])) : null;
+    let sektorSifirlandi = false;
 
     const alan = (ad, etiket, girdi, yardim) => h('div', { class: 'ry-alan', 'data-alan': ad },
       h('label', { for: `ry-${ad}`, text: etiket }), girdi,
@@ -237,12 +243,18 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
     const metin = h('textarea', { id: 'ry-kisa_metin', name: 'kisa_metin', rows: 3, required: true, 'aria-describedby': 'ry-kisa_metin-sayac ry-kisa_metin-hata' });
     metin.value = d.kisa_metin;
     const sayac = h('small', { class: 'ry-sayac', id: 'ry-kisa_metin-sayac', 'aria-live': 'polite' });
+    // 014 (reklamveren 1): alana göre önerilen uzunluk + telefonda kesilebilecek kısmın işareti (kaydı engellemez)
+    const oneri = h('small', { class: 'ry-yardim', id: 'ry-kisa_metin-oneri' });
+    const kesim = h('p', { class: 'ry-kesim', id: 'ry-kesim', hidden: true });
+    const adresUyari = h('p', { class: 'ry-uyari-satir', id: 'ry-adres-uyari', role: 'status', hidden: true },
+      'Bağlantı yok ama metinde ya da görseldeki yazıda web adresi var. Bağlantısız reklamda metinde ve görselde de web adresi yazılmaz (ziyaretçi yine o siteye yönlendirilmiş olur).');
     const dugmeMetni = h('input', { id: 'ry-dugme_metni', name: 'dugme_metni', maxlength: 40, placeholder: 'Ayrıntılar', value: d.dugme_metni || '' });
     const araTel = h('input', { id: 'ry-telefon_ara', type: 'tel', inputmode: 'tel', placeholder: '0364 213 19 19', value: d.telefon ? '0' + d.telefon.replace(/^\+90/, '') : '' });
-    const gorselMetni = h('input', { id: 'ry-gorsel_metni', name: 'gorsel_metni', maxlength: SINIRLAR.gorselMetniEnUzun + 40, value: d.gorsel_metni || '', placeholder: 'ör. Narçil Cafe; görseldeki yazı: Loves you, espresso…' });
+    const gorselMetni = h('input', { id: 'ry-gorsel_metni', name: 'gorsel_metni', maxlength: SINIRLAR.gorselMetniEnUzun + 40, value: d.gorsel_metni || '', placeholder: 'ör. Narçil Cafe logosu; görseldeki yazı: espresso bazlı kahveler…' });
     let gorselKucukUrl = d.gorsel_kucuk_url || null;
     const sektorKutular = YASAKLI_SEKTORLER.map(([k, t]) => h('label', { class: 'ry-secenek' }, h('input', { type: 'checkbox', name: 'sektor', value: k, checked: !!d.sektor_onayi }), ' ', t));
     const sektorOnayli = () => sektorKutular.every((l) => l.querySelector('input').checked);
+    const sektorNot = h('small', { class: 'ry-uyari-satir', id: 'ry-sektor-not', hidden: true }, 'İçerik değişti (firma, bağlantı, telefon, görsel ya da metin): yasaklı sektör listesini yeniden kontrol edip işaretleyin.');
     const dosya = h('input', { id: 'ry-gorsel', type: 'file', accept: SINIRLAR.gorselTurleri.join(',') });
     const gorselUrl = h('input', { id: 'ry-gorsel_url', name: 'gorsel_url', type: 'url', value: d.gorsel_url || '', placeholder: 'https://…', 'aria-label': 'Görsel adresi' });
     const gorselDurum = h('small', { class: 'ry-yardim', id: 'ry-gorsel-durum' });
@@ -258,12 +270,12 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
     const telefon = h('input', { id: 'ry-telefon', type: 'tel', inputmode: 'tel', placeholder: '0532 123 45 67', value: wa ? '0' + wa[1].replace(/^90/, '') : '' });
     let eskiMesaj = '';
     if (wa) { try { eskiMesaj = new URL(d.baglanti_url).searchParams.get('text') || ''; } catch { /* yok */ } }
-    const waMesaj = h('input', { id: 'ry-wa-mesaj', maxlength: 200, placeholder: 'Merhaba, Çorumspor uygulamasından yazıyorum', value: eskiMesaj });
+    const waMesaj = h('input', { id: 'ry-wa-mesaj', maxlength: 200, placeholder: WA_VARSAYILAN_MESAJ, value: wa ? eskiMesaj : WA_VARSAYILAN_MESAJ });
     const waSonuc = h('small', { class: 'ry-yardim', id: 'ry-wa-sonuc' });
     const webKutu = alan('baglanti_url', 'Web adresi', web, 'Yalnızca güvenli (https://) adresler kabul edilir.');
     const waKutu = h('div', { class: 'ry-alan', 'data-alan': 'whatsapp' },
       h('label', { for: 'ry-telefon', text: 'WhatsApp numarası' }), telefon,
-      h('label', { for: 'ry-wa-mesaj', text: 'Hazır mesaj (isteğe bağlı)' }), waMesaj, waSonuc,
+      h('label', { for: 'ry-wa-mesaj', text: 'Hazır mesaj (dolu kalsın: firma, uygulamadan gelen mesajı tanır)' }), waMesaj, waSonuc,
       h('small', { class: 'ry-alan-hata', id: 'ry-whatsapp-hata', role: 'alert' }));
 
     const alanSec = h('select', { id: 'ry-alan', name: 'alan' }, ...Object.entries(ALANLAR).map(([v, t]) => h('option', { value: v, text: t })));
@@ -277,12 +289,41 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
 
     const bas = h('input', { id: 'ry-baslangic', type: 'datetime-local', value: isoYerelGirise(d.baslangic) });
     const bit = h('input', { id: 'ry-bitis', type: 'datetime-local', value: isoYerelGirise(d.bitis) });
+    const hemen = h('input', { type: 'checkbox', id: 'ry-hemen', checked: !r });
+    let tarihElle = false; // yönetici tarihleri kendisi girdiyse maç seçimi tarihleri değiştirmez
+    const sureEkle = (gun, ay = 0) => {
+      const b = new Date(hemen.checked ? simdi().getTime() : Date.parse(yerelGiristenIso(bas.value) || simdi().toISOString()));
+      const e = new Date(b.getTime() + gun * 864e5);
+      if (ay) e.setMonth(e.getMonth() + ay);
+      bit.value = isoYerelGirise(e);
+      tarihElle = true;
+      guncelle();
+    };
+    /** Maç paketi: maçtan 3 gün önce 00:00 → maçtan 1 gün sonra 23:59 (Türkiye saati). */
+    const macPaketi = (sessiz = false) => {
+      const m = durum.maclar.find((x) => String(x.id) === macSec.value);
+      if (alanSec.value !== 'mac_sponsoru' || !m) { if (!sessiz) bildir('Maç paketi için önce "Maç sponsoru" alanını ve maçı seçin.', 'kotu'); return; }
+      const gun = istanbulGunu(m.tarih);
+      const [y, a, g] = gun.split('-').map(Number);
+      const tarih = (fark, saat) => { const t = new Date(Date.UTC(y, a - 1, g + fark)); return `${t.toISOString().slice(0, 10)}T${saat}`; };
+      bas.value = tarih(-3, '00:00');
+      bit.value = tarih(1, '23:59');
+      hemen.checked = false;
+      if (!sessiz) tarihElle = true;
+      guncelle();
+    };
+    const sureDugmeleri = h('div', { class: 'ry-sure', role: 'group', 'aria-label': 'Süre' },
+      h('button', { type: 'button', class: 'ry-dugme ry-kucuk', id: 'ry-sure-hafta', onclick: () => sureEkle(7) }, '1 hafta'),
+      h('button', { type: 'button', class: 'ry-dugme ry-kucuk', id: 'ry-sure-ay', onclick: () => sureEkle(0, 1) }, '1 ay'),
+      h('button', { type: 'button', class: 'ry-dugme ry-kucuk', id: 'ry-sure-mac', onclick: () => macPaketi(false) }, 'Maç paketi'));
     const oncelik = h('input', { id: 'ry-oncelik', type: 'number', min: 0, max: 100, step: 1, value: String(d.oncelik ?? 0) });
 
     const ozet = h('div', { class: 'ry-hata-ozet', role: 'alert' });
     const bilgi = h('p', { class: 'ry-onizleme-bilgi', id: 'ry-onizleme-bilgi' });
     const onMasaustu = h('div', { class: 'ry-onizleme-icerik' });
     const onTelefon = h('div', { class: 'ry-onizleme-icerik' });
+    const olcekMasaustu = h('span', { class: 'ry-olcek', id: 'ry-olcek-masaustu' });
+    const olcekTelefon = h('span', { class: 'ry-olcek', id: 'ry-olcek-telefon' });
 
     const kaydetDugme = h('button', { type: 'button', class: 'ry-dugme', id: 'ry-taslak', onclick: () => kaydet('taslak') }, 'Taslak kaydet');
     const yayinDugme = h('button', { type: 'button', class: 'ry-dugme ry-ana', id: 'ry-yayina-al', onclick: () => kaydet('yayinda') }, r && r.durum === 'yayinda' ? 'Kaydet (yayında kalsın)' : 'Yayına al');
@@ -291,6 +332,9 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
 
     let yerelResim = null; // yükleme sürerken önizlemede gösterilecek nesne adresi
     let yukleniyor = false;
+    let sonDosya = null;   // 014: alan değişince küçük kopya (480 / kare 192) yeniden üretilsin
+    let sonYol = null;
+    let kucukKare = null;
 
     function turu() { return turSec.querySelector('input:checked').value; }
     function satirTopla() {
@@ -304,7 +348,7 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
         gorsel_metni: gorselMetni.value.trim() || null, dugme_metni: dugmeMetni.value.trim() || null,
         telefon: araTel.value.trim() ? (telefonKaydi(araTel.value) || 'gecersiz') : null, sektor_onayi: sektorOnayli(),
         baglanti_url: baglanti, alan: alanSec.value, mac_id: alanSec.value === 'mac_sponsoru' && macSec.value ? macSec.value : null,
-        baslangic: yerelGiristenIso(bas.value), bitis: yerelGiristenIso(bit.value),
+        baslangic: hemen.checked ? new Date(Math.floor(simdi().getTime() / 60000) * 60000).toISOString() : yerelGiristenIso(bas.value), bitis: yerelGiristenIso(bit.value),
         oncelik: oncelik.value === '' ? NaN : Number(oncelik.value),
       };
     }
@@ -317,6 +361,25 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       const fazla = metin.value.trim().length - SINIRLAR.kisaMetinEnUzun;
       sayac.textContent = fazla > 0 ? `${metin.value.length}/${SINIRLAR.kisaMetinEnUzun} · ${fazla} karakter fazla` : `${metin.value.length}/${SINIRLAR.kisaMetinEnUzun}`;
       sayac.classList.toggle('asim', fazla > 0);
+      const onerilen = ALAN_METIN_ONERISI[alanSec.value] || SINIRLAR.kisaMetinEnUzun;
+      const temiz = metin.value.trim();
+      const tasan = temiz.length - onerilen;
+      oneri.textContent = `${ALANLAR[alanSec.value] || 'Bu alan'}: en fazla ${onerilen} karakter önerilir (telefonda kart en çok 3 satır).` + (tasan > 0 && fazla <= 0 ? ` ${tasan} karakter telefonda kesilebilir.` : '');
+      oneri.classList.toggle('asim', tasan > 0);
+      kesim.hidden = !(tasan > 0);
+      if (tasan > 0) kesim.replaceChildren(h('span', { class: 'ry-kesim-baslik' }, 'Telefonda kesilebilecek kısım işaretli: '), temiz.slice(0, onerilen), h('mark', { class: 'ry-kesik' }, temiz.slice(onerilen)));
+      adresUyari.hidden = !(t === 'yok' && (metindeAdresVar(metin.value) || metindeAdresVar(gorselMetni.value)));
+      if (hemen.checked && document.activeElement !== bas) bas.value = isoYerelGirise(new Date(Math.floor(simdi().getTime() / 60000) * 60000));
+      document.getElementById('ry-sure-mac')?.toggleAttribute('disabled', !(alanSec.value === 'mac_sponsoru' && macSec.value));
+      // İçerik değişince yasaklı sektör onayı yeniden istenir (bir kez: yönetici yeniden işaretleyebilsin)
+      if (ilkIcerik && r.sektor_onayi && !sektorSifirlandi) {
+        const simdiki = satirTopla();
+        if (ICERIK.some((k) => (k === 'firma_adi' ? firmaAnahtari(simdiki[k]) : simdiki[k] ?? null) !== ilkIcerik[k])) {
+          sektorSifirlandi = true;
+          sektorKutular.forEach((l) => { l.querySelector('input').checked = false; });
+          sektorNot.hidden = false;
+        }
+      }
       if (t === 'whatsapp') {
         const b = whatsappBaglantisiOlustur(telefon.value, waMesaj.value);
         waSonuc.textContent = b ? `Oluşan bağlantı: ${b}` : telefon.value.trim() ? 'Numara geçersiz. Örnek: 0532 123 45 67' : '';
@@ -329,20 +392,59 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       };
       onMasaustu.replaceChildren(sahne(onizlemeReklam, 'masaustu'));
       onTelefon.replaceChildren(sahne(onizlemeReklam, 'telefon'));
-      bilgi.textContent = siraBilgisi(satir);
+      olcekle();
+      const sb = siraBilgisi(satir);
+      bilgi.textContent = sb.metin;
+      bilgi.classList.toggle('ry-dolu', !!sb.dolu);
       if (sonHedef) hatalariGoster(hatalariHesapla(satir, sonHedef));
     }
 
     function siraBilgisi(satir) {
-      if (!satir.baslangic || !satir.bitis) return '';
+      if (!satir.baslangic || !satir.bitis) return { metin: '' };
       const s = simdi();
-      const aday = { ...satir, id: r ? r.id : '__yeni__', durum: 'yayinda', yayina_alinma: r && r.durum === 'yayinda' ? r.yayina_alinma : s.toISOString(), created_at: r ? r.created_at : s.toISOString() };
+      const aday = { ...satir, id: r ? r.id : '__yeni__', durum: r && r.durum === 'yayinda' ? 'yayinda' : 'taslak', yayina_alinma: r && r.durum === 'yayinda' ? r.yayina_alinma : null, created_at: r ? r.created_at : s.toISOString() };
       const digerleri = durum.reklamlar.filter((x) => !r || x.id !== r.id);
-      if (new Date(aday.bitis) <= s) return 'Bitiş tarihi geçmiş: bu reklam yayına alınamaz.';
-      if (new Date(aday.baslangic) > s) return `Yayına alınırsa ${istanbulBicimle(aday.baslangic)} tarihinde görünmeye başlar.`;
-      const kazanan = reklamSec([...digerleri, aday], { alan: aday.alan, macId: aday.mac_id }, s);
-      if (kazanan && kazanan.id === aday.id) return 'Yayına alınırsa şu an bu alanda bu reklam gösterilir.';
-      return kazanan ? `Yayına alınırsa sırada bekler: şu an "${kazanan.firma_adi}" daha yüksek öncelikli. Önceliği artırabilirsiniz.` : '';
+      if (new Date(aday.bitis) <= s) return { metin: 'Bitiş tarihi geçmiş: bu reklam yayına alınamaz.' };
+      // 014 (KARARLAR): dönüşüm yok; yuva bu tarihlerde hep daha yüksek öncelikli reklamlarla doluysa açıkça söyle
+      const doluluk = alanDolulugu(digerleri, aday, s);
+      if (!doluluk.gorunur) {
+        const onde = doluluk.onde.map((x) => `"${x.firma_adi}" ${x.oncelik}`).join(', ');
+        return { dolu: true, metin: `Bu alan bu tarihlerde dolu: ${onde} öncelikte. Bu reklam yayına alınsa da hiç görünmez; önceliği yükseltin ya da tarihleri değiştirin.` };
+      }
+      if (new Date(aday.baslangic) > s) return { metin: `Yayına alınırsa ${istanbulBicimle(aday.baslangic)} tarihinde görünmeye başlar.` };
+      const yeni = { ...aday, durum: 'yayinda', yayina_alinma: aday.yayina_alinma || new Date(s.getTime() + 1000).toISOString() };
+      const sira = gosterimSirasi([...digerleri, yeni], yeni, s);
+      if (sira) return { metin: aday.alan === 'ana_akis' ? `Yayına alınırsa şu an bu alanda bu reklam gösterilir (akışta ${sira.sira}. sponsor).` : 'Yayına alınırsa şu an bu alanda bu reklam gösterilir.' };
+      const kazanan = reklamSec([...digerleri, yeni], { alan: aday.alan, macId: aday.mac_id }, s);
+      return { metin: kazanan ? `Yayına alınırsa şimdilik sırada bekler: şu an "${kazanan.firma_adi}" daha yüksek öncelikli; süre içinde yeri açılınca görünür.` : '' };
+    }
+
+    /** 014 (reklamveren 7): önizleme gerçek genişlikte (600 / 360 px) çizilir; çerçeveye sığmazsa transform: scale ile küçülür. */
+    function olcekle() {
+      for (const [ic, cihaz, yazi] of [[onMasaustu, 'masaustu', olcekMasaustu], [onTelefon, 'telefon', olcekTelefon]]) {
+        const kap = ic.parentElement;
+        if (!kap) continue;
+        const gen = CERCEVE_GENISLIGI[cihaz];
+        const olcek = Math.min(1, (kap.clientWidth || gen) / gen);
+        ic.style.width = gen + 'px';
+        ic.style.transform = olcek < 1 ? `scale(${olcek})` : '';
+        kap.style.height = olcek < 1 ? Math.ceil(ic.offsetHeight * olcek) + 'px' : '';
+        yazi.textContent = olcek < 1 ? ` · %${Math.round(olcek * 100)} ölçek` : '';
+        // Telefonda metin satır sınırına takılıyorsa çerçeve işaretlenir (kesilen kısım formda işaretli)
+        const m = ic.querySelector('.reklam-metin');
+        kap.closest('figure')?.toggleAttribute('data-kesik', !!m && m.scrollHeight > m.clientHeight + 1);
+      }
+    }
+
+    /** Küçük kopya (akış 480 px, maç sponsoru kare 192 px): kart srcset ile yuvasına uyanı indirir. */
+    async function kucukKopyaYukle(f, yol) {
+      gorselKucukUrl = null;
+      const kare = alanSec.value === 'mac_sponsoru';
+      kucukKare = kare;
+      const kk = await gorselKucult(f, kare ? { enGenis: 192, enYuksek: 192 } : { enGenis: 480, enYuksek: 480 });
+      const kyol = yol.replace(/\.(\w+)$/, (kare ? '-k192.' : '-k.') + ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[kk.type] || 'webp'));
+      const ky = await sb.storage.from(DEPO_KOVASI).upload(kyol, kk, { contentType: kk.type, cacheControl: '31536000', upsert: true });
+      if (!ky.error) gorselKucukUrl = sb.storage.from(DEPO_KOVASI).getPublicUrl(kyol).data.publicUrl;
     }
 
     async function gorselYukle() {
@@ -364,13 +466,8 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       const { error } = await sb.storage.from(DEPO_KOVASI).upload(yol, k, { contentType: k.type, cacheControl: '31536000', upsert: false });
       yukleniyor = false;
       if (error) { gorselDurum.textContent = 'Görsel yüklenemedi: ' + hataMesaji(error); return; }
-      // Küçük kopya (akış 480 px, maç sponsoru 192 px): kart srcset ile yuvasına uyanı indirir
-      gorselKucukUrl = null;
-      const kare = alanSec.value === 'mac_sponsoru';
-      const kk = await gorselKucult(f, kare ? { enGenis: 192, enYuksek: 192 } : { enGenis: 480, enYuksek: 480 });
-      const kyol = yol.replace(/\.(\w+)$/, '-k.' + ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[kk.type] || 'webp'));
-      const ky = await sb.storage.from(DEPO_KOVASI).upload(kyol, kk, { contentType: kk.type, cacheControl: '31536000', upsert: false });
-      if (!ky.error) gorselKucukUrl = sb.storage.from(DEPO_KOVASI).getPublicUrl(kyol).data.publicUrl;
+      await kucukKopyaYukle(f, yol);
+      sonDosya = f; sonYol = yol;
       gorselUrl.value = sb.storage.from(DEPO_KOVASI).getPublicUrl(yol).data.publicUrl;
       gorselDurum.textContent = 'Görsel yüklendi.';
       guncelle();
@@ -412,6 +509,8 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       if (Object.keys(hatalar).length) return;
       const kayit = { ...satir, durum: hedefDurum };
       if (kayit.telefon === 'gecersiz') kayit.telefon = null;
+      // 014: içerik değiştiyse ya da onay yeni verildiyse açık yeniden onay (sunucu onay anını kendisi yazar)
+      if (kayit.sektor_onayi && r && (!r.sektor_onayi || sektorSifirlandi)) kayit.sektor_onay_zamani = new Date().toISOString();
       [kaydetDugme, yayinDugme, durDugme].forEach((b) => b && (b.disabled = true));
       const sorgu = r ? sb.from('reklamlar').update(kayit).eq('id', r.id) : sb.from('reklamlar').insert(kayit);
       const { error } = await sorgu.select().single();
@@ -428,23 +527,26 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       h('h2', { text: r ? 'Reklamı düzenle' : 'Yeni reklam' }),
       ozet,
       alan('firma_adi', 'Firma adı', firma),
-      h('div', { class: 'ry-alan', 'data-alan': 'kisa_metin' }, h('label', { for: 'ry-kisa_metin', text: 'Kısa metin' }), metin, sayac,
-        h('small', { class: 'ry-yardim', text: `En fazla ${SINIRLAR.kisaMetinEnUzun} karakter; telefonda 2-3 satırı geçmesin diye ${SINIRLAR.kisaMetinOnerilen} karakter önerilir. İndirim, kupon, "%" yazılmaz.` }),
+      h('div', { class: 'ry-alan', 'data-alan': 'kisa_metin' }, h('label', { for: 'ry-kisa_metin', text: 'Kısa metin' }), metin, sayac, oneri, kesim,
+        h('small', { class: 'ry-yardim', text: `En fazla ${SINIRLAR.kisaMetinEnUzun} karakter. Akışta ve maçta ${ALAN_METIN_ONERISI.ana_akis}, haber sonunda ${ALAN_METIN_ONERISI.haber_sonu} karakter önerilir. Adres/semt gibi önemli bilgiyi başa yazın. İndirim, kupon, "%" yazılmaz.` }),
         h('small', { class: 'ry-alan-hata', id: 'ry-kisa_metin-hata', role: 'alert' })),
       h('div', { class: 'ry-alan', 'data-alan': 'gorsel_url' }, h('label', { for: 'ry-gorsel', text: 'Görsel' }), dosya,
         h('small', { class: 'ry-yardim', text: 'Önerilen: 1200×628 piksel yatay görsel (maç sponsoru için kare logo). Büyük görsel yüklemeden önce 1200 piksele küçültülüp WebP yapılır (en fazla 2 MB).' }),
-        h('small', { class: 'ry-yardim', text: 'Telefonda akışta 112 px, maçta 64 px görünür: önemli yazıyı görselin ortasına koyun, küçük yazı koymayın; kare görselde yalnız logo olsun.' }),
+        h('small', { class: 'ry-yardim', text: 'Telefonda akışta ~144 px, maçta 64 px görünür: önemli yazıyı görselin ortasına koyun, küçük yazı koymayın; kare görselde yalnız logo olsun.' }),
         gorselDurum, h('details', {}, h('summary', { text: 'Görsel adresini elle yaz' }), gorselUrl),
         h('small', { class: 'ry-alan-hata', id: 'ry-gorsel_url-hata', role: 'alert' })),
       alan('gorsel_metni', 'Görseldeki yazı (ekran okuyucu için, isteğe bağlı)', gorselMetni, 'Görselde yazı varsa buraya aynısını yazın. Boş bırakılırsa görsel süs sayılır.'),
-      h('fieldset', { class: 'ry-alan' }, h('legend', { text: 'Düğmeye dokununca ne açılsın?' }), turSec), webKutu, waKutu,
+      h('fieldset', { class: 'ry-alan' }, h('legend', { text: 'Düğmeye dokununca ne açılsın?' }), turSec), adresUyari, webKutu, waKutu,
       alan('dugme_metni', 'Düğme yazısı (isteğe bağlı)', dugmeMetni, 'Boşsa "Ayrıntılar" (WhatsApp\'ta "WhatsApp\'tan yazın"). Ör. "Menüyü gör", "Yol tarifi". 2-24 karakter.'),
       alan('telefon_ara', '"Ara" düğmesi için telefon (isteğe bağlı)', araTel, 'Doldurulursa kartta ikinci düğme "Ara" çıkar (telefonun arama ekranını açar).'),
-      h('fieldset', { class: 'ry-alan ry-sektor', id: 'ry-sektor', 'data-alan': 'sektor' }, h('legend', { text: 'Yasaklı sektör kontrolü (yayına almadan önce zorunlu)' }), ...sektorKutular,
+      h('fieldset', { class: 'ry-alan ry-sektor', id: 'ry-sektor', 'data-alan': 'sektor' }, h('legend', { text: 'Yasaklı sektör kontrolü (yayına almadan önce zorunlu)' }), sektorNot, ...sektorKutular,
         h('small', { class: 'ry-alan-hata', id: 'ry-sektor-hata', role: 'alert' })),
       alan('alan', 'Nerede görünsün?', alanSec), macKutu,
+      h('label', { class: 'ry-secenek', for: 'ry-hemen' }, hemen, ' Hemen başlasın (kaydettiğiniz anda yayına girer)'),
       h('div', { class: 'ry-iki' }, alan('baslangic', 'Başlangıç', bas, 'Türkiye saati'), alan('bitis', 'Bitiş', bit, 'Bu saatte kendiliğinden kalkar')),
-      alan('oncelik', 'Öncelik (0-100)', oncelik, 'Aynı yerde birden fazla reklam varsa yüksek olan gösterilir.'),
+      h('div', { class: 'ry-alan' }, h('span', { class: 'ry-yardim', text: 'Süre:' }), sureDugmeleri,
+        h('small', { class: 'ry-yardim', text: 'Maç paketi: maçtan 3 gün önce 00:00 → maçtan 1 gün sonra 23:59 (maç sponsorunda maç seçilince kendiliğinden önerilir).' })),
+      alan('oncelik', 'Öncelik (0-100)', oncelik, 'Aynı yerde birden fazla reklam varsa yüksek olan gösterilir (dönüşüm yok; akışta en fazla 3 farklı firma). Eşit öncelikte en son yayına alınan.'),
       h('small', { class: 'ry-alan-hata', id: 'ry-genel-hata', role: 'alert' }),
       h('div', { class: 'ry-dugmeler' }, kaydetDugme, yayinDugme, durDugme,
         h('button', { type: 'button', class: 'ry-dugme ry-ince', onclick: () => { durum.duzenlenen = null; listeCiz(); } }, 'Vazgeç')));
@@ -452,6 +554,19 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
     form.addEventListener('input', guncelle);
     form.addEventListener('change', guncelle);
     dosya.addEventListener('change', gorselYukle);
+    for (const g of [bas, bit]) g.addEventListener('input', () => { tarihElle = true; if (g === bas) hemen.checked = false; });
+    hemen.addEventListener('change', () => { if (hemen.checked) bas.value = isoYerelGirise(simdi()); });
+    macSec.addEventListener('change', () => { if (!tarihElle && alanSec.value === 'mac_sponsoru' && macSec.value) macPaketi(true); });
+    alanSec.addEventListener('change', async () => {
+      if (!tarihElle && alanSec.value === 'mac_sponsoru' && macSec.value) macPaketi(true);
+      // 014 (reklamveren 9): alan değişince küçük kopya yeni yuvanın ölçüsüyle yeniden üretilir
+      if (sonDosya && kucukKare !== null && kucukKare !== (alanSec.value === 'mac_sponsoru')) {
+        yukleniyor = true; gorselDurum.textContent = 'Küçük kopya yeni alana göre yeniden üretiliyor…';
+        await kucukKopyaYukle(sonDosya, sonYol);
+        yukleniyor = false; gorselDurum.textContent = 'Görsel yüklendi.';
+        guncelle();
+      }
+    });
     web.addEventListener('blur', () => { const n = baglantiNormallestir(web.value); if (n) web.value = n; guncelle(); });
     const telBicimle = (g) => () => { const no = telefonuUluslararasiYap(g.value); if (no) g.value = '0' + no.slice(2).replace(/^(\d{3})(\d{3})(\d{2})(\d{2})$/, '$1 $2 $3 $4'); guncelle(); };
     telefon.addEventListener('blur', telBicimle(telefon));
@@ -466,8 +581,12 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
           h('p', { class: 'ry-yardim', text: 'Ziyaretçinin göreceği kart. Önizleme hiçbir gösterim ya da tıklama saymaz.' }),
           bilgi,
           h('div', { class: 'ry-onizlemeler' },
-            h('figure', { class: 'ry-cerceve ry-cerceve-masaustu', id: 'ry-onizleme-masaustu' }, h('figcaption', { text: 'Masaüstü (600 px)' }), onMasaustu),
-            h('figure', { class: 'ry-cerceve ry-cerceve-telefon', id: 'ry-onizleme-telefon' }, h('figcaption', { text: 'Telefon (360 px)' }), onTelefon)))));
+            h('figure', { class: 'ry-cerceve ry-cerceve-masaustu', id: 'ry-onizleme-masaustu' }, h('figcaption', null, 'Masaüstü (600 px)', olcekMasaustu), h('div', { class: 'ry-olcek-kap' }, onMasaustu)),
+            h('figure', { class: 'ry-cerceve ry-cerceve-telefon', id: 'ry-onizleme-telefon' }, h('figcaption', null, 'Telefon (360 px)', olcekTelefon), h('div', { class: 'ry-olcek-kap' }, onTelefon))))));
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => olcekle());
+      reklamBolumu.querySelectorAll('.ry-olcek-kap').forEach((k) => ro.observe(k));
+    }
     guncelle();
     firma.focus();
   }
@@ -482,16 +601,27 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
   }
 
   // ----- Rapor -----
+  // 014 (reklamveren 3/4/5): sayfa açılışı (yerleşim) ve görünürlük oranı, tıklama eylemleri, dönem = yayınla kesişen günler,
+  // gün gün kırılım (maç günleri işaretli), firma seçiliyken yazdırılabilir "Özet sayfası"; şüpheli trafik ayrı ve firma CSV'sinde 0 ise yok.
+  const SUPHELI = 'Şüpheli trafik (sayılmadı, dk)';
+  const GUN_BICIMI = new Intl.DateTimeFormat('tr-TR', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric', weekday: 'short' });
+  const gunYaz = (g) => (g ? GUN_BICIMI.format(new Date(g + 'T12:00:00Z')) : '');
+  const yuzde = (o) => (o == null || o === '' ? '–' : `%${oranBicimle(o)}`);
+  const donemYaz = (s, yedek) => (s.donem_baslangic && s.donem_bitis ? `${gunYaz(s.donem_baslangic)} – ${gunYaz(s.donem_bitis)}` : yedek);
+
   function raporKur() {
     raporBolumu.dataset.kuruldu = '1';
     const aralik = buAyAraligi(simdi());
     const bas = h('input', { type: 'date', id: 'ry-rapor-bas', value: aralik.baslangic });
     const bit = h('input', { type: 'date', id: 'ry-rapor-bit', value: aralik.bitis });
     const sonuc = h('div', { class: 'ry-tablo-kap', id: 'ry-rapor-sonuc' });
+    const gunluk = h('div', { class: 'ry-tablo-kap', id: 'ry-rapor-gunluk', hidden: true });
+    const ozetYer = h('div', { id: 'ry-ozet-yer' });
     // Firma süzgeci: reklam verene giden CSV YALNIZ o firmanın satırlarını içerir (başka firmanın rakamı sızmaz)
     const firmaSec = h('select', { id: 'ry-rapor-firma' }, h('option', { value: '', text: 'Tüm firmalar (yalnız sizin için)' }));
-    const csvNot = h('p', { class: 'ry-yardim', id: 'ry-csv-not', text: 'CSV reklam verene gönderilmek içindir: indirmek için bir firma seçin (dosyada yalnız o firmanın rakamları olur).' });
+    const csvNot = h('p', { class: 'ry-yardim', id: 'ry-csv-not', text: 'CSV ve Özet sayfası reklam verene gönderilmek içindir: bir firma seçin (yalnız o firmanın rakamları olur).' });
     let tumSatirlar = [];
+    let tumGunluk = [];
     let secilenFirma = ''; // son seçilen firma: başka aralığa bakıp dönünce de seçili kalsın
     let satirlar = [];
     let gosterilenAralik = ''; // CSV dosya adı: tablodaki verinin aralığı (sonradan değiştirilen girişler değil)
@@ -503,42 +633,140 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       document.body.append(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     } }, 'CSV indir (Excel)');
+    const ozetDugme = h('button', { type: 'button', class: 'ry-dugme', id: 'ry-ozet', disabled: true, onclick: () => ozetAc() }, 'Özet sayfası');
 
     async function getir() {
-      satirlar = []; tumSatirlar = []; // hata ya da geçersiz aralıkta eski satırlar CSV olarak inmesin
-      csvDugme.disabled = true;
+      satirlar = []; tumSatirlar = []; tumGunluk = []; // hata ya da geçersiz aralıkta eski satırlar CSV olarak inmesin
+      csvDugme.disabled = true; ozetDugme.disabled = true; gunluk.hidden = true; ozetYer.replaceChildren();
       if (!bas.value || !bit.value || bit.value < bas.value) { sonuc.replaceChildren(h('p', { class: 'ry-hata', text: 'Tarih aralığı geçersiz.' })); return; }
       sonuc.replaceChildren(h('p', { class: 'ry-bekle', text: 'Yükleniyor…' }));
       const istenen = [bas.value, bit.value];
-      const { data, error } = await sb.rpc('reklam_raporu', { p_baslangic_tarih: istenen[0], p_bitis_tarih: istenen[1] });
-      if (error) { sonuc.replaceChildren(h('p', { class: 'ry-hata', text: hataMesaji(error) })); return; }
-      tumSatirlar = data || [];
+      const [rp, gp] = await Promise.all([
+        sb.rpc('reklam_raporu', { p_baslangic_tarih: istenen[0], p_bitis_tarih: istenen[1] }),
+        Promise.resolve(sb.rpc('reklam_gunluk_raporu', { p_baslangic_tarih: istenen[0], p_bitis_tarih: istenen[1] })).catch((e) => ({ data: null, error: e })),
+      ]);
+      if (rp.error) { sonuc.replaceChildren(h('p', { class: 'ry-hata', text: hataMesaji(rp.error) })); return; }
+      tumSatirlar = rp.data || [];
+      tumGunluk = (gp && !gp.error && gp.data) || [];
       gosterilenAralik = istenen.join('_');
-      const firmalar = [...new Set(tumSatirlar.map((x) => x.firma_adi))].sort((a, b) => a.localeCompare(b, 'tr'));
+      // Aynı firma (firma anahtarı) tek seçenek: "NARÇIL CAFE" ve "Narçil Cafe" ayrı görünmez
+      const firmalar = [...new Map(tumSatirlar.map((x) => [x.firma_anahtar || firmaAnahtari(x.firma_adi), x.firma_adi])).values()].sort((a, b) => a.localeCompare(b, 'tr'));
       firmaSec.replaceChildren(h('option', { value: '', text: 'Tüm firmalar (yalnız sizin için)' }), ...firmalar.map((f) => h('option', { value: f, text: f })));
-      firmaSec.value = firmalar.includes(secilenFirma) ? secilenFirma : '';
+      firmaSec.value = firmalar.find((f) => firmaAnahtari(f) === firmaAnahtari(secilenFirma)) || '';
       ciz();
     }
 
     function ciz() {
       satirlar = firmaSuz(tumSatirlar, firmaSec.value);
       csvDugme.disabled = !satirlar.length || !firmaSec.value;
-      if (!satirlar.length) { sonuc.replaceChildren(h('p', { class: 'ry-bos', text: 'Bu aralıkta veri yok.' })); return; }
-      const top = satirlar.reduce((t, s) => ({ g: t.g + Number(s.gosterim), t: t.t + Number(s.tiklama), m: t.m + (Number(s.supheli_dakika) || 0) }), { g: 0, t: 0, m: 0 });
-      const oran = (s) => { const o = s.tiklama_orani != null ? Number(s.tiklama_orani) : tiklamaOrani(s.gosterim, s.tiklama); return o == null ? '–' : `%${oranBicimle(o)}`; };
+      ozetDugme.disabled = csvDugme.disabled;
+      ozetYer.replaceChildren();
+      if (!satirlar.length) { sonuc.replaceChildren(h('p', { class: 'ry-bos', text: 'Bu aralıkta veri yok.' })); gunluk.hidden = true; return; }
+      const top = satirlar.reduce((t, s) => ({ g: t.g + Number(s.gosterim), t: t.t + Number(s.tiklama), y: t.y + (Number(s.yerlesim) || 0), m: t.m + (Number(s.supheli_dakika) || 0),
+        w: t.w + (Number(s.tiklama_web) || 0), wa: t.wa + (Number(s.tiklama_whatsapp) || 0), a: t.a + (Number(s.tiklama_ara) || 0) }), { g: 0, t: 0, y: 0, m: 0, w: 0, wa: 0, a: 0 });
+      const oran = (s) => yuzde(s.tiklama_orani != null ? Number(s.tiklama_orani) : tiklamaOrani(s.gosterim, s.tiklama));
+      const eylemler = (w, wa, a) => `${SAYI.format(w)} / ${SAYI.format(wa)} / ${SAYI.format(a)}`;
+      const ort = (s) => (s.gunluk_ortalama_gosterim == null ? '–' : SAYI.format(Number(s.gunluk_ortalama_gosterim)));
       sonuc.replaceChildren(h('table', { class: 'ry-tablo ry-rapor-tablo' },
-        h('thead', {}, h('tr', {}, ['Firma', 'Alan', 'Gösterim', 'Tıklama', 'Tıklama oranı', 'Sınıra takılan dakika'].map((b) => h('th', { scope: 'col', text: b })))),
+        h('thead', {}, h('tr', {}, ['Firma', 'Alan', 'Dönem (yayında)', 'Sayfa açılışı', 'Gösterim', 'Görünürlük', 'Tıklama', 'Web / WhatsApp / Ara', 'Tıklama oranı', 'Günlük ort. gösterim', SUPHELI].map((b) => h('th', { scope: 'col', text: b })))),
         h('tbody', {}, satirlar.map((s) => h('tr', { 'data-reklam-id': s.reklam_id },
           h('td', { 'data-baslik': 'Firma', text: s.firma_adi }),
           h('td', { 'data-baslik': 'Alan', text: (ALANLAR[s.alan] || s.alan) + (s.mac_id ? ` · ${macAdi(s.mac_id)}` : '') }),
+          h('td', { 'data-baslik': 'Dönem (yayında)', text: `${donemYaz(s, '–')}${s.yayin_gun != null ? ` (${s.yayin_gun} gün)` : ''}` }),
+          h('td', { 'data-baslik': 'Sayfa açılışı', class: 'ry-sayi', text: SAYI.format(Number(s.yerlesim) || 0) }),
           h('td', { 'data-baslik': 'Gösterim', class: 'ry-sayi', text: SAYI.format(s.gosterim) }),
+          h('td', { 'data-baslik': 'Görünürlük', class: 'ry-sayi', text: yuzde(s.gorunurluk_orani) }),
           h('td', { 'data-baslik': 'Tıklama', class: 'ry-sayi', text: SAYI.format(s.tiklama) }),
+          h('td', { 'data-baslik': 'Web / WhatsApp / Ara', class: 'ry-sayi', text: eylemler(Number(s.tiklama_web) || 0, Number(s.tiklama_whatsapp) || 0, Number(s.tiklama_ara) || 0) }),
           h('td', { 'data-baslik': 'Oran', class: 'ry-sayi', text: oran(s) }),
-          h('td', { 'data-baslik': 'Sınıra takılan dakika', class: 'ry-sayi' + (Number(s.supheli_dakika) > 0 ? ' ry-supheli' : ''), title: 'Bu reklamın dakika sınırına takıldığı dakika sayısı (fazlası sayılmadı)', text: SAYI.format(Number(s.supheli_dakika) || 0) })))),
-        h('tfoot', {}, h('tr', {}, h('th', { scope: 'row', colspan: 2, text: 'Toplam' }),
-          h('td', { 'data-baslik': 'Gösterim', class: 'ry-sayi', text: SAYI.format(top.g) }), h('td', { 'data-baslik': 'Tıklama', class: 'ry-sayi', text: SAYI.format(top.t) }),
+          h('td', { 'data-baslik': 'Günlük ort. gösterim', class: 'ry-sayi', text: ort(s) }),
+          h('td', { 'data-baslik': SUPHELI, class: 'ry-sayi' + (Number(s.supheli_dakika) > 0 ? ' ry-supheli' : ''), title: 'Bu reklamın sınıra takıldığı dakika sayısı (fazlası sayılmadı)', text: SAYI.format(Number(s.supheli_dakika) || 0) })))),
+        h('tfoot', {}, h('tr', {}, h('th', { scope: 'row', colspan: 3, text: 'Toplam' }),
+          h('td', { 'data-baslik': 'Sayfa açılışı', class: 'ry-sayi', text: SAYI.format(top.y) }),
+          h('td', { 'data-baslik': 'Gösterim', class: 'ry-sayi', text: SAYI.format(top.g) }),
+          h('td', { 'data-baslik': 'Görünürlük', class: 'ry-sayi', text: yuzde(top.y ? Math.round((Math.min(top.g, top.y) * 10000) / top.y) / 100 : null) }),
+          h('td', { 'data-baslik': 'Tıklama', class: 'ry-sayi', text: SAYI.format(top.t) }),
+          h('td', { 'data-baslik': 'Web / WhatsApp / Ara', class: 'ry-sayi', text: eylemler(top.w, top.wa, top.a) }),
           h('td', { 'data-baslik': 'Oran', class: 'ry-sayi', text: oran({ gosterim: top.g, tiklama: top.t }) }),
-          h('td', { 'data-baslik': 'Sınıra takılan dakika', class: 'ry-sayi', text: SAYI.format(top.m) })))));
+          h('td', { 'data-baslik': 'Günlük ort. gösterim', class: 'ry-sayi', text: '' }),
+          h('td', { 'data-baslik': SUPHELI, class: 'ry-sayi', text: SAYI.format(top.m) })))));
+      gunlukCiz();
+    }
+
+    /** Gün gün (Türkiye takvim günü): seçili firmanın (ya da hepsinin) toplamı; maç günleri işaretli. */
+    function gunlukCiz() {
+      const anahtar = firmaSec.value ? firmaAnahtari(firmaSec.value) : null;
+      const l = tumGunluk.filter((g) => !anahtar || (g.firma_anahtar || firmaAnahtari(g.firma_adi)) === anahtar);
+      const gunler = new Map();
+      for (const g of l) {
+        const t = gunler.get(g.gun) || { gun: g.gun, mac: !!g.mac_gunu, y: 0, g: 0, t: 0 };
+        t.y += Number(g.yerlesim) || 0; t.g += Number(g.gosterim) || 0; t.t += Number(g.tiklama) || 0; t.mac = t.mac || !!g.mac_gunu;
+        gunler.set(g.gun, t);
+      }
+      const satir = [...gunler.values()].sort((a, b) => a.gun.localeCompare(b.gun));
+      gunluk.hidden = !satir.length;
+      if (!satir.length) { gunluk.replaceChildren(); return; }
+      gunluk.replaceChildren(h('table', { class: 'ry-tablo ry-gunluk-tablo' },
+        h('caption', { class: 'ry-tablo-baslik', text: 'Gün gün (Türkiye saati; maç günleri işaretli)' }),
+        h('thead', {}, h('tr', {}, ['Gün', 'Sayfa açılışı', 'Gösterim', 'Görünürlük', 'Tıklama'].map((b) => h('th', { scope: 'col', text: b })))),
+        h('tbody', {}, satir.map((g) => h('tr', { 'data-gun': g.gun, 'data-mac-gunu': g.mac ? '1' : null },
+          h('th', { scope: 'row', 'data-baslik': 'Gün' }, gunYaz(g.gun), g.mac ? h('span', { class: 'ry-rozet ry-rozet-mac', text: 'Maç günü' }) : null),
+          h('td', { 'data-baslik': 'Sayfa açılışı', class: 'ry-sayi', text: SAYI.format(g.y) }),
+          h('td', { 'data-baslik': 'Gösterim', class: 'ry-sayi', text: SAYI.format(g.g) }),
+          h('td', { 'data-baslik': 'Görünürlük', class: 'ry-sayi', text: yuzde(g.y ? Math.round((Math.min(g.g, g.y) * 10000) / g.y) / 100 : null) }),
+          h('td', { 'data-baslik': 'Tıklama', class: 'ry-sayi', text: SAYI.format(g.t) }))))));
+    }
+
+    /** Reklam verene gönderilecek tek sayfa (yazdırılabilir; CSP gereği yeni pencere değil, panelin içinde + @media print). */
+    function ozetAc() {
+      const firma = firmaSec.value;
+      if (!firma) return;
+      const l = firmaSuz(satirlar, firma);
+      const anahtar = firmaAnahtari(firma);
+      const gunlukF = tumGunluk.filter((g) => (g.firma_anahtar || firmaAnahtari(g.firma_adi)) === anahtar);
+      const yogun = enYogunGun(gunlukF);
+      const yogunMac = yogun && gunlukF.some((g) => g.gun === yogun.gun && g.mac_gunu);
+      const reklam = durum.reklamlar.filter((x) => firmaAnahtari(x.firma_adi) === anahtar).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
+      const gorsel = reklam && (reklam.gorsel_kucuk_url || reklam.gorsel_url);
+      const top = l.reduce((t, s) => ({ g: t.g + Number(s.gosterim), t: t.t + Number(s.tiklama), y: t.y + (Number(s.yerlesim) || 0) }), { g: 0, t: 0, y: 0 });
+      const kapat = () => { ozetYer.replaceChildren(); ozetDugme.focus(); };
+      const yazdir = () => {
+        document.documentElement.classList.add('ry-yazdir');
+        window.addEventListener('afterprint', () => document.documentElement.classList.remove('ry-yazdir'), { once: true });
+        window.print();
+      };
+      const baslik = h('h2', { id: 'ry-ozet-baslik', tabindex: '-1', text: `Reklam özeti · ${firma}` });
+      ozetYer.replaceChildren(h('section', { class: 'ry-ozet', id: 'ry-ozet-sayfa', 'aria-labelledby': 'ry-ozet-baslik' },
+        h('div', { class: 'ry-ozet-ust' },
+          gorsel ? h('img', { class: 'ry-ozet-gorsel', src: gorsel, alt: '', width: 120, height: 63, loading: 'lazy' }) : null,
+          h('div', {}, baslik,
+            h('p', { class: 'ry-yardim', text: `Çorumspor Taraftar (bağımsız taraftar uygulaması) · Rapor aralığı: ${gunYaz(bas.value)} – ${gunYaz(bit.value)}. Tarihler Türkiye saati.` }))),
+        h('table', { class: 'ry-tablo ry-ozet-tablo' },
+          h('thead', {}, h('tr', {}, ['Yerleşim', 'Yayında olduğu günler', 'Sayfa açılışı', 'Gösterim', 'Görünürlük', 'Tıklama (web / WhatsApp / ara)', 'Tıklama oranı'].map((b) => h('th', { scope: 'col', text: b })))),
+          h('tbody', {}, l.map((s) => h('tr', {},
+            h('td', { text: (ALANLAR[s.alan] || s.alan) + (s.mac_id ? ` · ${macAdi(s.mac_id)}` : '') }),
+            h('td', { text: `${donemYaz(s, '–')}${s.yayin_gun != null ? ` (${s.yayin_gun} gün)` : ''}` }),
+            h('td', { class: 'ry-sayi', text: SAYI.format(Number(s.yerlesim) || 0) }),
+            h('td', { class: 'ry-sayi', text: SAYI.format(s.gosterim) }),
+            h('td', { class: 'ry-sayi', text: yuzde(s.gorunurluk_orani) }),
+            h('td', { class: 'ry-sayi', text: `${SAYI.format(s.tiklama)} (${SAYI.format(Number(s.tiklama_web) || 0)} / ${SAYI.format(Number(s.tiklama_whatsapp) || 0)} / ${SAYI.format(Number(s.tiklama_ara) || 0)})` }),
+            h('td', { class: 'ry-sayi', text: yuzde(s.tiklama_orani != null ? Number(s.tiklama_orani) : tiklamaOrani(s.gosterim, s.tiklama)) })))),
+          h('tfoot', {}, h('tr', {}, h('th', { scope: 'row', colspan: 2, text: 'Toplam' }),
+            h('td', { class: 'ry-sayi', text: SAYI.format(top.y) }), h('td', { class: 'ry-sayi', text: SAYI.format(top.g) }),
+            h('td', { class: 'ry-sayi', text: yuzde(top.y ? Math.round((Math.min(top.g, top.y) * 10000) / top.y) / 100 : null) }),
+            h('td', { class: 'ry-sayi', text: SAYI.format(top.t) }), h('td', { class: 'ry-sayi', text: yuzde(tiklamaOrani(top.g, top.t)) })))),
+        h('p', { id: 'ry-ozet-yogun', text: yogun ? `En yoğun gün: ${gunYaz(yogun.gun)}${yogunMac ? ' (maç günü)' : ''} · ${SAYI.format(yogun.gosterim)} gösterim.` : 'Bu aralıkta gösterim yok.' }),
+        h('h3', { text: 'Tanımlar' }),
+        h('ul', { class: 'ry-ozet-tanim' },
+          h('li', { text: 'Gösterim: kartın en az yarısı en az 1 saniye ekranda kaldı (aynı sayfa açılışında bir kez). Gösterim kişi sayısı değildir: bir kişi farklı günlerde ve sayfalarda kartı birkaç kez görebilir.' }),
+          h('li', { text: 'Sayfa açılışı: kartın konduğu sayfa açılışları (kart ekrana gelmemiş olabilir).' }),
+          h('li', { text: 'Görünürlük: gösterim ÷ sayfa açılışı.' }),
+          h('li', { text: 'Tıklama: kartın düğmesine dokunma; web sitesi, WhatsApp ve "Ara" ayrı sayılır. Aynı sekmede aynı düğmeye 30 dakika içindeki tekrar sayılmaz.' }),
+          h('li', { text: 'Uygulamayı yönetenlerin bakışları sayılmaz. Kişisel veri tutulmadığı için rakamlar yaklaşıktır; olağan dışı (otomatik) trafik sayılmaz.' })),
+        h('div', { class: 'ry-dugmeler ry-ozet-dugmeler' },
+          h('button', { type: 'button', class: 'ry-dugme ry-ana', id: 'ry-ozet-yazdir', onclick: yazdir }, 'Yazdır / PDF'),
+          h('button', { type: 'button', class: 'ry-dugme ry-ince', id: 'ry-ozet-kapat', onclick: kapat }, 'Kapat'))));
+      baslik.focus();
     }
     firmaSec.addEventListener('change', () => { secilenFirma = firmaSec.value; ciz(); });
 
@@ -547,11 +775,11 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       h('form', { class: 'ry-rapor-suzgec', onsubmit: (e) => { e.preventDefault(); getir(); } },
         h('label', {}, 'Başlangıç ', bas), h('label', {}, 'Bitiş ', bit),
         h('button', { type: 'submit', class: 'ry-dugme ry-ana', id: 'ry-rapor-goster' }, 'Göster'),
-        h('label', {}, 'Firma ', firmaSec), csvDugme),
+        h('label', {}, 'Firma ', firmaSec), csvDugme, ozetDugme),
       csvNot,
-      h('p', { class: 'ry-yardim', text: 'Tarihler Türkiye takvim günüdür (her iki gün dahil). Gösterim: kartın yarısı en az 1 saniye ekranda kaldı. Aynı ziyaretçinin aynı sayfa açılışındaki tekrarlar sayılmaz. Yöneticilerin (sizin) bakışları sayılmaz.' }),
-      h('p', { class: 'ry-yardim', id: 'ry-rapor-yaklasik', text: `Sayılar yaklaşıktır: kişisel veri tutulmadığı için bilerek şişirme tam ayırt edilemez. Bir reklama dakikada ${SINIRLAR.gosterimDakikaSiniri} gösterimden ve ${SINIRLAR.tiklamaDakikaSiniri} tıklamadan fazlası sayılmaz; "Sınıra takılan dakika" 0'dan büyükse o aralıkta sayı şişirilmeye çalışılmış olabilir. Reklam verene rakamları "yaklaşık" diye verin.` }),
-      sonuc);
+      h('p', { class: 'ry-yardim', text: 'Tarihler Türkiye takvim günüdür (her iki gün dahil). "Dönem", istenen aralığın reklamın yayın tarihleriyle kesişen kısmıdır. Gösterim: kartın yarısı en az 1 saniye ekranda kaldı (kişi sayısı değildir). Sayfa açılışı: kartın konduğu sayfa açılışı; görünürlük = gösterim ÷ sayfa açılışı. Aynı ziyaretçinin aynı sayfa açılışındaki tekrarlar sayılmaz. Yöneticilerin (sizin) bakışları sayılmaz.' }),
+      h('p', { class: 'ry-yardim', id: 'ry-rapor-yaklasik', text: `Sayılar yaklaşıktır: kişisel veri (IP) tutulmadığı için bilerek şişirme tam ayırt edilemez. Bir reklama dakikada ${SINIRLAR.gosterimDakikaSiniri} gösterimden ve ${SINIRLAR.tiklamaDakikaSiniri} tıklamadan, bir tarayıcı sekmesinden saatte ${SINIRLAR.sekmeSaatGosterimSiniri} gösterimden fazlası sayılmaz; "${SUPHELI}" 0'dan büyükse o aralıkta sayı şişirilmeye çalışılmış olabilir (firma CSV'sinde ve özette 0 ise hiç görünmez). Reklam verene rakamları "yaklaşık" diye verin.` }),
+      sonuc, gunluk, ozetYer);
     getir();
   }
 

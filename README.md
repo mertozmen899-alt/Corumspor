@@ -23,9 +23,9 @@ Yazı tipleri sitenin kendisinden yüklenir (Google'a istek gitmez).
 2. Proje adı: `corumspor`. Bölge: **Central EU (Frankfurt)** (Türkiye'ye yakın). Veritabanı şifresini bir yere not edin.
 3. Proje hazır olunca (1-2 dakika) devam edin.
 
-## 2. Veritabanını kurun (migration'lar) — SIRAYLA: 001 → 002 → 010 → 011 → 012 → 013
+## 2. Veritabanını kurun (migration'lar) — SIRAYLA: 001 → 002 → 010 → 011 → 012 → 013 → 014
 
-Altı dosya var ve **bu sırayla, her biri bir kez** çalıştırılır:
+Yedi dosya var ve **bu sırayla, her biri bir kez** çalıştırılır:
 
 | Sıra | Dosya | Ne kurar |
 |---|---|---|
@@ -35,6 +35,7 @@ Altı dosya var ve **bu sırayla, her biri bir kez** çalıştırılır:
 | 4 | `supabase/migrations/011_denetim_duzeltmeleri.sql` | Güvenlik düzeltmeleri (5 Kasım 2026 denetimi): haber görselleri listesi yalnız yöneticiye, TRUNCATE yetkisi kaldırılır |
 | 5 | `supabase/migrations/012_denetim_2.sql` | Denetim 2. tur: reklam sayımına dakika sınırı + "sınıra takılan dakika" raporu; yorumda e-posta onayı, günde 50 yorum, aynı yorumu tekrar yazma ve düzenleme sınırı; kullanıcıların rolü herkese kapalı; "yonetici", "resmi", "kulüp" gibi yanıltıcı kullanıcı adları yasak; haber kapağı yalnız sitenin deposundan |
 | 6 | `supabase/migrations/013_tasarim.sql` | Mobil tasarım: kadro (`oyuncular`) ve kaynaklı sakatlık (`sakatliklar`) tabloları, haberde **manşet** ve kapak fotoğrafı kaynağı, gole kapak görseli ve süre, **gole yorum**, yorum **şikâyeti** (`yorum_sikayetleri`) ve **yorumdan men** (`profiles.engelli`), reklamda düğme yazısı / "Ara" telefonu / görseldeki yazı / küçük görsel / yasaklı sektör onayı, akışta farklı firmalar (`aktif_reklamlar`), **yöneticinin bakışları sayılmaz**, daha fazla ayrılmış kullanıcı adı (başkan, kaptan, Çorumspor…) |
+| 7 | `supabase/migrations/014_inceleme_2.sql` | 2. tur inceleme: reklam sayımı sıkı sınırlar (dakikada 30 gösterim / 6 tıklama, sekme başına saatlik sınır, yalnız gösterilen reklama olay), tıklama türü (web / WhatsApp / ara), sayfa açılışı ve görünürlük oranı, **günlük toplam + 90 gün saklama** (pg_cron varsa her gece), gün gün rapor; **yasaklı sektör onayı sunucuda**; ortak firma anahtarı; yorum **moderasyonu** (3 farklı şikâyette kendiliğinden gizleme, kelime listesi, maç başına ön onay), yasaklı hesap düzenleyemez/şikâyet edemez; rakamlı benzer ayrılmış adlar (Adm1n, Y0netici) ve "kirmizisimsek"; haberde kaynak / düzeltme notu / kapak alt metni; gol videosu kaynağı, .mp4 ve Türkçe altyazı (.vtt) yalnız sitenin deposundan (`gol-videolari`); maç notu; sakatlıkta kaynak bağlantısı ve tarihi, iç not yalnız yöneticiye |
 
 **En kolayı: SQL Editor**
 
@@ -56,6 +57,20 @@ Altı dosya var ve **bu sırayla, her biri bir kez** çalıştırılır:
    **013:** canlı veritabanında 001-012 kuruluysa yalnız `013_tasarim.sql`'i **012'den sonra** bir kez çalıştırın (yeniden
    çalıştırmak zararsızdır). `010` ya da `012`'yi ileride yeniden çalıştırırsanız ardından `013`'ü de yeniden çalıştırın
    (yoksa "yöneticinin bakışı sayılmaz" kuralı ve yeni reklam alanları eski hâline döner).
+   **014:** canlı veritabanında 001-013 kuruluysa yalnız `014_inceleme_2.sql`'i **013'ten sonra** bir kez çalıştırın (yeniden çalıştırmak
+   zararsızdır). **Hangi dosya en son:** her zaman en büyük numara. `010`, `012` ya da `013`'ü ileride yeniden çalıştırırsanız ardından
+   `014`'ü de yeniden çalıştırın (014 fonksiyonların son hâlini kurar; testler "sürüm 014" işaretini denetler).
+   014'ten sonra kontroller (SQL Editor; sonuç boş olmalı, değilse panelden düzeltin):
+   ```sql
+   -- Yasaklı sektör onayı olmadan yayındaki reklamlar (panelde "Düzenle" → kutuları işaretleyin):
+   select id, firma_adi from public.reklamlar where durum = 'yayinda' and not sektor_onayi;
+   -- Başka siteden .mp4 videolu goller (panelden dosyayı yükleyin ya da YouTube bağlantısı verin):
+   select id, oyuncu, video_url from public.goller where not public.gol_video_gecerli(video_url);
+   -- Bağlantısız Sakat / Durumu belirsiz kayıtları (kulüp açıklamasının bağlantısını ekleyin):
+   select id, durum, kaynak from public.sakatliklar where durum in ('sakat', 'belirsiz') and kaynak_url is null;
+   ```
+   İsteğe bağlı: **Database → Extensions → pg_cron**'u açıp 014'ü yeniden çalıştırın: reklam olayları her gece günlük toplama katlanır
+   ve 90 günden eskisi silinir (açmazsanız tablo büyür; raporlar yine doğrudur). Elle: `select public.reklam_bakim();`.
 4. İsterseniz örnek veri için `supabase/seed.sql` dosyasını da çalıştırın (uydurma maçlar, goller, haberler, 8 oyuncu ve 3 sakatlık
    kaydı; sonra panelden silebilirsiniz). **Gerçek kadro ve sakatlık bilgisi yalnız kulübün resmî açıklamasından girilir.**
 
@@ -267,7 +282,12 @@ dosyayı `assets/logo/` klasörüne koyun ve `assets/ayar.js` içinde `AMBLEM_DO
 - **Gizlilik ve KVKK aydınlatma metni:** `gizlilik.html` (her sayfanın alt bilgisinden ve kayıt formundan bağlantı var). Veri
   sorumlusu ve iletişim adresi `assets/ayar.js`'ten (`SAHIP_ADI`, `ILETISIM_EPOSTA`) gelir; sayfada "Son güncelleme" tarihi yazar.
   **Hatırlatma (yalnız burada, sayfada değil): yayından önce metni bir avukata okutun** (hukuki sebepler, yurt dışı aktarım,
-  sakatlık bilgisinin dayanağı). Siteye yeni bir şey saklayan özellik eklenirse bu sayfa da güncellenmeli (test, koddaki tarayıcı
+  sakatlık bilgisinin dayanağı).
+  **Avukata sorulacaklar listesi (KVKK, sakatlık):** sakatlık / ceza bilgisi sağlık verisidir (KVKK m.6). m.6'daki "ilgili kişinin
+  alenileştirdiği" istisnası bilgiyi **kişinin kendisi** açıkladığında geçerlidir; kulübün açıklaması üçüncü kişinin açıklamasıdır.
+  Uygulama bu yüzden sitede yalnız durumu (Sakat, Cezalı, Durumu belirsiz, Döndü), kaynağı ve tarihi gösterir; tanı / sakatlık
+  ayrıntısı yazılmaz, panelin "iç not" alanı (`sakatliklar.aciklama`) ziyaretçiye ve üyelere kapalıdır (014). Sorun: bu hâliyle
+  işlemenin hukuki dayanağı yeterli mi, sakatlık sekmesi hiç olmamalı mı, yalnız "kadroda yok" mu denmeli? Siteye yeni bir şey saklayan özellik eklenirse bu sayfa da güncellenmeli (test, koddaki tarayıcı
   depolama anahtarlarının sayfada yazılı olduğunu denetler).
 
 ## 11. Testler (geliştiriciler için)

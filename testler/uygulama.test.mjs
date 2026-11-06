@@ -273,7 +273,7 @@ test('PWA (2. tur): manifest (standalone, #0B0B0B, 192/512 + maskable PNG), her 
   assert.ok(m.icons.some((i) => i.sizes === '512x512' && /any/.test(i.purpose)));
   assert.ok(m.icons.some((i) => i.sizes === '512x512' && /maskable/.test(i.purpose)));
   assert.deepEqual(png('assets/logo/apple-touch-icon-180.png'), [180, 180]);
-  for (const d of readdirSync(KOK).filter((x) => x.endsWith('.html') && x !== 'yonetim.html')) {
+  for (const d of readdirSync(KOK).filter((x) => x.endsWith('.html'))) {
     const h = readFileSync(path.join(KOK, d), 'utf8');
     assert.ok(h.includes('<link rel="manifest" href="manifest.webmanifest">'), d + ': manifest');
     assert.ok(h.includes('<link rel="apple-touch-icon" href="assets/logo/apple-touch-icon-180.png">'), d + ': apple-touch-icon');
@@ -284,7 +284,7 @@ test('PWA (2. tur): manifest (standalone, #0B0B0B, 192/512 + maskable PNG), her 
 });
 
 test('bağımsızlık (2. tur): her sayfanın og:description\'ı "Çorum FK\'nın resmî uygulaması değildir"; açıklamalar "Çorum FK"; künyede 24 saat sözü yok', () => {
-  for (const d of readdirSync(KOK).filter((x) => x.endsWith('.html') && x !== 'yonetim.html')) {
+  for (const d of readdirSync(KOK).filter((x) => x.endsWith('.html'))) {
     const h = readFileSync(path.join(KOK, d), 'utf8');
     assert.match((/<meta property="og:description" content="([^"]*)">/.exec(h) || [])[1] || '', /Çorum FK'nın resmî uygulaması değildir\.$/, d);
     assert.ok(!/24 saat içinde/.test(h), d + ': "24 saat içinde dönülür" sözü yumuşatıldı');
