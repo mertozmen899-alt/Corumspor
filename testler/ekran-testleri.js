@@ -144,6 +144,7 @@ async function ekranTestleri() {
         await p.goto(ADRES + '/mac.html?id=' + M1);
         await p.locator('.reklam-yuvasi[data-reklam-alan="mac_sponsoru"] .reklam-kart').waitFor();
         await p.waitForSelector('#gol-listesi .gol');
+        await p.click('#sekme-yorumlar'); // yorumlar ayrı sekmede (Özet · Olaylar · Yorumlar)
         await p.waitForSelector('#yorum-listesi .yorum');
         await genel(p, t('maç'));
         const mk = await kartKontrol(p, t('maç'), '.reklam-yuvasi[data-reklam-alan="mac_sponsoru"]', tema);

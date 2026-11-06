@@ -354,7 +354,7 @@ async function tasarimTestleri() {
     await duyuruBekle(p, /silindi/);
     kontrol('yorum: silince odak body\'ye düşmez, "silindi" duyurulur (T-59/T-121)', !(await odakBodyde(p)) && /silindi/i.test(await p.textContent('#durum')), await p.textContent('#durum'));
     // Başkasının yorumunda "Şikâyet et" (maç sayfası, burak'ın yorumu): neden seçilir, gönderilir, odak teşekkür notuna
-    await git(p, `mac.html?id=${M1}`, '#yorum-listesi .yorum');
+    await git(p, `mac.html?id=${M1}#yorumlar`, '#yorum-listesi .yorum');
     const baska = p.locator('#yorum-listesi .yorum').filter({ hasNot: p.getByRole('button', { name: 'Sil' }) }).first();
     if (await baska.count()) {
       await baska.getByRole('button', { name: 'Şikâyet et' }).click();
@@ -718,6 +718,48 @@ async function tasarimTestleri() {
     const yazida = perde.duraklar.filter((d) => (d.birim === 'px' && d.konum >= 40) || (d.birim === '%' && d.konum === 100));
     kontrol('hero: başlık perdenin ≥ .60 olduğu bölgede başlıyor (beyaz fotoğrafta da okunur) (T-21)', perde.ust >= 40 && yazida.length >= 2 && Math.min(...yazida.map((d) => d.a)) >= 0.6, JSON.stringify(perde));
     await ctx.close();
+  });
+
+  // ------------------------------------------------------------------ hareket ve geçişler (docs/TASARIM.md 9.10)
+  await guvenli('hareket', async () => {
+    const { ctx, p } = await baglam({ width: 390, height: 844 }, { ekstra: { hasTouch: true, isMobile: true } });
+    await git(p, 'index.html', '#akis[data-durum="tamam"]');
+    const kurallar = () => p.evaluate(() => {
+      const hepsi = [];
+      const gez = (l, medya) => { for (const r of l) { if (r.cssRules && r.media) gez(r.cssRules, r.media.mediaText); else if (r.cssRules && r.conditionText) gez(r.cssRules, r.conditionText); else hepsi.push({ t: r.cssText, medya: medya || '' }); } };
+      for (const s of document.styleSheets) { try { gez(s.cssRules, ''); } catch (e) {} }
+      return hepsi;
+    });
+    const k = await kurallar();
+    const aktif = (sec) => k.some((r) => r.t.split('{')[0].split(',').some((x) => x.includes(sec) && x.includes(':active')));
+    const d = await p.evaluate(() => ({ tap: getComputedStyle(document.documentElement).webkitTapHighlightColor, ust: getComputedStyle(document.querySelector('header.ust')).viewTransitionName, alt: getComputedStyle(document.getElementById('alt-nav')).viewTransitionName }));
+    kontrol('hareket: mavi/gri dokunma kutusu yok (-webkit-tap-highlight-color saydam)', /rgba\(0, 0, 0, 0\)|transparent/.test(d.tap), d.tap);
+    const secenekler = ['.dugme', '.paylas', '.hayalet', '.alt-nav a', '.sekme-iz [role="tab"]', '.hap-iz label', '.cip-satir label', '.video-kart', 'a.oyuncu-kart', '.haber-satir', '.fikstur-satir', '.gol-satir', '.mac-ac'];
+    kontrol('hareket: düğme, alt menü, sekme, hap/çip, kart ve satırlarda :active geri bildirimi var', secenekler.every(aktif), secenekler.filter((x) => !aktif(x)).join(', '));
+    kontrol('hareket: :active küçülmesi (transform) yalnız hareket azaltma kapalıyken', k.filter((r) => /:active/.test(r.t) && /transform:/.test(r.t)).every((r) => /no-preference/.test(r.medya)), '');
+    kontrol('hareket: @view-transition { navigation: auto } yalnız prefers-reduced-motion: no-preference içinde; üst bar ve alt menü ayrı katman',
+      k.some((r) => /@view-transition/.test(r.t) && /navigation: auto/.test(r.t) && /no-preference/.test(r.medya)) && !k.some((r) => /@view-transition/.test(r.t) && !/no-preference/.test(r.medya)) && d.ust === 'ust-bar' && d.alt === 'alt-menu', JSON.stringify(d));
+    // Sayfa içinde dokunma: odak halkası kalır (tap highlight kapalıyken :focus-visible outline'ı hâlâ var)
+    await p.keyboard.press('Tab'); await p.keyboard.press('Tab');
+    const halka = await p.evaluate(() => getComputedStyle(document.activeElement).outlineStyle);
+    kontrol('hareket: klavye odağında odak halkası korunur', halka !== 'none', halka);
+    await ctx.close();
+    // Hareket azaltma: view transition kuralı etkin değil, :active'de küçülme yok, alt menü başa ANINDA kayar
+    const b = await baglam({ width: 390, height: 844 }, { ekstra: { reducedMotion: 'reduce' } });
+    await git(b.p, 'index.html', '#akis[data-durum="tamam"]');
+    const r = await b.p.evaluate(async () => {
+      const vt = [...document.styleSheets].flatMap((s) => { try { return [...s.cssRules]; } catch (e) { return []; } }).filter((x) => x.media && /no-preference/.test(x.media.mediaText) && /@view-transition/.test(x.cssText));
+      const etkin = vt.some((x) => matchMedia(x.media.mediaText).matches);
+      const dugme = document.querySelector('.dugme, .paylas, #alt-nav a');
+      for (let y = 0; y <= 800; y += 80) { scrollTo(0, y); await new Promise((c) => requestAnimationFrame(() => setTimeout(c, 30))); }
+      const gizli = document.documentElement.classList.contains('ust-gizli');
+      const sure = getComputedStyle(document.querySelector('header.ust')).transitionDuration;
+      document.querySelector('#alt-nav a[aria-current="page"]').click();
+      await new Promise((c) => requestAnimationFrame(c));
+      return { etkin, y: scrollY, gizli, sure, dugme: !!dugme };
+    });
+    kontrol('hareket (azaltılmış): sayfa geçişi kapalı, üst bar gizlenir ama animasyonsuz, alt menü başa anında kayar', !r.etkin && r.gizli && parseFloat(r.sure) < 0.01 && r.y === 0, JSON.stringify(r));
+    await b.ctx.close();
   });
 
   kontrol('tasarım testlerinde JavaScript hatası yok', !hatalar.length, [...new Set(hatalar)].join(' | '));

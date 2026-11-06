@@ -5,6 +5,16 @@
 (function () {
   var kok = document.documentElement;
   try { var t = localStorage.getItem('tema'); if (t === 'light' || t === 'dark') kok.setAttribute('data-theme', t); } catch (e) {}
+  // Sayfa geçişinin yönü (stil.css 28. bölüm): geçmişte geri → "geri" (soldan), ayrıntı sayfasına giriş ya da ileri → "ileri" (sağdan),
+  // öbür geçişler yalnız solma. pagereveal ilk çizimden önce gelir: bu yüzden modülde değil, burada (head, defer'siz).
+  addEventListener('pagereveal', function (e) {
+    var a = window.navigation && navigation.activation;
+    if (!e.viewTransition || !a || !e.viewTransition.types) return;
+    var tur = null;
+    if (a.navigationType === 'traverse' && a.from && a.entry) tur = a.entry.index < a.from.index ? 'geri' : 'ileri';
+    else if (a.navigationType === 'push' && /\/(haber|mac|gol|oyuncu)(\.html)?$/.test(location.pathname)) tur = 'ileri';
+    if (tur) e.viewTransition.types.add(tur);
+  });
   document.addEventListener('DOMContentLoaded', function () {
     var radyolar = document.querySelectorAll('input[name="tema"]');
     if (!radyolar.length) return;

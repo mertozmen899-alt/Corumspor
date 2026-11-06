@@ -146,6 +146,12 @@
   --sure-hizli: 120ms; --sure-orta: 200ms; --sure-yavas: 320ms;
   --egri-cikis: cubic-bezier(.2, 0, 0, 1);
   --egri-standart: cubic-bezier(.4, 0, .2, 1);
+  /* Dokunma geri bildirimi (27. bölüm): küçük denetim / kart ölçeği, basılıyken saydamlık (hareket azaltmada yalnız saydamlık/renk) */
+  --basma-olcek: .97; --basma-olcek-kart: .98; --basma-opaklik: .72;
+  /* Sayfa geçişi (28. bölüm): ayrıntıya girişte/geri dönüşte içeriğin kayma mesafesi */
+  --gecis-kayma: 24px;
+  /* Maç sayfası yapışkan skor çubuğu (assets/sayfa/mac.js) */
+  --skor-cubugu-h: 44px;
 
   --icerik-max: 720px;
 }
@@ -406,7 +412,6 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
 /* Odak halkası bağlantı metninin çevresinde (fotoğrafın/perdenin altında kalmaz; 2.4.7) */
 .hero-baslik a:focus-visible { outline: 3px solid var(--odak-koyu-zemin); outline-offset: 4px; }
 .hero-alt { margin: 8px 0 0; color: var(--hero-meta); font-size: var(--fs-hero-alt); line-height: var(--lh-meta); }
-.hero:active .hero-gorsel { transform: scale(1.02); }
 .hero .iskelet { background-color: rgb(255 255 255 / .2); }
 .hero-iskelet { display: block; height: 30px; width: 88%; margin: 6px 0; border-radius: var(--r-rozet); }
 /* Etiket yüklenirken iskelet (MANŞET mi MAÇ GÜNÜ mü henüz belli değil; tasarımcı 3. tur 7); boyu gerçek etiketle aynı: kayma yok */
@@ -451,7 +456,6 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
 .video-kaydir > li { position: relative; flex: 0 0 var(--kaydirma-kart-w); scroll-snap-align: start; min-width: 0; } /* relative: gizli metinler kaydırma alanının dışına taşmasın */
 .video-kart { position: relative; display: block; color: inherit; text-decoration: none; transition: transform var(--sure-hizli) var(--egri-standart); }
 .video-kart:hover { color: inherit; }
-.video-kart:active { transform: scale(.98); }
 .video-kart:focus-visible { outline-offset: 3px; border-radius: var(--r-kapak); }
 .kapak { position: relative; display: block; aspect-ratio: var(--kapak-oran); border-radius: var(--r-kapak); overflow: hidden; background: var(--kulup-siyah); isolation: isolate; }
 .kapak img, .kapak .kapak-yok { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -838,7 +842,6 @@ dialog.sayfa-alt h2 { font-size: 1.375rem; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
   .iskelet { background-image: none; }
-  .video-kart:active, .hero:active .hero-gorsel { transform: none; }
 }
 
 /* son tur: sunucu */
@@ -889,3 +892,128 @@ a.oyuncu-kart:hover { border-color: var(--kenar-guclu); color: inherit; }
 .iskelet-istatistik { display: block; min-height: 76px; border-radius: var(--r-kart); }
 .istatistik-not { margin: 8px 0 0; color: var(--metin-soluk); font-size: var(--fs-meta); }
 .oyuncu-bolum h2 { margin: var(--b-6) 0 var(--b-2); font-size: 1.125rem; }
+
+/* ---------- 27. Dokunma geri bildirimi (tek tip; docs/TASARIM.md 9.10) ----------
+   Tarayıcının mavi/gri dokunma kutusu yok; odak halkası (:focus-visible) aynen kalır. Basılıyken: küçük denetimler (düğme, sekme,
+   hap/çip, alt menü) soluklaşır ve hafif küçülür, satırlar yüzey rengini alır, kartlar hafif küçülür. Hareket azaltmada küçülme yok:
+   yalnız renk / saydamlık. */
+html { -webkit-tap-highlight-color: transparent; }
+.dugme:active, .paylas:active, .hayalet:active, .dugme-metin:active, .ikon-dugme:active, .mac-baglanti-kucuk:active, .alt-nav a:active,
+.sekme-iz [role="tab"]:active, .sekme-dugmeleri button:active, .hap-iz label:active, .cip-satir label:active, .oyuncu-gezgin a:active { opacity: var(--basma-opaklik); }
+.haber-satir:active, .fikstur-satir:active, .gol-satir:active, .serit-baglanti:active, .mac-kadro a:active, .olay-icerik a:active { background-color: var(--yuzey); }
+.mac-ac:active, a.oyuncu-kart:active, .oyuncu-mini:active { background-color: var(--yuzey-2); }
+@media (prefers-reduced-motion: no-preference) {
+  .dugme, .paylas, .hayalet, .dugme-metin, .ikon-dugme, .mac-baglanti-kucuk, .alt-nav a, .sekme-iz [role="tab"], .sekme-dugmeleri button,
+  .hap-iz label, .cip-satir label, .oyuncu-gezgin a, .video-kart, a.oyuncu-kart, .oyuncu-mini, .hero {
+    transition: transform var(--sure-hizli) var(--egri-standart), opacity var(--sure-hizli) var(--egri-standart),
+      background-color var(--sure-hizli) var(--egri-standart), color var(--sure-hizli) var(--egri-standart), border-color var(--sure-hizli) var(--egri-standart);
+  }
+  .dugme:active, .paylas:active, .hayalet:active, .dugme-metin:active, .ikon-dugme:active, .mac-baglanti-kucuk:active, .alt-nav a:active,
+  .sekme-iz [role="tab"]:active, .sekme-dugmeleri button:active, .hap-iz label:active, .cip-satir label:active, .oyuncu-gezgin a:active { transform: scale(var(--basma-olcek)); }
+  .video-kart:active, a.oyuncu-kart:active, .oyuncu-mini:active, .hero:active { transform: scale(var(--basma-olcek-kart)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .video-kart:active, .hero:active { opacity: var(--basma-opaklik); }
+}
+
+/* ---------- 28. Sayfa geçişleri (çapraz belge View Transitions) ----------
+   Yalnız destekleyen tarayıcıda ve hareket azaltma KAPALIYKEN: içerik kısa solar (≤ 200 ms); üst bar ve alt menü ayrı katman, yerinde
+   kalır. Ayrıntı sayfasına girişte içerik sağdan, geri dönüşte soldan hafifçe gelir (yön: assets/tema.js pagereveal → "ileri" / "geri").
+   Desteklemeyen tarayıcı bu kuralları yok sayar: sayfa her zamanki gibi açılır. */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+}
+.ust { view-transition-name: ust-bar; }
+.alt-nav { view-transition-name: alt-menu; }
+::view-transition-group(ust-bar), ::view-transition-group(alt-menu), ::view-transition-new(ust-bar), ::view-transition-new(alt-menu) { animation: none; }
+::view-transition-old(ust-bar), ::view-transition-old(alt-menu) { display: none; }
+::view-transition-old(root) { animation: var(--sure-hizli) var(--egri-standart) both gecis-sol; }
+::view-transition-new(root) { animation: var(--sure-orta) var(--egri-cikis) both gecis-gel; }
+html:active-view-transition-type(ileri)::view-transition-new(root) { animation-name: gecis-sagdan; }
+html:active-view-transition-type(geri)::view-transition-new(root) { animation-name: gecis-soldan; }
+@keyframes gecis-sol { to { opacity: 0; } }
+@keyframes gecis-gel { from { opacity: 0; } }
+@keyframes gecis-sagdan { from { opacity: 0; transform: translateX(var(--gecis-kayma)); } }
+@keyframes gecis-soldan { from { opacity: 0; transform: translateX(calc(-1 * var(--gecis-kayma))); } }
+
+/* ---------- 29. Üst bar: aşağı kaydırınca gizlenir, yukarı kaydırınca gelir (assets/ortak.js ustBarIzle) ----------
+   translate (yer kaplaması değişmez: kayma/CLS yok). Güvenli alan (çentik) payı kadar çubuk görünür kalır, durum çubuğunun altı açılmaz.
+   Yapışkan sekme/filtre çubuğu ve maç skor çubuğu da aynı mesafe yukarı kayar (üst barın altında boşluk kalmaz).
+   Hareket azaltmada davranış aynı, kayma animasyonsuz (26. bölüm). */
+:root { --ust-kayma: calc(var(--ust-gercek, calc(var(--ust-bar-h) + 3px + env(safe-area-inset-top, 0px))) - env(safe-area-inset-top, 0px)); }
+.ust, .sekme-yapiskan, .filtreler { transition: translate var(--sure-orta) var(--egri-standart); }
+.ust-gizli .ust, .ust-gizli .sekme-yapiskan:not(.yapiskan-degil), .ust-gizli .filtreler:not(.yapiskan-degil), .ust-gizli .skor-cubugu { translate: 0 calc(-1 * var(--ust-kayma)); }
+
+/* ---------- 30. Maç sayfası: yapışkan skor çubuğu, sekmeler (Özet · Olaylar · Yorumlar), olay çizelgesi ---------- */
+/* Skor çubuğu sabit (fixed): yer kaplamaz (CLS yok). Büyük başlık görünümden çıkınca .acik (mac.js IntersectionObserver). Ekran
+   okuyucuda yok (aria-hidden; aynı bilgi h1'de). */
+.skor-cubugu { position: fixed; left: 0; right: 0; top: var(--ust-gercek, calc(var(--ust-bar-h) + 3px + env(safe-area-inset-top, 0px))); z-index: var(--z-yapiskan-filtre); height: var(--skor-cubugu-h); background: var(--ust-zemin); color: var(--ust-metin); box-shadow: var(--golge-2); visibility: hidden; opacity: 0; pointer-events: none; }
+.skor-cubugu.acik { visibility: visible; opacity: 1; }
+.skor-cubugu .kap { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; }
+.skor-cubugu .takim { font-family: var(--font-baslik); font-weight: 700; font-size: .875rem; text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.skor-cubugu .takim:first-child { text-align: right; }
+.skor-cubugu .skor { font-weight: 700; font-size: 1.125rem; white-space: nowrap; }
+@media (prefers-reduced-motion: no-preference) { .skor-cubugu { transition: opacity var(--sure-hizli) var(--egri-standart), visibility var(--sure-hizli), translate var(--sure-orta) var(--egri-standart); } }
+/* Sabit alan (üst bar + skor çubuğu + alt menü) ekranın %25'ini aşarsa (büyük yazı, kısa ekran) skor çubuğu çıkmaz (ortak.js
+   yapiskanIzle .yapiskan-degil; boyu korunur, karar titremez). Sekmeler bu yüzden yapışkan DEĞİL: üst bar + skor + sekme + alt menü
+   390×844'te bile %25'i aşardı. */
+.skor-cubugu.yapiskan-degil { visibility: hidden; opacity: 0; }
+.buyuk-yazi .skor-cubugu { display: none; }
+@media (max-height: 500px) { .skor-cubugu { display: none; } }
+.mac-sekmeler { margin-top: var(--b-4); }
+.mac-panel { padding-top: var(--b-2); }
+
+/* Olay çizelgesi: ortada dakika, Çorum FK olayı kendi tarafında (iç sahada solda, deplasmanda sağda); rakip tarafı boş (veri yok) */
+.olay-cizelge { list-style: none; margin: var(--b-3) 0 0; padding: 0; position: relative; }
+.olay-cizelge::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; background: var(--kenar); }
+.olay { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1fr); align-items: center; min-height: var(--dokunma); padding: 4px 0; }
+.olay .dk { grid-row: 1; grid-column: 2; justify-self: center; position: relative; min-width: 44px; padding: 2px 6px; border-radius: var(--r-hap); background: var(--yuzey-2); color: var(--metin); font-weight: 700; font-size: var(--fs-meta); text-align: center; font-variant-numeric: tabular-nums; }
+.olay .olay-icerik { grid-row: 1; min-width: 0; display: flex; align-items: center; gap: 8px; line-height: var(--lh-meta); }
+.olay-cizelge[data-taraf="sol"] .olay-icerik { grid-column: 1; flex-direction: row-reverse; text-align: right; }
+.olay-cizelge[data-taraf="sag"] .olay-icerik { grid-column: 3; }
+.olay-icerik > span, .olay-icerik > a { min-width: 0; }
+.olay-icerik a { display: inline-flex; flex-direction: column; justify-content: center; min-height: var(--dokunma); padding: 0 6px; border-radius: var(--r-saat); color: var(--metin); text-decoration: none; }
+.olay-icerik a:hover { color: var(--vurgu); }
+.olay-icerik b { font-weight: 700; }
+.olay-icerik small { display: block; color: var(--metin-soluk); font-size: var(--fs-meta); }
+.olay-tur { display: block; font-size: var(--fs-etiket); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--metin-soluk); }
+.olay-isaret { flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; color: var(--metin); }
+.olay-isaret svg { width: 20px; height: 20px; }
+.olay-isaret.kart { width: 12px; height: 16px; border-radius: 2px; }
+.olay-isaret.kart.sari { background: var(--kulup-altin); }
+.olay-isaret.kart.kirmizi { background: var(--kulup-kirmizi); }
+.olay-isaret.giren { color: var(--basari-metin); }
+.olay-isaret.cikan { color: var(--vurgu); }
+.olay-not { margin: var(--b-3) 0 0; color: var(--metin-soluk); font-size: var(--fs-meta); }
+.kart-listesi { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.kart-listesi li { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.mac-kadrolari { display: grid; gap: 0 var(--b-6); }
+@media (min-width: 560px) { .mac-kadrolari { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.mac-kadrolari h3, .olay-alt-baslik { margin: var(--b-6) 0 var(--b-2); font-size: 1rem; text-transform: uppercase; }
+.mac-kadro { list-style: none; margin: 0; padding: 0; }
+.mac-kadro li + li { border-top: 1px solid var(--kenar); }
+.mac-kadro a, .mac-kadro .oyuncu-ad { display: flex; align-items: center; gap: 10px; min-height: var(--dokunma); padding: 4px 6px; color: var(--metin); text-decoration: none; border-radius: var(--r-saat); }
+.mac-kadro a:hover { color: var(--vurgu); }
+.mac-kadro .no { flex: none; min-width: 2ch; color: var(--metin-soluk); font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.mac-kadro .dk-not { margin-left: auto; color: var(--metin-soluk); font-size: var(--fs-meta); font-variant-numeric: tabular-nums; }
+
+/* ---------- 31. Oyuncu sayfası: öne çıkan 3 sayı, önceki/sonraki, diğer oyuncular şeridi (kendi kendine kaymaz) ---------- */
+.one-cikan { list-style: none; margin: var(--b-3) 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.one-cikan li { display: grid; justify-items: center; align-content: center; gap: 4px; min-height: 96px; padding: 10px 4px; border-radius: var(--r-kart); background: var(--ust-zemin); color: var(--ust-metin); text-align: center; }
+.one-cikan .sayi { font-family: var(--font-govde); font-weight: 700; font-size: 2.5rem; line-height: 1; }
+.one-cikan .etiket { color: var(--ust-soluk); font-size: var(--fs-etiket); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.one-cikan li.iskelet-one-cikan { display: block; min-height: 96px; border-radius: var(--r-kart); background-color: var(--yuzey-2); }
+.oyuncu-gezgin { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: var(--b-6) 0 0; }
+.oyuncu-gezgin a { display: flex; align-items: center; gap: 8px; min-height: 56px; min-width: 0; padding: 6px 12px; border: 1px solid var(--kenar); border-radius: var(--r-kart); background: var(--yuzey); color: var(--metin); text-decoration: none; }
+.oyuncu-gezgin a:hover { border-color: var(--kenar-guclu); color: var(--metin); }
+.oyuncu-gezgin a[rel="next"] { grid-column: 2; justify-content: flex-end; text-align: right; }
+.oyuncu-gezgin .yon { flex: none; font-size: 1.5rem; line-height: 1; color: var(--vurgu); }
+.oyuncu-gezgin .metin { min-width: 0; display: grid; }
+.oyuncu-gezgin small { color: var(--metin-soluk); font-size: var(--fs-etiket); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.oyuncu-gezgin b { font-family: var(--font-baslik); text-transform: uppercase; letter-spacing: .02em; overflow-wrap: anywhere; }
+.oyuncu-seridi { --kaydirma-kart-w: 148px; }
+.oyuncu-mini { display: grid; align-content: start; gap: 4px; height: 100%; min-height: 112px; padding: 12px; border: 1px solid var(--kenar); border-radius: var(--r-kart); background: var(--yuzey); color: var(--metin); text-decoration: none; }
+.oyuncu-mini:hover { border-color: var(--kenar-guclu); color: var(--metin); }
+.oyuncu-mini .no { font-family: var(--font-baslik); font-weight: 700; font-size: 2rem; line-height: 1; color: var(--vurgu); font-variant-numeric: tabular-nums; }
+.oyuncu-mini .ad { font-family: var(--font-baslik); font-weight: 700; text-transform: uppercase; letter-spacing: .02em; line-height: 1.2; overflow-wrap: anywhere; }
+.oyuncu-mini .mevki { color: var(--metin-soluk); font-size: var(--fs-meta); }

@@ -31,10 +31,18 @@ gol.html?id=      gol: video facade (dokununca youtube-nocookie / mp4 preload=no
 takim.html        Takım: sekmeler #kadro | #sakatlik | #fikstur (paneller id="panel-<ad>": adres parçası öğeye denk gelmez); kadro kartı
                   a.oyuncu-kart → oyuncu.html?id=
 oyuncu.html?id=   018: oyuncu sayfası (oyuncular.id): ad, forma no, mevki; bu sezon Maç, İlk 11, Dakika, Gol, Asist, Gole katkı, Sarı, Kırmızı
-                  ve golleri/asistleri (→ gol.html); alt menüde Takım aria-current="true"; pas/şut/piyasa değeri YOK
+                  ve golleri/asistleri (→ gol.html); alt menüde Takım aria-current="true"; pas/şut/piyasa değeri YOK.
+                  Üstte 3 büyük sayı (#one-cikan: Gol, Asist, Maç); sayılar HER ZAMAN çizilir (forma giymemişte 0 + #oyuncu-bos
+                  "henüz forma giymedi"); kadro sırasıyla önceki/sonraki (#oyuncu-gezgin), aynı mevkiden #diger-oyuncular şeridi.
+                  Kadro listesi tek sorgu (aktif oyuncular); pasif oyuncunun eski bağlantısında kendi satırı ayrıca istenir
 profil.html       misafir: giriş/kayıt; üye: yorumlarım, (yönetici) Yönetim paneli bağlantısı, onaylı çıkış (dialog); tema radyoları
 haber.html?id=    haber ayrıntısı (geri düğmesi) + haber_sonu reklamı + yorumlar
-mac.html?id=      maç ayrıntısı (geri düğmesi) + mac_sponsoru + #ozet maç özeti (016 maclar.ozet_video_url, videoFasad: dokununca) ("Maçın sponsoru" + "Uygulama sponsoru · Çorum FK'nın sponsoru değildir") + goller + yorumlar
+mac.html?id=      maç ayrıntısı (geri düğmesi) + mac_sponsoru ("Maçın sponsoru" + "Uygulama sponsoru · Çorum FK'nın sponsoru değildir";
+                  sekmelerin ÜSTÜNDE) + sekmeler Özet · Olaylar · Yorumlar (#ozet | #olaylar | #yorumlar, paneller panel-<ad>, Takım deseni):
+                  Özet = maç notu + #ozet maç özeti (016, videoFasad: dokununca) + goller; Olaylar = iki taraflı çizelge (kurallar.js
+                  macOlaylari: gol, değişiklik, kırmızı; Çorum FK iç sahada solda / deplasmanda sağda; rakip verisi yok) + kartlar + İlk 11 /
+                  oyuna girenler (mac_oyunculari, ilk açılışta yüklenir); Yorumlar = yorum bileşeni (ilk açılışta). #skor-cubugu: sabit küçük
+                  skor çubuğu (aria-hidden), büyük başlık görünümden çıkınca .acik. Testler yorum için mac.html?id=…#yorumlar açar
 maclar.html       eski adres: takim.html#fikstur'a yönlendirir (meta refresh)
 giris.html        giriş / kayıt (satır içi alan hataları, şifre göster, Şifremi unuttum, kayıttan sonra hoş geldin)
 sifre.html        yeni şifre (resetPasswordForEmail bağlantısı buraya döner; updateUser)
@@ -49,9 +57,12 @@ assets/
   ayar.js           Supabase adresi + anon anahtar + AMBLEM_DOSYASI + SAHIP_ADI + ILETISIM_EPOSTA (TEK ayar dosyası)
   istemci.js        tek supabase istemcisi (+ localhost'ta ?sahte=1 test modu)
   ortak.js          h(), simge(), tarih (Europe/Istanbul), oturum, sayfaBaslat() (amblem, künye, geri, alt menü klavye gizleme,
-                    yapışkan çubuk scroll-padding, SW), duyur()/uyar() (kalıcı #durum / #uyari), videoFasad(), kapakKaynagi(),
+                    yapışkan çubuk scroll-padding (.filtreler / .sekme-yapiskan / .skor-cubugu), üst barı kaydırınca gizle
+                    (ustBarIzle → html.ust-gizli, eşik UST_ESIK 8 px), alt menüde açık sekmeye dokununca başa kay + odak #icerik
+                    (altMenuIzle), SW), duyur()/uyar() (kalıcı #durum / #uyari), videoFasad(), kapakKaynagi(),
                     fotoAtfi(), cevrimdisiKutusu(), hata metinleri ("sen" dili)
-  tema.js           tema: head'de defer'siz; Profil'deki input[name=tema] radyolarını bağlar (data-theme + localStorage 'tema')
+  tema.js           tema: head'de defer'siz; Profil'deki input[name=tema] radyolarını bağlar (data-theme + localStorage 'tema');
+                    pagereveal'da sayfa geçişi yönü (view transition türü "ileri" / "geri"; modülde olmaz, ilk çizimden önce gelir)
   onbellek.js       son görülen herkese açık veri (localStorage son-veri-v1)
   gol-kart.js       golKarti() (16:9 kapak a.video-kart ya da a.gol-satir → gol.html?id=), golAniSatiri() (018 arşiv satırı), golSuresi(), macEtiketi()
   foto-kaynaklari.js paketli fotoğrafların yazar/lisans/kaynak listesi (atıf yazısı ve kaynaklar.html bundan)
@@ -142,7 +153,7 @@ node --test testler/reklam/sql.test.mjs
 7. **Bağımsızdır:** her sayfada `main`'in ilk öğesi `.resmi-degil` şeridi "Bağımsız taraftar uygulaması"; "Çorum FK'nın resmî uygulaması değildir" cümlesi sayfa içinde YALNIZ alt bilgi künyesinde ve `gizlilik.html`'de (başka yerde tekrarlanmaz). İki istisna (paylaşım önizlemesini yalnız gören kişi için, başkan 2. tur): her sayfanın `og:description`'ı bu cümleyle biter ve paylaşım görseli (`assets/img/og-1200x630.png`) rozetinde yazar (test denetler). Takımdan "Çorum FK" diye söz edilir (açıklamalar dahil); "Çorumspor" yalnız uygulama adında. Uygulama adı "Çorumspor Taraftar", işaret özgün "ÇT" (kulüp kısaltması "ÇFK" kullanılmaz); "Resmî", "Arca", "Biz Anadoluyuz", "Kırmızı Şimşekler", kulüp sponsor logoları, çift başlı kartal KULLANILMAZ. Taraftara dönük metinler sıcak "sen" diliyle. Resmî amblem yalnız kulübün yazılı izniyle (`assets/logo/README.txt`).
 8. **CSP** her HTML'de `<meta http-equiv="Content-Security-Policy">` (kaynakta; yayında `yayin-hazirla.js` meta'yı çıkarıp `_headers`'a başlık olarak, tam Supabase adresiyle yazar). Yeni dış kaynak gerekiyorsa bütün HTML'lerde güncelleyin. Yazı tipi/görsel/betik için dış alan adı eklemeyin (fontlar yerel). Satır içi `<script>` ve satır içi stil yok: `script-src 'self'` (supabase-js de yerel), `style-src 'self'` ('unsafe-inline' yok), `img-src 'self' https://*.supabase.co data: blob:` (YouTube küçük resmi kullanılmıyor; videolar `frame-src` ile gömülür). CSP bütün sayfalarda aynı; `frame-ancestors` meta'da çalışmadığı için `_headers`'ta. Yeni sayfa = aynı CSP + alt bilgide `gizlilik.html` bağlantısı (test denetler). Tarayıcıda yeni bir şey saklarsanız `gizlilik.html` tablosuna ekleyin.
 9. Bağımlılık yok, derleme yok. CDN betiği eklenecekse sabit sürüm + SRI.
-10. **Tasarım tek yerde:** renk/yazı tipi/ölçü `assets/stil.css` başındaki `:root` belirteçleri (açık + koyu; koyu tema hem `prefers-color-scheme` hem `[data-theme=dark]`). Sabit renk yazmayın; yeni renk çifti = `docs/kontrast.py`'ye satır (AA 4.5:1 metin, 3:1 arayüz; tasarım testi çalıştırır) + `docs/TASARIM.md`. Listeler iskeletle açılır, aynı yükseklikte yer tutar (CLS < 0,05); hata/çevrimdışı durumunda `cevrimdisiKutusu` ("Tekrar dene"), boş sayfa yok. Sonsuz animasyon yok (canlı rozeti sabit). Dokunma hedefi ≥ 44 px. Canlı bölge yalnız kalıcı `#durum` / `#uyari` (listelerde `aria-live` yok). Sayılar (skor, dakika, rapor) Source Sans 3 `tabular-nums`; başlık/menü/düğme Oswald.
+10. **Tasarım tek yerde:** renk/yazı tipi/ölçü `assets/stil.css` başındaki `:root` belirteçleri (açık + koyu; koyu tema hem `prefers-color-scheme` hem `[data-theme=dark]`). Sabit renk yazmayın; yeni renk çifti = `docs/kontrast.py`'ye satır (AA 4.5:1 metin, 3:1 arayüz; tasarım testi çalıştırır) + `docs/TASARIM.md`. Listeler iskeletle açılır, aynı yükseklikte yer tutar (CLS < 0,05); hata/çevrimdışı durumunda `cevrimdisiKutusu` ("Tekrar dene"), boş sayfa yok. Sonsuz animasyon yok (canlı rozeti sabit). Hareket ve geçişler (dokunma :active, çapraz belge View Transitions, üst bar gizleme, skor çubuğu) `docs/TASARIM.md` 9.10: her hareket `prefers-reduced-motion: reduce`'da kapalı (yalnız renk / anlık), `@view-transition` yalnız `no-preference` içinde. Dokunma hedefi ≥ 44 px. Canlı bölge yalnız kalıcı `#durum` / `#uyari` (listelerde `aria-live` yok). Sayılar (skor, dakika, rapor) Source Sans 3 `tabular-nums`; başlık/menü/düğme Oswald.
 11. HTML'de tek stil dosyası `stil.css` (yönetimde ek olarak `yonetim.css` ve reklam paneli CSS'i). `tema.js` head'de defer'siz. Alt menü: `nav.alt-nav#alt-nav[aria-label="Ana gezinme"]`, 4 bağlantı (Ana Sayfa · Gol Arşivi · Takım · Profil); kök sayfada `aria-current="page"`, detay sayfasında ait olduğu bölümde `aria-current="true"`; DOM sırası main → nav → footer.
 
 ## Veritabanı sözleşmesi (reklam modülü buna dayanır, ADLARI DEĞİŞTİRMEYİN)

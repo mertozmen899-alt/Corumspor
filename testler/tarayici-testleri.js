@@ -211,8 +211,11 @@ async function tarayiciTestleri() {
     kontrol(c('maç: goller dakika sırasıyla'), goller.length === 2 && /23'/.test(goller[0]) && /Ali Örnek/.test(goller[0]) && /90\+2'/.test(goller[1]) && /Penaltı/.test(goller[1]), JSON.stringify(goller));
     kontrol(c('maç (013): goller gol sayfasına bağlantı; maç sayfasında video (iframe/video) yüklenmez'),
       (await p.getAttribute('#gol-listesi .gol a', 'href')) === 'gol.html?id=22222222-0000-4000-8000-000000000001' && (await p.$$('#gol-listesi iframe, #gol-listesi video')).length === 0);
+    // Sekmeler (Özet · Olaylar · Yorumlar): yorum bileşeni Yorumlar sekmesi ilk açılınca yüklenir
+    kontrol(c('maç: yorum bileşeni Yorumlar sekmesi açılmadan yüklenmez'), (await p.$$('#yorum-listesi')).length === 0);
+    await p.click('#sekme-yorumlar');
     await p.waitForSelector('#yorum-listesi .yorum');
-    kontrol(c('maç: yorumlar görünüyor'), /Tribünler muhteşemdi/.test(await metin(p, '#yorum-listesi')));
+    kontrol(c('maç: yorumlar görünüyor (Yorumlar sekmesi, adres #yorumlar)'), /Tribünler muhteşemdi/.test(await metin(p, '#yorum-listesi')) && p.url().endsWith('#yorumlar'));
     await tasmaYok(p, cihaz, 'maç');
     await foto('mac');
 
@@ -280,7 +283,7 @@ async function tarayiciTestleri() {
     const oranMesaj = await metin(p, '#yorum-mesaj');
     kontrol(c('yorum: dakikada 5 yorumdan sonra sunucu mesajı gösteriliyor'), /Çok hızlı yorum/.test(oranMesaj) && (await p.$$('#yorum-listesi .yorum')).length === 5, oranMesaj);
 
-    await git(p, 'mac.html?id=' + M1);
+    await git(p, 'mac.html?id=' + M1 + '#yorumlar');
     await p.waitForSelector('#yorum-listesi .yorum');
     const baska = p.locator('#yorum-listesi .yorum', { hasText: 'Tribünler' });
     kontrol(c('yorum: başkasının yorumunda düzenle/sil düğmesi yok, yalnız "Şikâyet et" (013)'),
@@ -677,7 +680,7 @@ async function tarayiciTestleri() {
       }
       localStorage.setItem('sahte-db-v1', JSON.stringify(db));
     }, M1);
-    await git(p, 'mac.html?id=' + M1);
+    await git(p, 'mac.html?id=' + M1 + '#yorumlar');
     await p.waitForSelector('#yorum-listesi .yorum');
     const y = await p.$$eval('#yorum-listesi .yorum .yorum-metni', (l) => l.map((x) => x.textContent));
     // 014 (taraftar 9): varsayılan "En yeni" üstte; "En eski" seçimi eskiden yeniye çevirir
@@ -1246,13 +1249,21 @@ async function tarayiciTestleri() {
       oy.ad === 'Ali Örnek' && oy.kutular === 'Maç=2,İlk 11=1,Dakika=100,Gol=2,Asist=0,Gole katkı=2,Sarı kart=1,Kırmızı kart=0' && /tabular-nums/.test(oy.tabular), JSON.stringify(oy));
     kontrol('018: oyuncu sayfasında goller gol.html bağlantısı; asist yok; alt menüde Takım aria-current="true"; pas/şut/piyasa değeri yok; kaynak notu',
       oy.goller.length === 2 && oy.goller.every((x) => /^gol\.html\?id=/.test(x)) && oy.asist === 0 && oy.nav === 'Takım:true' && !oy.yasak && /uzatmalar sayılmaz/.test(oy.kaynak), JSON.stringify(oy));
+    const oc = await p.evaluate(() => ({ one: [...document.querySelectorAll('#one-cikan li')].map((l) => l.querySelector('.etiket').textContent + '=' + l.querySelector('.sayi').textContent).join(','), gezgin: [...document.querySelectorAll('#oyuncu-gezgin a')].map((a) => a.rel + ':' + a.querySelector('b').textContent).join('|'), diger: [...document.querySelectorAll('#diger-oyuncular a .ad')].map((x) => x.textContent).join(',') }));
+    kontrol('hareket (oyuncu): üstte 3 büyük sayı Gol 2 · Asist 0 · Maç 2; önceki/sonraki kadro sırasıyla (Mehmet Deneme ← → Fikret Forvet); diğer forvetler şeritte',
+      oc.one === 'Gol=2,Asist=0,Maç=2' && oc.gezgin === 'prev:Mehmet Deneme|next:Fikret Forvet' && oc.diger === 'Fikret Forvet', JSON.stringify(oc));
     await git(p, 'oyuncu.html?sahte=1&id=55555555-0000-4000-8000-000000000006');
     await p.waitForSelector('#oyuncu[data-durum="tamam"] #istatistikler');
     const md = await p.$$eval('#istatistikler li', (l) => l.map((li) => li.querySelector('.sayi').textContent).join(','));
     kontrol('018: Mehmet Deneme: 1 maç / 90 dk, 1 gol (penaltı) + 1 asist = 2 katkı; asist listesinde Ali Örnek golü', md === '1,1,90,1,1,2,0,0' && /Ali Örnek golü/.test(await metin(p, '#oyuncu-asistler')), md);
     await git(p, 'oyuncu.html?sahte=1&id=55555555-0000-4000-8000-000000000001');
     await p.waitForSelector('#oyuncu[data-durum="tamam"]');
-    kontrol('018: verisi olmayan oyuncuda sıcak boş durum (sayı kutuları yok, "henüz")', !(await p.$('#istatistikler')) && /henüz maç verisi yok/.test(await metin(p, '#oyuncu-bos')) && /henüz gol katkısı yok/.test(await metin(p, '#katki-bos')));
+    const bos = await p.evaluate(() => ({ one: document.querySelector('#one-cikan')?.textContent, ist: document.querySelectorAll('#istatistikler li').length, sayilar: [...document.querySelectorAll('#istatistikler .sayi')].map((s) => s.textContent).join(',') }));
+    // Telefon incelemesi: forma giymemiş oyuncunun sayfası "boş" görünüyordu (yalnız metin): sayılar artık 0 olarak çizilir + tek satır not
+    kontrol('hareket (oyuncu): verisi olmayan oyuncuda 3 büyük sayı ve 8 kutu 0 olarak çizilir, "henüz forma giymedi" notu, gol katkısı boş durumu',
+      bos.one === '0Gol0Asist0Maç' && bos.ist === 8 && bos.sayilar === '0,0,0,0,0,0,0,0' && /henüz forma giymedi/.test(await metin(p, '#oyuncu-bos')) && /henüz gol katkısı yok/.test(await metin(p, '#katki-bos')), JSON.stringify(bos));
+    const gz = await p.evaluate(() => ({ gezgin: [...document.querySelectorAll('#oyuncu-gezgin a')].map((a) => a.rel + ':' + a.dataset.oyuncuId.slice(-1)), diger: [...document.querySelectorAll('#diger-oyuncular a')].map((a) => a.dataset.oyuncuId.slice(-1)) }));
+    kontrol('hareket (oyuncu): ilk kalecide yalnız "Sonraki" (kadro sırası: Yedek Eldiven); "Diğer oyuncular" aynı mevkiden', gz.gezgin.join() === 'next:2' && gz.diger.join() === '2', JSON.stringify(gz));
     await git(p, 'oyuncu.html?sahte=1&id=55555555-0000-4000-8000-0000000000ff');
     await p.waitForSelector('#oyuncu[data-durum="tamam"]');
     kontrol('018: olmayan oyuncu: "Oyuncu bulunamadı"', /Oyuncu bulunamadı/.test(await metin(p, '#oyuncu')));
@@ -1265,6 +1276,86 @@ async function tarayiciTestleri() {
     await Promise.all([p.waitForURL(/oyuncu\.html/), p.click('#kadro-icerik .oyuncu-kart[data-oyuncu-id="55555555-0000-4000-8000-000000000007"]')]);
     await p.waitForSelector('#oyuncu[data-durum="tamam"]');
     kontrol('018: kadro kartına dokununca oyuncu sayfası açılır', (await metin(p, '#oyuncu-ad')) === 'Ali Örnek');
+
+    // ---- hareket ve geçişler: maç sekmeleri (Özet · Olaylar · Yorumlar), olay çizelgesi, yapışkan skor çubuğu
+    await git(p, 'mac.html?sahte=1&id=' + M1);
+    await p.waitForSelector('#mac[data-durum="tamam"]');
+    const ms = await p.evaluate(() => ({
+      tablar: [...document.querySelectorAll('#mac-sekmeler [role="tab"]')].map((t) => t.textContent + ':' + t.getAttribute('aria-selected') + ':' + t.tabIndex),
+      paneller: ['ozet', 'olaylar', 'yorumlar'].map((s) => document.getElementById('panel-' + s).hidden),
+      sponsorUstte: !!(document.querySelector('.reklam-yuvasi[data-reklam-alan="mac_sponsoru"]').compareDocumentPosition(document.getElementById('mac-sekmeler')) & Node.DOCUMENT_POSITION_FOLLOWING),
+      cubukGizli: document.getElementById('skor-cubugu').getAttribute('aria-hidden') === 'true' && !document.getElementById('skor-cubugu').classList.contains('acik'),
+      cubuk: document.getElementById('skor-cubugu').textContent,
+    }));
+    kontrol('hareket: maç sekmeleri Özet (seçili, tabindex 0) · Olaylar · Yorumlar; yalnız Özet paneli açık; sponsor yuvası sekmelerin üstünde',
+      ms.tablar.join('|') === 'Özet:true:0|Olaylar:false:-1|Yorumlar:false:-1' && ms.paneller.join() === 'false,true,true' && ms.sponsorUstte, JSON.stringify(ms));
+    kontrol('hareket: skor çubuğu aria-hidden, başta kapalı, "Çorum FK 2 – 1 Örnekköy Spor"', ms.cubukGizli && ms.cubuk.replace(/\s+/g, ' ') === 'Çorum FK2 – 1Örnekköy Spor', JSON.stringify(ms));
+    await p.focus('#sekme-ozet');
+    await p.keyboard.press('ArrowRight');
+    await p.waitForSelector('#olaylar[data-durum="tamam"]');
+    const ol = await p.evaluate(() => ({
+      odak: document.activeElement.id, url: location.hash, taraf: document.getElementById('olay-cizelge')?.dataset.taraf,
+      olaylar: [...document.querySelectorAll('#olay-cizelge .olay')].map((l) => l.className.replace('olay olay-', '') + '@' + l.querySelector('.dk [aria-hidden]').textContent),
+      golHref: document.querySelector('#olay-cizelge .olay-gol a')?.getAttribute('href'),
+      kartlar: document.querySelector('.kart-listesi')?.textContent || '',
+      ilk11: [...document.querySelectorAll('#ilk11-baslik + .mac-kadro li')].map((l) => l.textContent),
+      yedek: [...document.querySelectorAll('#yedek-baslik + .mac-kadro a')].map((a) => a.getAttribute('href')),
+    }));
+    kontrol('hareket: Olaylar sekmesi klavyeyle (sağ ok) açılır, adres #olaylar; çizelge iç sahada solda, dakika sırasıyla gol 23\' · değişiklik 70\' · gol 90+2\'',
+      ol.odak === 'sekme-olaylar' && ol.url === '#olaylar' && ol.taraf === 'sol' && ol.olaylar.join('|') === "gol@23'|degisiklik@70'|gol@90+2'", JSON.stringify(ol));
+    kontrol('hareket: gol satırı gol.html\'e bağlanır; sarı kart dakikasız listede; İlk 11 ve oyuna girenler oyuncu sayfasına bağlı',
+      ol.golHref === 'gol.html?id=22222222-0000-4000-8000-000000000001' && /Sarı kart: Ali Örnek/.test(ol.kartlar) && ol.ilk11.length === 2 && ol.yedek.join() === 'oyuncu.html?id=55555555-0000-4000-8000-000000000008', JSON.stringify(ol));
+    await p.keyboard.press('End');
+    await p.waitForSelector('#yorum-listesi .yorum');
+    kontrol('hareket: End son sekmeye (Yorumlar) gider, yorum bileşeni yüklenir', (await p.evaluate(() => document.activeElement.id + location.hash)) === 'sekme-yorumlar#yorumlar');
+    await p.goBack();
+    kontrol('hareket: geri tuşu önceki sekmeye (Olaylar) döner', (await p.getAttribute('#sekme-olaylar', 'aria-selected')) === 'true');
+    await git(p, 'mac.html?sahte=1&id=' + M1 + '#olaylar');
+    await p.waitForSelector('#olaylar[data-durum="tamam"]');
+    kontrol('hareket: #olaylar adresiyle açınca Olaylar sekmesi seçili', (await p.getAttribute('#sekme-olaylar', 'aria-selected')) === 'true' && !(await p.$eval('#panel-olaylar', (e) => e.hidden)));
+    await p.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; scrollTo(0, 0); });
+    const cls = await p.evaluate(async () => {
+      let toplam = 0;
+      const po = new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) toplam += e.value; });
+      po.observe({ type: 'layout-shift', buffered: false });
+      for (let y = 0; y <= 900; y += 60) { scrollTo(0, y); await new Promise((c) => requestAnimationFrame(() => setTimeout(c, 30))); }
+      await new Promise((c) => setTimeout(c, 400));
+      const c = document.getElementById('skor-cubugu'), u = document.querySelector('header.ust');
+      const r = { acik: c.classList.contains('acik'), top: Math.round(c.getBoundingClientRect().top), ustGizli: document.documentElement.classList.contains('ust-gizli'), ustAlt: Math.round(u.getBoundingClientRect().bottom) };
+      scrollBy(0, -40); await new Promise((c2) => setTimeout(c2, 400));
+      r.yukari = { ustGizli: document.documentElement.classList.contains('ust-gizli'), top: Math.round(c.getBoundingClientRect().top), ustAlt: Math.round(u.getBoundingClientRect().bottom) };
+      po.disconnect(); r.cls = toplam; return r;
+    });
+    kontrol('hareket: aşağı kaydırınca skor çubuğu açılır, üst bar gizlenir ve çubuk en üste kayar; yukarı kaydırınca üst bar geri gelir, çubuk altına iner; kayma (CLS) yok',
+      cls.acik && cls.ustGizli && cls.top === 0 && cls.ustAlt <= 0 && !cls.yukari.ustGizli && cls.yukari.top === cls.yukari.ustAlt && cls.yukari.ustAlt > 0 && cls.cls < 0.01, JSON.stringify(cls));
+
+    // ---- üst bar: odak üst bardayken gizlenmez; alt menü: açık sekmeye dokununca yeniden yüklenmez, başa kayar, odak main'e
+    await git(p, 'index.html?sahte=1');
+    await p.waitForSelector('#akis[data-durum="tamam"]');
+    const ub = await p.evaluate(async () => {
+      document.documentElement.style.scrollBehavior = 'auto';
+      const bekle = (ms) => new Promise((c) => setTimeout(c, ms));
+      const kaydir = async (y) => { scrollTo(0, y); await new Promise((c) => requestAnimationFrame(() => setTimeout(c, 40))); };
+      await kaydir(3); const basta = document.documentElement.classList.contains('ust-gizli');
+      for (let y = 0; y <= 800; y += 80) await kaydir(y);
+      await bekle(50); const asagi = document.documentElement.classList.contains('ust-gizli');
+      await kaydir(796); const esik = document.documentElement.classList.contains('ust-gizli');
+      document.getElementById('profil-baglanti').focus({ preventScroll: true });
+      await kaydir(900); await kaydir(1000); const odakta = document.documentElement.classList.contains('ust-gizli');
+      document.getElementById('icerik').focus({ preventScroll: true });
+      window.__yuklendi = 'evet';
+      return { basta, asagi, esik, odakta };
+    });
+    kontrol('hareket: üst bar başta görünür, aşağı kaydırınca gizlenir, 8 px altı kıpırtıda değişmez, odak üst bardayken gizlenmez', !ub.basta && ub.asagi && ub.esik && !ub.odakta, JSON.stringify(ub));
+    await p.evaluate(() => { for (let y = 0; y <= 800; y += 100) scrollTo(0, y); });
+    await p.click('#alt-nav a[aria-current="page"]');
+    await p.waitForFunction(() => scrollY === 0);
+    const am = await p.evaluate(() => ({ ayni: window.__yuklendi === 'evet', odak: document.activeElement.id, y: scrollY }));
+    kontrol('hareket: alt menüde açık sekmeye dokununca sayfa yeniden yüklenmez, en başa kayar, odak #icerik', am.ayni && am.odak === 'icerik' && am.y === 0, JSON.stringify(am));
+    await git(p, 'mac.html?sahte=1&id=' + M1);
+    await p.waitForSelector('#mac[data-durum="tamam"]');
+    await Promise.all([p.waitForURL(/takim\.html/), p.click('#alt-nav a[aria-current="true"]')]);
+    kontrol('hareket: ayrıntı sayfasında (aria-current="true") bölüm bağlantısı normal çalışır (Takım köküne gider)', /takim\.html$/.test(new URL(p.url()).pathname));
 
     // ---- maç: oynanmamış maçta ortada başlama saati (dev VS yok), maç notu + resmî duyuru satırı; bitince not yok; maç satırı tekrar yok
     await git(p, 'mac.html?sahte=1&id=11111111-0000-4000-8000-000000000003');

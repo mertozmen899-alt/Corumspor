@@ -401,3 +401,56 @@ test('018: gol anı (asist + YouTube aralığı) hataları SQL kısıtlarının 
   assert.match(K.golAniHatalari({ video_url: yt, video_baslangic_sn: 1, video_bitis_sn: 30000 })[0], /21600/);
   assert.match(K.golAniHatalari({ video_url: 'https://abcd.supabase.co/storage/v1/object/public/gol-videolari/a.mp4', video_baslangic_sn: 1, video_bitis_sn: 9 })[0], /YouTube/);
 });
+
+test('hareket: maç olay çizelgesi (macOlaylari): dakika sırası, değişiklik eşleme, kırmızı = çıkış dakikası, sarı ayrı', () => {
+  const goller = [{ id: 'g2', dakika: 90, ek_dakika: 2, oyuncu: 'B' }, { id: 'g1', dakika: 23, ek_dakika: null, oyuncu: 'A' }, { id: 'g3', dakika: 70, oyuncu: 'C' }];
+  const kadro = [
+    { oyuncu: 'A', ilk11: true, cikis_dk: 70, sari: 1, kirmizi: false },
+    { oyuncu: 'D', ilk11: false, giris_dk: 70, sari: 0, kirmizi: false },
+    { oyuncu: 'E', ilk11: true, cikis_dk: 55, sari: 2, kirmizi: true },
+    { oyuncu: 'F', ilk11: false, giris_dk: 80, sari: 0, kirmizi: false }, // eşi olmayan giriş
+    { oyuncu: 'G', ilk11: false, giris_dk: null, sari: 0, kirmizi: false }, // oynamadı
+    { oyuncu: 'H', ilk11: true, sari: 0, kirmizi: true }, // dakikasız kırmızı
+  ];
+  const { olaylar, kartlar } = K.macOlaylari(goller, kadro);
+  assert.deepEqual(olaylar.map((o) => `${o.tur}@${o.dakika}${o.ek ? '+' + o.ek : ''}`), ['gol@23', 'kirmizi@55', 'gol@70', 'degisiklik@70', 'degisiklik@80', 'gol@90+2']);
+  assert.deepEqual(olaylar.filter((o) => o.tur === 'degisiklik').map((o) => [o.giren, o.cikan]), [['D', 'A'], ['F', null]]);
+  assert.equal(olaylar.find((o) => o.tur === 'kirmizi').oyuncu, 'E');
+  assert.deepEqual(kartlar, [{ oyuncu: 'A', sari: 1, kirmizi: false }, { oyuncu: 'E', sari: 2, kirmizi: false }, { oyuncu: 'H', sari: 0, kirmizi: true }]);
+  assert.deepEqual(K.macOlaylari(), { olaylar: [], kartlar: [] });
+});
+
+test('hareket: stil.css: tap highlight saydam, @view-transition yalnız hareket azaltma kapalıyken, :active küçülmesi yalnız no-preference', () => {
+  const css = readFileSync(path.join(KOK, 'assets', 'stil.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(css, /html \{ -webkit-tap-highlight-color: transparent; \}/);
+  const vt = [...css.matchAll(/@view-transition/g)];
+  assert.equal(vt.length, 1);
+  const once = css.slice(0, vt[0].index);
+  assert.match(once.slice(once.lastIndexOf('@media')), /^@media \(prefers-reduced-motion: no-preference\) \{\s*$/);
+  // Medya bloklarının dışındaki kurallarda :active + transform yok (küçülme yalnız no-preference içinde)
+  let derinlik = 0, medya = [], bas = 0;
+  const disari = [];
+  for (let i = 0; i < css.length; i++) {
+    if (css[i] === '{') { const sec = css.slice(bas, i).trim(); if (sec.startsWith('@')) medya.push(sec); else if (!medya.length) disari.push([sec, i]); derinlik++; bas = i + 1; }
+    else if (css[i] === '}') { derinlik--; if (medya.length && derinlik < medya.length) medya.pop(); bas = i + 1; }
+    else if (css[i] === ';' ) { /* bildirim */ }
+  }
+  for (const [sec, i] of disari) if (/:active/.test(sec)) assert.doesNotMatch(css.slice(i, css.indexOf('}', i)), /transform:/, sec);
+  // Üst bar ve alt menü ayrı geçiş katmanı; içerik solması ≤ 250 ms (belirteç)
+  assert.match(css, /\.ust \{ view-transition-name: ust-bar; \}/);
+  assert.match(css, /\.alt-nav \{ view-transition-name: alt-menu; \}/);
+  assert.match(css, /::view-transition-new\(root\) \{ animation: var\(--sure-orta\)/);
+  assert.ok(parseInt(/--sure-orta: (\d+)ms/.exec(css)[1], 10) <= 250);
+});
+
+test('hareket: tema.js sayfa geçişi yönü (pagereveal) ve mac.html sekmeleri (Takım deseni) + skor çubuğu aria-hidden', () => {
+  const tema = readFileSync(path.join(KOK, 'assets', 'tema.js'), 'utf8');
+  assert.match(tema, /addEventListener\('pagereveal'/);
+  assert.match(tema, /types\.add\(tur\)/);
+  const mac = readFileSync(path.join(KOK, 'mac.html'), 'utf8');
+  for (const s of ['ozet', 'olaylar', 'yorumlar']) assert.match(mac, new RegExp(`role="tab" id="sekme-${s}" aria-controls="panel-${s}"`));
+  assert.match(mac, /<div class="skor-cubugu" id="skor-cubugu" aria-hidden="true">/);
+  // Reklam sözleşmesi: sponsor yuvası sekmelerden (goller, yorumlar) önce
+  assert.ok(mac.indexOf('id="mac-sponsoru"') < mac.indexOf('id="mac-sekmeler"'));
+  assert.ok(mac.indexOf('id="mac-sekmeler"') < mac.indexOf('id="mac-golleri"') && mac.indexOf('id="mac-golleri"') < mac.indexOf('id="yorumlar"'));
+});

@@ -591,14 +591,16 @@ function swKaydet() {
 // konuma göre değişip titremez.
 export const SABIT_ALAN_ORANI = 0.25;
 function yapiskanIzle() {
-  const el = document.querySelector('.filtreler, .sekme-yapiskan');
+  const el = document.querySelector('.filtreler, .sekme-yapiskan, .skor-cubugu');
   if (!el || typeof ResizeObserver !== 'function') return;
   const ust = document.querySelector('header.ust'), nav = document.getElementById('alt-nav');
   const boyu = (e) => (e && getComputedStyle(e).position !== 'static' ? Math.ceil(e.getBoundingClientRect().height) : 0);
   const yaz = () => {
     const boy = Math.ceil(el.getBoundingClientRect().height);
     el.classList.toggle('yapiskan-degil', boyu(ust) + boyu(nav) + boy > innerHeight * SABIT_ALAN_ORANI);
-    document.documentElement.style.setProperty('--yapiskan-h', (getComputedStyle(el).position === 'sticky' ? boy : 0) + 'px');
+    // Maç skor çubuğu sabit (fixed): yapışmadığında görünmez ama boyu aynı kalır (karar titremez)
+    const kaplar = getComputedStyle(el).position !== 'static' && !el.classList.contains('yapiskan-degil');
+    document.documentElement.style.setProperty('--yapiskan-h', (kaplar ? boy : 0) + 'px');
   };
   const ro = new ResizeObserver(yaz);
   for (const e of [el, ust, nav]) if (e) ro.observe(e);
@@ -634,10 +636,50 @@ function cubukIzle() {
   }
 }
 
+// Üst bar aşağı kaydırınca gizlenir, yukarı kaydırınca gelir (html.ust-gizli; stil.css 29. bölüm, translate: kayma yok).
+// Sayfa başında (bar boyu kadar) hep görünür; odak üst bardaysa gizlenmez; üst bar yapışkan değilse (kısa ekran) hiç gizlenmez.
+// Hareket azaltmada da gizlenir ama animasyonsuz: kazanılan alan büyük yazı / yakınlaştırma kullananlara en çok yarar,
+// hareket yalnız anlık bir değişimdir (kayan animasyon yok).
+export const UST_ESIK = 8;
+function ustBarIzle() {
+  const ust = document.querySelector('header.ust');
+  if (!ust) return;
+  const kok = document.documentElement;
+  let son = scrollY, bekliyor = false;
+  const guncelle = () => {
+    bekliyor = false;
+    const y = Math.max(0, scrollY), fark = y - son;
+    if (y > ust.offsetHeight && Math.abs(fark) < UST_ESIK) return;
+    const gizle = y > ust.offsetHeight && fark > 0 && !ust.contains(document.activeElement) && getComputedStyle(ust).position === 'sticky';
+    kok.classList.toggle('ust-gizli', gizle);
+    son = y;
+  };
+  addEventListener('scroll', () => { if (!bekliyor) { bekliyor = true; requestAnimationFrame(guncelle); } }, { passive: true });
+  ust.addEventListener('focusin', () => kok.classList.remove('ust-gizli'));
+}
+
+// Alt menü: açık sekmeye (aria-current="page") yeniden dokununca sayfa yeniden yüklenmez; en başa kayar (hareket azaltmada anında),
+// odak ana içeriğe gider. Ayrıntı sayfasındaki bölüm bağlantısı (aria-current="true") normal bağlantıdır: bölümün köküne gider.
+function altMenuIzle() {
+  const nav = document.getElementById('alt-nav');
+  if (!nav) return;
+  nav.addEventListener('click', (e) => {
+    const a = e.target.closest('a[aria-current="page"]');
+    if (!a || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    const azalt = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    scrollTo({ top: 0, behavior: azalt ? 'instant' : 'smooth' });
+    const main = document.getElementById('icerik');
+    if (main) main.focus({ preventScroll: true });
+  });
+}
+
 export function sayfaBaslat() {
   yaziBoyuIzle();
   cubukIzle();
   yapiskanIzle();
+  ustBarIzle();
+  altMenuIzle();
   amblemKur();
   kunyeDoldur();
   geriKur();

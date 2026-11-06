@@ -548,3 +548,18 @@ seçili hapta ayrıca ✓ var). Tasarım testi betiği çalıştırır, 0 başar
 - **Performans:** yalnız 2 yazı tipi preload (kalın gövde preload edilmez), supabase-js `fetchpriority`'siz `defer`; gol arşivinin ilk
   kartı ve gol sayfasının video kapağı `fetchpriority=high`; haber ve gol sayfası önce son görülen kayıttan (`onbellek.js` `sonKayit`,
   yoksa ana sayfa listesindeki satır) çizilir, sonra ağdan tazelenir (aynı kapak `<img>`'i yeniden kurulmaz). 800w içerik kopyaları ≤ 60 KB.
+
+### 9.10 Hareket ve geçişler (6 Kasım 2026, telefon karşılaştırması 1-7)
+
+Hepsi yalnız CSS + küçük JS; yeni ağ isteği, bağımlılık, satır içi stil/betik yok. Belirteçler `stil.css` `:root` (Hareket bölümü).
+
+| Ne | Nasıl | Hareket azaltma (`reduce`) |
+|---|---|---|
+| Dokunma geri bildirimi | `-webkit-tap-highlight-color: transparent` (odak halkası kalır). Tek tip `:active`: küçük denetim (düğme, sekme, hap/çip, alt menü) `--basma-opaklik` + `scale(--basma-olcek)`; satır `--yuzey`; kart `scale(--basma-olcek-kart)`; `--sure-hizli`, `--egri-standart` (27. bölüm) | Küçülme yok, yalnız renk / saydamlık |
+| Sayfa geçişi | Çapraz belge View Transitions: `@view-transition { navigation: auto }` yalnız `no-preference` içinde. Üst bar (`ust-bar`) ve alt menü (`alt-menu`) ayrı katman, yerinde kalır; içerik 120 ms solar, 200 ms gelir. Ayrıntı sayfasına (haber, maç, gol, oyuncu) girişte sağdan, geçmişte geri dönüşte soldan `--gecis-kayma` (yön: `tema.js` `pagereveal` → `ileri` / `geri`, `:active-view-transition-type`). Desteklemeyen tarayıcı yok sayar (28. bölüm) | Kapalı |
+| Üst bar | Aşağı kaydırınca `html.ust-gizli` (`translate`, kayma yok), yukarı kaydırınca gelir; eşik 8 px, sayfa başında hep görünür, odak üst bardaysa gizlenmez, yapışkan değilse (kısa ekran) hiç gizlenmez. Yapışkan sekme/filtre çubuğu ve maç skor çubuğu aynı mesafe yukarı kayar (29. bölüm; `ortak.js` `ustBarIzle`) | Davranış kalır, animasyonsuz (anlık). Gerekçe: kazanılan alan en çok büyük yazı / yakınlaştırma kullananlara yarar; kayan animasyon yok, tek anlık değişim |
+| Alt menü aynı sekme | Açık sekmeye (`aria-current="page"`) dokununca yeniden yükleme yok: başa yumuşak kayar, odak `#icerik`. Ayrıntı sayfasındaki bölüm bağlantısı (`aria-current="true"`) normal bağlantı | Başa anında |
+| Maç skor çubuğu | `#skor-cubugu` sabit (`fixed`, yer kaplamaz), büyük başlık üst barın altına girince `.acik` (IntersectionObserver), `aria-hidden` (bilgi h1'de). Sabit alan %25'i aşarsa çıkmaz (`yapiskanIzle`) | Belirme animasyonsuz |
+| Maç sekmeleri | Özet · Olaylar · Yorumlar (Takım deseni: tablist, ok/Home/End, `#ozet` `#olaylar` `#yorumlar`, geri tuşu). Sponsor yuvası sekmelerin üstünde. Sekmeler yapışkan DEĞİL: üst bar + skor + sekme + alt menü 390×844'te %25'i aşardı. Olaylar ve Yorumlar ilk açılışta yüklenir (açılışta ek istek yok) | — |
+| Olay çizelgesi | Ortada dakika, Çorum FK olayı kendi tarafında (iç sahada solda, deplasmanda sağda), rakip tarafı boş (veri yok). Gol (→ gol sayfası), değişiklik (aynı dakikada çıkan ↔ giren), kırmızı kart (dakika = çıkış). Sarı kartın dakikası yok: ayrı liste. Altta İlk 11 ve oyuna girenler (→ oyuncu sayfası). `kurallar.js` `macOlaylari` | — |
+| Oyuncu sayfası | Üstte 3 büyük sayı (Gol, Asist, Maç; siyah kutu, `--ust-*` çiftleri), altında 8 kutu; sayılar her zaman (forma giymemişte 0 + "henüz forma giymedi"). Kadro sırasıyla önceki / sonraki, aynı mevkiden "Diğer oyuncular" şeridi (elle kaydırılır, kendi kendine kaymaz) | — |

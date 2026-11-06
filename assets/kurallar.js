@@ -248,3 +248,29 @@ export function oyuncuOzeti(ad, kadro = [], goller = []) {
     gol, asist, katki: gol + asist, sari: benim.reduce((t, s) => t + (s.sari || 0), 0), kirmizi: benim.filter((s) => s.kirmizi).length,
   };
 }
+/**
+ * Maç sayfası olay çizelgesi (yalnız Çorum FK; rakibin olay verisi yok). goller: { dakika, ek_dakika, ... } satırları,
+ * kadro: o maçın mac_oyunculari satırları. Dönen olaylar dakika sırasıyla: gol, kırmızı kart (dakikası = çıkış dakikası, 018),
+ * oyuncu değişikliği (aynı dakikada çıkan ↔ giren eşlenir; eşi yoksa tek başına). Sarı kartın dakikası kaynakta yok: ayrı "kartlar".
+ */
+export function macOlaylari(goller = [], kadro = []) {
+  const olaylar = goller.map((g) => ({ tur: 'gol', dakika: g.dakika, ek: g.ek_dakika || 0, gol: g }));
+  const girenler = new Map(), cikanlar = new Map();
+  const ekle = (m, dk, ad) => m.set(dk, [...(m.get(dk) || []), ad]);
+  for (const s of kadro) {
+    if (s.giris_dk != null) ekle(girenler, s.giris_dk, s.oyuncu);
+    if (s.cikis_dk == null || !macaCikti(s)) continue;
+    if (s.kirmizi) olaylar.push({ tur: 'kirmizi', dakika: s.cikis_dk, ek: 0, oyuncu: s.oyuncu });
+    else ekle(cikanlar, s.cikis_dk, s.oyuncu);
+  }
+  const ada = (a, b) => a.localeCompare(b, 'tr');
+  for (const dk of new Set([...girenler.keys(), ...cikanlar.keys()])) {
+    const g = (girenler.get(dk) || []).sort(ada), c = (cikanlar.get(dk) || []).sort(ada);
+    for (let i = 0; i < Math.max(g.length, c.length); i++) olaylar.push({ tur: 'degisiklik', dakika: dk, ek: 0, giren: g[i] || null, cikan: c[i] || null });
+  }
+  const SIRA = { gol: 0, kirmizi: 1, degisiklik: 2 };
+  olaylar.sort((a, b) => a.dakika - b.dakika || a.ek - b.ek || SIRA[a.tur] - SIRA[b.tur]);
+  const kartlar = kadro.filter((s) => s.sari > 0 || (s.kirmizi && s.cikis_dk == null))
+    .map((s) => ({ oyuncu: s.oyuncu, sari: s.sari || 0, kirmizi: !!s.kirmizi && s.cikis_dk == null })).sort((a, b) => ada(a.oyuncu, b.oyuncu));
+  return { olaylar, kartlar };
+}

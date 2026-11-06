@@ -48,17 +48,32 @@
 <p class="resmi-degil"><svg viewBox="0 0 12 12" width="12" height="12" fill="currentColor" aria-hidden="true" focusable="false"><path d="M7 0 1 7h4l-1 5 6-7H6z"/></svg>Bağımsız taraftar uygulaması</p>
 <div class="kap">
   <div id="mac" data-durum="bekliyor"><div class="mac-basi" aria-hidden="true"><span class="iskelet iskelet-satir uzun"></span><span class="iskelet iskelet-satir uzun"></span></div></div>
+  <div class="skor-cubugu" id="skor-cubugu" aria-hidden="true"><div class="kap"></div></div>
   <div id="mac-sponsoru"></div>
-  <section id="ozet" aria-labelledby="ozet-baslik" hidden>
-    <div class="bolum-baslik"><h2 id="ozet-baslik">Maç özeti</h2></div>
-    <div id="ozet-video"></div>
-    <p class="soluk" id="ozet-kaynak"></p>
+  <div class="sekme-iz mac-sekmeler" id="mac-sekmeler" role="tablist" aria-label="Maç bölümleri">
+    <button type="button" role="tab" id="sekme-ozet" aria-controls="panel-ozet" aria-selected="true">Özet</button>
+    <button type="button" role="tab" id="sekme-olaylar" aria-controls="panel-olaylar" aria-selected="false">Olaylar</button>
+    <button type="button" role="tab" id="sekme-yorumlar" aria-controls="panel-yorumlar" aria-selected="false">Yorumlar</button>
+  </div>
+  <section id="panel-ozet" class="mac-panel" role="tabpanel" aria-labelledby="sekme-ozet" tabindex="0">
+    <div id="ozet-not"></div>
+    <section id="ozet" aria-labelledby="ozet-baslik" hidden>
+      <div class="bolum-baslik"><h2 id="ozet-baslik">Maç özeti</h2></div>
+      <div id="ozet-video"></div>
+      <p class="soluk" id="ozet-kaynak"></p>
+    </section>
+    <section id="mac-golleri" aria-labelledby="gol-baslik" hidden>
+      <div class="bolum-baslik"><h2 id="gol-baslik">Goller</h2></div>
+      <ul id="gol-listesi" class="gol-listesi"></ul>
+    </section>
+    <p class="bos" id="ozet-bos" hidden></p>
   </section>
-  <section id="mac-golleri" aria-labelledby="gol-baslik" hidden>
-    <div class="bolum-baslik"><h2 id="gol-baslik">Goller</h2></div>
-    <ul id="gol-listesi" class="gol-listesi"></ul>
+  <section id="panel-olaylar" class="mac-panel" role="tabpanel" aria-labelledby="sekme-olaylar" tabindex="0" hidden>
+    <div id="olaylar" data-durum="bekliyor"></div>
   </section>
-  <div id="yorumlar"></div>
+  <section id="panel-yorumlar" class="mac-panel" role="tabpanel" aria-labelledby="sekme-yorumlar" tabindex="0" hidden>
+    <div id="yorumlar"></div>
+  </section>
 </div>
 <noscript><p class="kap uyari">Bu site JavaScript ile çalışır. Tarayıcında JavaScript'i aç.</p></noscript>
 </main>

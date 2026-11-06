@@ -880,7 +880,7 @@ async function reklamTarayiciTestleri() {
     await git(p, 'gol.html?id=22222222-0000-4000-8000-000000000001');
     await p.waitForSelector('#yorum-metni');
     kontrol('yorum (014): ipucu hedefe göre (gol)', (await p.getAttribute('#yorum-metni', 'placeholder')) === 'Bu gol hakkında ne düşünüyorsun?');
-    await git(p, 'mac.html?id=' + M1);
+    await git(p, 'mac.html?id=' + M1 + '#yorumlar');
     await p.waitForSelector('#yorum-metni');
     kontrol('yorum (014): ipucu hedefe göre (maç)', (await p.getAttribute('#yorum-metni', 'placeholder')) === 'Bu maç hakkında ne düşünüyorsun?');
     // ziyaretçi bekleyen yorumu görmez
