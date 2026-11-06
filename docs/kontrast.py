@@ -56,7 +56,13 @@ y013=[("Açık","alt menü edilgin / zemin","#5C5A57","#FFFFFF",4.5),("Açık","
 ("Koyu","Sponsor etiketi / kart","#F0CF73","#2A2312",4.5),
 ("Her iki","hero başlığı: beyaz / .70 katman (beyaz foto)","#FFFFFF","#4D4D4D",4.5),("Her iki","hero meta #E4E1DB / .70 katman","#E4E1DB","#4D4D4D",4.5),
 ("Her iki","foto atfı: beyaz / .62 katman","#FFFFFF","#616161",4.5),("Her iki","video süresi: beyaz / .72 katman","#FFFFFF","#474747",4.5),
-("Her iki","odak halkası (koyu zemin) / siyah üst bar (UI ≥3)","#8AB4F8","#0B0B0B",3.0)]
+("Her iki","odak halkası (koyu zemin) / siyah üst bar (UI ≥3)","#8AB4F8","#0B0B0B",3.0),
+# 2. tur: dolu nötr reklam düğmesi (üstüne gelince), düzeltme kutusu, "Sıradaki" şerit etiketi, maç sayfası geri sayım rozeti
+("Açık","reklam düğmesi hover: beyaz / metin-soluk","#FFFFFF","#5C5A57",4.5),("Koyu","reklam düğmesi hover: #0B0B0B / metin-soluk","#0B0B0B","#A9A6A0",4.5),
+("Açık","düzeltme kutusu: metin / ilan zemini","#141414","#FFF6DB",4.5),("Koyu","düzeltme kutusu: metin / ilan zemini","#F3F1EC","#2A2312",4.5),
+("Açık","Sıradaki etiketi / zemin","#A80000","#FFFFFF",4.5),("Koyu","Sıradaki etiketi / zemin","#FF8A85","#0B0B0B",4.5),
+("Her iki","maç sayfası geri sayım rozeti: beyaz / koyu kırmızı başlık zemini","#FFFFFF","#2B0A10",4.5),
+("Açık","maç sponsoru alt notu (etiketle aynı) / kart","#6B4F00","#FFF6DB",4.5),("Koyu","maç sponsoru alt notu / kart","#F0CF73","#2A2312",4.5)]
 bad013=0
 print("\n**013 çiftleri**\n\n| Tema | Kullanım | Ön plan | Arka plan | Oran | Eşik | Sonuç |\n|---|---|---|---|---|---|---|")
 for m,r,a,b,need in y013:

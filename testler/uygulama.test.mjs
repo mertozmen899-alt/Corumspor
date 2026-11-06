@@ -6,6 +6,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// Depodaki ayar.js yer tutucu içerir: yayın testleri bilerek taslak derler (gerçek yayında yer tutucu varsa derleme durur)
+process.env.YAYIN_TASLAK = '1';
 const BURASI = path.dirname(fileURLToPath(import.meta.url));
 const KOK = path.resolve(BURASI, '..');
 const K = await import(new URL('../assets/kurallar.js', import.meta.url).href);
@@ -73,7 +75,7 @@ test('yayın: yalnız HTML sayfaları, assets/, _headers, robots.txt, .nojekyll;
       assert.ok(!dosyalar.some((d) => d === yasak || d.startsWith(yasak + '/')), 'yayında olmamalı: ' + yasak);
     }
     assert.ok(!dosyalar.some((d) => /(^|\/)(README\.md|AGENTS\.md|package(-lock)?\.json|\.gitignore|\.env.*)$/.test(d)), dosyalar.filter((d) => /md$|json$/.test(d)).join(','));
-    assert.deepEqual(dosyalar.filter((d) => !d.includes('/')).sort(), [...sayfalar, '.nojekyll', '_headers', 'robots.txt', 'sw.js'].sort());
+    assert.deepEqual(dosyalar.filter((d) => !d.includes('/')).sort(), [...sayfalar, '.nojekyll', '_headers', 'robots.txt', 'sw.js', 'manifest.webmanifest'].sort());
     // Sayfaların ve CSS'in istediği her yerel dosya yayında (kırık bağlantı yok); JS modüllerinin sabit import'ları da
     const eksik = [];
     for (const d of dosyalar.filter((x) => /\.(html|css|js)$/.test(x))) {
@@ -84,6 +86,7 @@ test('yayın: yalnız HTML sayfaları, assets/, _headers, robots.txt, .nojekyll;
       for (let a of adresler) {
         const yenile = /^\d+;\s*url=(.+)$/.exec(a); // <meta http-equiv="refresh" content="0; url=takim.html">
         if (yenile) a = yenile[1];
+        if (d.endsWith('.html') && (a === './' || sayfalar.includes(a + '.html'))) continue; // uzantısız sayfa adresi (aşağıda ayrıca denenir)
         if (/^(https?:|data:|mailto:|blob:|#)/.test(a) || !/\.[a-z0-9]+$/i.test(a) || /^[A-Za-zÇ]/.test(a) && !/[./]/.test(a)) continue;
         const tam = path.normalize(path.join(path.dirname(path.join(hedef, d)), a));
         if (!existsSync(tam)) eksik.push(d + ' → ' + a);
@@ -141,9 +144,179 @@ test('yayın: SITE_ADRESI verilirse og:image tam adres olur, og:url eklenir; kom
     assert.match(r.stdout, /dosya/);
     const ana = readFileSync(path.join(hedef, 'index.html'), 'utf8');
     assert.ok(ana.includes('<meta property="og:image" content="https://corumspor.pages.dev/assets/img/og-1200x630.png">'), ana.slice(0, 2000));
-    assert.ok(ana.includes('<meta property="og:url" content="https://corumspor.pages.dev/index.html">'));
+    assert.ok(ana.includes('<meta property="og:url" content="https://corumspor.pages.dev/">'), 'yayında adresler uzantısız');
+    assert.ok(readFileSync(path.join(hedef, 'goller.html'), 'utf8').includes('<meta property="og:url" content="https://corumspor.pages.dev/goller">'));
     const kaynak = readFileSync(path.join(KOK, 'index.html'), 'utf8');
     assert.ok(kaynak.includes('content="assets/img/og-1200x630.png"'), 'depodaki dosya değişmez');
     assert.equal(spawnSync(process.execPath, [path.join(KOK, 'araclar', 'yayin-hazirla.js'), hedef], { encoding: 'utf8', env: { ...process.env, SITE_ADRESI: 'http://kotu adres' } }).status, 1, 'bozuk SITE_ADRESI reddedilir');
   } finally { rmSync(hedef, { recursive: true, force: true }); }
+});
+
+// ---------------------------------------------------------------------------- 2. tur: yayın kopyasında yapılanlar
+test('yayın (2. tur): ayar.js yer tutucuysa derleme DURUR (çıkış 1), YAYIN_TASLAK=1 ile taslak çıkar', () => {
+  const Y = require('../araclar/yayin-hazirla.js');
+  const hedef = mkdtempSync(path.join(tmpdir(), 'yayin-'));
+  try {
+    assert.throws(() => Y.hazirla({ kok: KOK, hedef, taslak: false }), /yer tutucu.*PROJE-KODUNUZ.*ANON-ANAHTARINIZ.*iletisim@ornek\.com.*YAYIN_TASLAK=1/s);
+    const env = { ...process.env }; delete env.YAYIN_TASLAK;
+    const r = spawnSync(process.execPath, [path.join(KOK, 'araclar', 'yayin-hazirla.js'), hedef], { encoding: 'utf8', env });
+    assert.equal(r.status, 1, 'yer tutucuyla komut satırı çıkış 1');
+    assert.match(r.stderr, /YAYIN DURDU: assets\/ayar\.js hâlâ yer tutucu/);
+    const r2 = spawnSync(process.execPath, [path.join(KOK, 'araclar', 'yayin-hazirla.js'), hedef], { encoding: 'utf8', env: { ...env, YAYIN_TASLAK: '1' } });
+    assert.equal(r2.status, 0, r2.stderr);
+    assert.match(r2.stdout, /TASLAK/);
+  } finally { rmSync(hedef, { recursive: true, force: true }); }
+});
+
+test('yayın (2. tur): gerçek ayarla CSP sayfadan _headers\'a taşınır, tam Supabase adresi; HSTS; preconnect', () => {
+  const Y = require('../araclar/yayin-hazirla.js');
+  const kok = mkdtempSync(path.join(tmpdir(), 'yayin-kok-'));
+  const hedef = mkdtempSync(path.join(tmpdir(), 'yayin-'));
+  try {
+    mkdirSync(path.join(kok, 'assets'));
+    writeFileSync(path.join(kok, 'assets', 'ayar.js'), "export const SUPABASE_URL = 'https://abcdefgh.supabase.co';\nexport const SUPABASE_ANON_KEY = 'eyJhbGciOi.gercek';\nexport const ILETISIM_EPOSTA = 'mert@corumtaraftar.example';\n");
+    for (const ad of ['index.html', 'goller.html']) writeFileSync(path.join(kok, ad), readFileSync(path.join(KOK, ad), 'utf8'));
+    writeFileSync(path.join(kok, '_headers'), readFileSync(path.join(KOK, '_headers'), 'utf8'));
+    Y.hazirla({ kok, hedef, taslak: false });
+    const ana = readFileSync(path.join(hedef, 'index.html'), 'utf8');
+    const basliklar = readFileSync(path.join(hedef, '_headers'), 'utf8');
+    assert.ok(!/http-equiv="Content-Security-Policy"/.test(ana), 'yayında meta CSP yok (önden yükleme tarayıcısı beklemesin)');
+    const csp = (/^\/\*\n(?:[ \t]+.*\n)*?[ \t]+Content-Security-Policy: (.*)$/m.exec(basliklar) || [])[1] || '';
+    assert.match(csp, /script-src 'self'/);
+    assert.match(csp, /img-src 'self' https:\/\/abcdefgh\.supabase\.co data: blob:/);
+    assert.match(csp, /connect-src 'self' https:\/\/abcdefgh\.supabase\.co wss:\/\/abcdefgh\.supabase\.co/);
+    assert.match(csp, /frame-ancestors 'none'/);
+    assert.ok(!/\*\.supabase\.co/.test(csp), 'her Supabase projesi değil, yalnız bu proje: ' + csp);
+    assert.equal((basliklar.match(/Content-Security-Policy:/g) || []).length, 1, 'tek CSP başlığı');
+    assert.match(basliklar, /Strict-Transport-Security: max-age=31536000; includeSubDomains/);
+    assert.match(ana, /<link rel="preconnect" href="https:\/\/abcdefgh\.supabase\.co" crossorigin>/);
+    // depodaki dosyalar değişmez: kaynakta meta CSP kalır (yerelde çalışır)
+    assert.match(readFileSync(path.join(KOK, 'index.html'), 'utf8'), /<meta http-equiv="Content-Security-Policy" content="[^"]*\*\.supabase\.co/);
+    assert.match(readFileSync(path.join(KOK, '_headers'), 'utf8'), /Strict-Transport-Security/);
+    // _headers yoksa CSP kaybolmaz: meta sayfada kalır
+    rmSync(path.join(kok, '_headers'));
+    Y.hazirla({ kok, hedef, taslak: false });
+    assert.match(readFileSync(path.join(hedef, 'index.html'), 'utf8'), /http-equiv="Content-Security-Policy"/);
+  } finally { rmSync(kok, { recursive: true, force: true }); rmSync(hedef, { recursive: true, force: true }); }
+});
+
+test('yayın (2. tur): iç bağlantılar uzantısız (Cloudflare 308 yok), JS dizeleri de; sw.js sürümü içerik özeti', () => {
+  const Y = require('../araclar/yayin-hazirla.js');
+  const h1 = mkdtempSync(path.join(tmpdir(), 'yayin-')), h2 = mkdtempSync(path.join(tmpdir(), 'yayin-'));
+  try {
+    Y.hazirla({ kok: KOK, hedef: h1 });
+    const sayfalar = readdirSync(KOK).filter((d) => d.endsWith('.html'));
+    const adlar = sayfalar.map((d) => d.replace(/\.html$/, ''));
+    const kalan = [];
+    for (const d of hepsi(h1).filter((x) => /\.(html|js)$/.test(x))) {
+      const m = readFileSync(path.join(h1, d), 'utf8');
+      for (const ad of adlar) {
+        const re = d.endsWith('.html') ? new RegExp(`\\shref="${ad}\\.html`) : new RegExp(`['"\`]${ad}\\.html`);
+        if (re.test(m)) kalan.push(`${d}: ${ad}.html`);
+      }
+      if (d.endsWith('.html')) {
+        for (const [, a] of m.matchAll(/\shref="([a-z]+|\.\/)(?=["?#])/g)) if (a !== './' && !sayfalar.includes(a + '.html')) kalan.push(`${d}: bilinmeyen sayfa ${a}`);
+      }
+    }
+    assert.deepEqual(kalan, []);
+    const ana = readFileSync(path.join(h1, 'index.html'), 'utf8');
+    assert.match(ana, /<a href="goller">/);
+    assert.match(ana, /class="logo" href="\.\/"/);
+    assert.match(readFileSync(path.join(h1, 'maclar.html'), 'utf8'), /content="0; url=takim#fikstur"/);
+    assert.match(readFileSync(path.join(h1, 'assets/sayfa/ana.js'), 'utf8'), /'haber\?id='/);
+    assert.match(readFileSync(path.join(h1, 'assets/ortak.js'), 'utf8'), /\/giris\(\\\.html\)\?/, 'düzenli ifadeler (giris\\.html) olduğu gibi kalır');
+    // kaynak değişmez
+    assert.match(readFileSync(path.join(KOK, 'index.html'), 'utf8'), /<a href="goller\.html">/);
+    // sw.js: SURUM içerik özeti; aynı içerik aynı sürüm, DOSYALAR yayındaki kabuk (yönetim yok, hepsi var)
+    const sw1 = readFileSync(path.join(h1, 'sw.js'), 'utf8');
+    const surum = (/const SURUM = '([^']+)';/.exec(sw1) || [])[1];
+    assert.match(surum, /^y-[0-9a-f]{12}$/);
+    Y.hazirla({ kok: KOK, hedef: h2 });
+    assert.equal((/const SURUM = '([^']+)';/.exec(readFileSync(path.join(h2, 'sw.js'), 'utf8')) || [])[1], surum, 'aynı içerik → aynı sürüm');
+    const dosyalarSw = JSON.parse((/const DOSYALAR = (\[[^\]]*\]);/.exec(sw1) || [])[1]);
+    assert.ok(dosyalarSw.length >= 25 && dosyalarSw.includes('assets/ortak.js') && dosyalarSw.includes('assets/reklam/reklam.js') && dosyalarSw.includes('manifest.webmanifest'), dosyalarSw.join(','));
+    assert.deepEqual(dosyalarSw.filter((d) => /yonetim/.test(d) || !existsSync(path.join(h1, d))), []);
+    assert.match(sw1, /const SAYFALAR = \['\.\/', '\.\/', 'goller'/);
+    assert.equal(Y.swHazirla("const SURUM = 'gelistirme';\nconst DOSYALAR = ['a'];", 'y-1', ['b']), "const SURUM = 'y-1';\nconst DOSYALAR = [\"b\"];");
+  } finally { rmSync(h1, { recursive: true, force: true }); rmSync(h2, { recursive: true, force: true }); }
+});
+
+test('service worker (2. tur): Cloudflare 308 yönlendirmesine dayanıklı, cache: reload, sınırlı önbellekler', () => {
+  const sw = readFileSync(path.join(KOK, 'sw.js'), 'utf8');
+  assert.match(sw, /const SURUM = 'gelistirme';/, 'depoda geliştirme sürümü (yayında özet)');
+  assert.match(sw, /cache: 'reload'/);
+  assert.match(sw, /y\.redirected/);
+  assert.match(sw, /new Response\(await y\.blob\(\)/);
+  assert.match(sw, /VERI_EN_COK = \d+/);
+  assert.match(sw, /GORSEL_EN_COK = \d+/);
+  assert.match(sw, /'\.\/'/, 'kök adres de önbellekte');
+  // sayfa anahtarı: .html ve sorgu atılır, index → kök
+  const kod = /function sayfaAnahtari[\s\S]*?\n}/.exec(sw)[0];
+  const sayfaAnahtari = new Function('self', kod + '; return sayfaAnahtari;')({ location: { href: 'https://site.example/sw.js' } });
+  for (const [a, b] of [['goller.html', 'https://site.example/goller'], ['/goller', 'https://site.example/goller'], ['haber.html?id=1', 'https://site.example/haber'],
+    ['index.html', 'https://site.example/'], ['./', 'https://site.example/'], ['/', 'https://site.example/']]) assert.equal(sayfaAnahtari(a), b, a);
+  const headers = readFileSync(path.join(KOK, '_headers'), 'utf8');
+  assert.ok(!/karışık sürüm en çok 5 dk/.test(headers), '_headers yorumu düzeltildi (SWR 7 gün)');
+});
+
+test('PWA (2. tur): manifest (standalone, #0B0B0B, 192/512 + maskable PNG), her sayfada manifest + apple-touch-icon', () => {
+  const m = JSON.parse(readFileSync(path.join(KOK, 'manifest.webmanifest'), 'utf8'));
+  assert.equal(m.display, 'standalone');
+  assert.equal(m.theme_color, '#0B0B0B');
+  assert.equal(m.lang, 'tr');
+  assert.match(m.name, /Çorumspor Taraftar/);
+  assert.ok(m.start_url && m.short_name && m.short_name.length <= 12);
+  const png = (yol) => { const b = readFileSync(path.join(KOK, yol)); assert.equal(b.toString('latin1', 1, 4), 'PNG', yol); return [b.readUInt32BE(16), b.readUInt32BE(20)]; };
+  const boy = (ic) => ic.sizes.split('x').map(Number);
+  for (const ic of m.icons) assert.deepEqual(png(ic.src), boy(ic), ic.src);
+  assert.ok(m.icons.some((i) => i.sizes === '192x192' && /any/.test(i.purpose)));
+  assert.ok(m.icons.some((i) => i.sizes === '512x512' && /any/.test(i.purpose)));
+  assert.ok(m.icons.some((i) => i.sizes === '512x512' && /maskable/.test(i.purpose)));
+  assert.deepEqual(png('assets/logo/apple-touch-icon-180.png'), [180, 180]);
+  for (const d of readdirSync(KOK).filter((x) => x.endsWith('.html') && x !== 'yonetim.html')) {
+    const h = readFileSync(path.join(KOK, d), 'utf8');
+    assert.ok(h.includes('<link rel="manifest" href="manifest.webmanifest">'), d + ': manifest');
+    assert.ok(h.includes('<link rel="apple-touch-icon" href="assets/logo/apple-touch-icon-180.png">'), d + ': apple-touch-icon');
+    assert.ok(h.includes('<meta name="theme-color" content="#0B0B0B">'), d + ': theme-color');
+  }
+  assert.match(readFileSync(path.join(KOK, '_headers'), 'utf8'), /\/manifest\.webmanifest\n\s+Content-Type: application\/manifest\+json/);
+  assert.ok(require('../araclar/yayin-hazirla.js').yayinListesi(KOK).includes('manifest.webmanifest'));
+});
+
+test('bağımsızlık (2. tur): her sayfanın og:description\'ı "Çorum FK\'nın resmî uygulaması değildir"; açıklamalar "Çorum FK"; künyede 24 saat sözü yok', () => {
+  for (const d of readdirSync(KOK).filter((x) => x.endsWith('.html') && x !== 'yonetim.html')) {
+    const h = readFileSync(path.join(KOK, d), 'utf8');
+    assert.match((/<meta property="og:description" content="([^"]*)">/.exec(h) || [])[1] || '', /Çorum FK'nın resmî uygulaması değildir\.$/, d);
+    assert.ok(!/24 saat içinde/.test(h), d + ': "24 saat içinde dönülür" sözü yumuşatıldı');
+    assert.ok(!/content="Çorumspor (taraftarları|golleri|kadrosu)/.test(h), d + ': takımdan "Çorum FK" diye söz edilir');
+    assert.ok(h.includes('<link rel="preload" href="assets/fonts/source-sans-3-700-tr.woff2" as="font" type="font/woff2" crossorigin>'), d + ': kalın gövde yazı tipi önden yüklenir');
+  }
+});
+
+test('varlıklar (2. tur): sahte-supabase.js\'teki her assets/ yolu ve fotoğraf kopyaları gerçekten var (404 yok)', async () => {
+  const { FOTO_KAYNAKLARI } = await import(new URL('../assets/foto-kaynaklari.js', import.meta.url).href);
+  const sahte = readFileSync(path.join(BURASI, 'sahte-supabase.js'), 'utf8');
+  const yollar = new Set([...sahte.matchAll(/['"`](assets\/[^'"`$]+\.[a-z0-9]+)['"`]/g)].map((m) => m[1]));
+  const imgSablon = /const IMG = \(ad\) => `assets\/img\/\$\{ad\}-(\d+)\.webp`/.exec(sahte);
+  assert.ok(imgSablon, 'IMG() şablonu bulunamadı');
+  // IMG('kök') ve haber(n, başlık, özet, gün, 'kök', …) çağrılarındaki fotoğraf kökleri
+  const kokler = [...sahte.matchAll(/IMG\('([a-z0-9-]+)'\)/g), ...sahte.matchAll(/\bhaber\(\d+, .*?, (?:'[^']*'|null), \d+, '([a-z0-9-]+)'/g)].map((m) => m[1]);
+  assert.ok(kokler.length >= 6, kokler.join(','));
+  for (const ad of new Set(kokler)) {
+    yollar.add(`assets/img/${ad}-${imgSablon[1]}.webp`);
+    const kayit = FOTO_KAYNAKLARI[ad];
+    assert.ok(kayit, `${ad}: foto-kaynaklari.js kaydı (atıf) yok`);
+    for (const g of kayit.genislikler) yollar.add(`assets/img/${ad}-${g}.webp`);
+  }
+  assert.ok(yollar.size >= 8, [...yollar].join(','));
+  assert.deepEqual([...yollar].filter((y) => !existsSync(path.join(KOK, y))), []);
+  // foto-kaynaklari.js'teki her genişliğin dosyası var; assets/img'deki her webp kopyası bir kayda ve genişliğe denk
+  const eksik = [], fazla = [];
+  for (const [kok, k] of Object.entries(FOTO_KAYNAKLARI)) for (const g of k.genislikler) if (!existsSync(path.join(KOK, 'assets/img', `${kok}-${g}.webp`))) eksik.push(`${kok}-${g}`);
+  for (const f of readdirSync(path.join(KOK, 'assets/img')).filter((x) => x.endsWith('.webp'))) {
+    const m = /^(.+)-(\d+)\.webp$/.exec(f);
+    if (!m || !FOTO_KAYNAKLARI[m[1]] || !FOTO_KAYNAKLARI[m[1]].genislikler.includes(Number(m[2]))) fazla.push(f);
+  }
+  assert.deepEqual(eksik, []);
+  assert.deepEqual(fazla, []);
 });

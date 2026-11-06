@@ -6,7 +6,8 @@
 <!--
   Çorumspor Taraftar paylaşım görseli (WhatsApp, X, Facebook önizlemesi). ÖZGÜN çizim: kulüp renkleri (kırmızı #CC0000,
   siyah #0B0B0B, altın #C9A227) ve uygulamanın kendi yedek işareti (assets/logo/amblem-yedek.svg). Çorum FK'nın resmî
-  amblemi, sponsor logoları ya da fotoğraf KULLANILMAZ; "Bağımsız taraftar uygulaması" yazar (013).
+  amblemi, sponsor logoları ya da fotoğraf KULLANILMAZ. Rozet "Bağımsız taraftar uygulaması · Çorum FK'nın resmî uygulaması
+  değildir" yazar: bağlantıyı yalnız WhatsApp önizlemesinden gören de kulübün uygulaması sanmasın (başkan 2. tur, AGENTS kural 7 istisnası).
   PNG üretmek için: node araclar/og-olustur.js  (çıktı: assets/img/og-1200x630.png). Yazı tipleri sitenin kendi dosyaları.
 -->
 <style>
@@ -33,7 +34,8 @@
   .ad .b2 { display: block; font-size: 72px; color: #CC0000; letter-spacing: .06em; margin-top: 22px; }
   .alt { font-family: "Oswald", sans-serif; font-weight: 700; font-size: 34px; letter-spacing: .08em; text-transform: uppercase; color: #E9E6E0; display: flex; gap: 18px; align-items: center; }
   .alt i { width: 10px; height: 10px; background: #C9A227; transform: rotate(45deg); display: inline-block; }
-  .resmi { display: inline-block; align-self: flex-start; font-size: 24px; font-weight: 600; color: #0B0B0B; background: #FFFFFF; padding: 8px 16px; border-radius: 6px; }
+  .resmi { display: inline-block; align-self: flex-start; font-size: 26px; font-weight: 700; line-height: 1.25; color: #0B0B0B; background: #FFFFFF; padding: 10px 18px; border-radius: 6px; max-width: 700px; }
+  .resmi span { display: block; font-weight: 400; }
   .cizgi { width: 120px; height: 6px; background: #CC0000; border-radius: 3px; }
 </style>
 </head>
@@ -49,7 +51,7 @@
     </div>
     <div class="cizgi"></div>
     <div class="alt">Haberler <i></i> Goller <i></i> Takım <i></i> Tribün</div>
-    <div class="resmi">Bağımsız taraftar uygulaması</div>
+    <div class="resmi">Bağımsız taraftar uygulaması<span>Çorum FK'nın resmî uygulaması değildir</span></div>
   </div>
 </div>
 </body>

@@ -34,14 +34,15 @@ async function yorumlarim(kullaniciId) {
 
 async function uye(o) {
   const ad = (o.profil && o.profil.kullanici_adi) || 'taraftar';
-  kok.replaceChildren(h('div', { class: 'profil-bas' },
+  // replaceChildren null'u "null" METNİNE çevirir (yönetici olmayanda "nullnull" yazıyordu): boşlar ayıklanır
+  kok.replaceChildren(...[h('div', { class: 'profil-bas' },
     h('span', { class: 'avatar', 'aria-hidden': 'true' }, ad.slice(0, 1).toLocaleUpperCase('tr-TR')),
     h('h2', { id: 'profil-ad' }, ad),
     h('dl', null, h('dt', { class: 'gorunmez' }, 'E-posta'), h('dd', null, o.kullanici.email || ''))),
     h('h2', { class: 'grup-baslik-k' }, 'Yorumlarım'),
     await yorumlarim(o.kullanici.id),
     o.admin ? h('h2', { class: 'grup-baslik-k' }, 'Yönetim') : null,
-    o.admin ? h('div', { class: 'ayar-kart' }, h('a', { class: 'ayar-satir', href: 'yonetim.html', id: 'yonetim-baglanti' }, 'Yönetim paneli', h('span', { class: 'ok', 'aria-hidden': 'true' }, '›'))) : null);
+    o.admin ? h('div', { class: 'ayar-kart' }, h('a', { class: 'ayar-satir', href: 'yonetim.html', id: 'yonetim-baglanti' }, 'Yönetim paneli', h('span', { class: 'ok', 'aria-hidden': 'true' }, '›'))) : null].filter(Boolean));
 
   // Çıkış: onay penceresiyle (yanlışlıkla dokunma). Açılınca odak "Vazgeç"e, Esc kapatır, kapanınca odak düğmeye döner
   const cikis = h('button', { type: 'button', class: 'cikis-dugme', id: 'cikis' }, 'Çıkış yap');

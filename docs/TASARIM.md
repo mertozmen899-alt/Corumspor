@@ -394,9 +394,9 @@ metni kullanılmadı. Ekran görüntüleri: `docs/ekran/onizleme-ana-360.png`, `
 | Alt menü | `--nav-zemin` (koyu: `--yuzey`), `--nav-aktif`, `--nav-pasif`, `--nav-gosterge` (etkin öğenin üstünde kırmızı çubuk: renk dışında şekil) |
 | Haplar | `--hap-iz` (açık `--yuzey-2`, **koyu `--yuzey`**), `--hap-pasif-metin`, `--hap-cip-metin`, `--hap-aktif-zemin` (kırmızı), `--hap-aktif-metin` |
 | Sakatlık | `--sakat-*` (kırmızı yumuşak), `--supheli-*` (Cezalı / Şüpheli; ilan sarısı), `--dondu-*` (başarı yeşili) |
-| Hero / kapak | `--hero-karartma` (üstten alta koyulaşan perde), `--hero-metin`, `--hero-meta`, `--hero-min-h 420px`, `--hero-max-h 72svh`, `--kapak-oran 16/9`, `--kapak-karartma`, `--oynat-boyut`, `--sure-zemin` |
+| Hero / kapak | `--hero-karartma` (üstten alta koyulaşan perde), `--hero-metin`, `--hero-meta`, `--hero-min-h 420px`, `--hero-max-h 60svh` (2. tur), `--kapak-oran 16/9`, `--kapak-karartma`, `--oynat-boyut`, `--sure-zemin` |
 | Yazı | `--font-baslik` Oswald (+ `Oswald Yedek`), `--font-govde` Source Sans 3 (+ `Source Sans Yedek`); akışkan boyutlar `--fs-hero`, `--fs-sayfa`, `--fs-bolum`, `--fs-kart`, `--fs-meta`, `--fs-etiket`, `--fs-saat`; `--lh-*` |
-| Ölçü | `--b-1…--b-12` (4 px ızgara), `--sayfa-kenar` 16 px (375 px üstü 20), `--bolum-arasi`, `--kart-aralik`, `--r-*` köşeler, `--dokunma 44px`, `--ust-bar-h 56px`, `--alt-menu-h 64px`, `--alt-menu-toplam` (+ safe-area), `--yapiskan-h` (JS yazar), `--icerik-max 720px` |
+| Ölçü | `--b-1…--b-12` (4 px ızgara), `--sayfa-kenar` 16 px (375 px üstü 20), `--bolum-arasi`, `--kart-aralik`, `--r-*` köşeler, `--dokunma 44px`, `--ust-bar-h 56px`, `--alt-menu-h 64px`, `--alt-menu-toplam` (+ safe-area), `--yapiskan-h`, `--ust-gercek`, `--alt-menu-gercek` (JS ölçüp yazar; büyük yazıda gerçek boy), `--icerik-max 720px`, `--iskelet-parilti` (koyuda .06) |
 | Hareket | `--sure-hizli/orta/yavas`, `--egri-cikis`, `--egri-standart`; `prefers-reduced-motion: reduce` hepsini kapatır; **sonsuz animasyon yok** (canlı rozeti sabit) |
 
 ### 9.2 Kabuk
@@ -409,7 +409,7 @@ metni kullanılmadı. Ekran görüntüleri: `docs/ekran/onizleme-ana-360.png`, `
   üstte çubuk, `aria-current="page"` (detay sayfasında bölümü `"true"`). `env(safe-area-inset-*)`; `html { scroll-padding }` üst bar,
   yapışkan filtre/sekme (`--yapiskan-h`) ve alt menü kadar: klavye odağı hiçbir çubuğun altında kalmaz. Sanal klavye açılınca
   (görünür yükseklik küçülünce) menü gizlenir ve `inert` olur. Yükseklik ≤ 500 px'te çubuklar yapışkan değildir.
-- **Alt bilgi künyesi:** ad, bağımsızlık cümlesi, `SAHIP_ADI`, `ILETISIM_EPOSTA` + "kaldırma talebine 24 saat içinde dönülür",
+- **Alt bilgi künyesi:** ad, bağımsızlık cümlesi, `SAHIP_ADI`, `ILETISIM_EPOSTA` + "kaldırma taleplerine en kısa sürede dönülür" (tek kişilik işletme: saat sözü verilmez),
   Gizlilik · Topluluk kuralları · Fotoğraf kaynakları.
 - Kalıcı canlı bölgeler `#durum` (status) ve `#uyari` (alert); listelerde `aria-live` yok. Atlama bağlantısı "İçeriğe geç".
 
@@ -418,18 +418,18 @@ metni kullanılmadı. Ekran görüntüleri: `docs/ekran/onizleme-ana-360.png`, `
 - **Hero** (`.hero`): tam genişlik fotoğraf (`picture`: dikey 4:5 `-dikey-480/828/1080`, 600 px üstü yatay `-yatay-828/1280/1600`;
   `fetchpriority=high`, sayfadaki tek öncelikli görsel), alttan perde (yazının başladığı yerde ≥ .70 siyah; beyaz fotoğrafta da
   başlık 8.45:1), kırmızı "MANŞET" etiketi, büyük harf Oswald başlık, tarih · "Habere git →". Yükseklik bir **alt sınırdır**
-  (`min-height: clamp(420px, 125vw, 72svh)`): %200 yazıda hero uzar, yazı kırpılmaz. Sağ üstte foto atfı
+  (`min-height: clamp(420px, 125vw, 60svh)`): %200 yazıda hero uzar, yazı kırpılmaz. Sağ üstte foto atfı
   ("Fotoğraf: yazar, lisans, Wikimedia Commons"). Maç günü varyantı: "MAÇ GÜNÜ", saat ve stat.
 - **Son dakika satırı** (`.haber-satir`): solda tarih + başlık (Oswald), sağda 96×72 küçük kapak (srcset 480; yoksa "ÇT" yer tutucu).
   Satırın tamamı tek bağlantı. "Daha fazla haber": 6'şar, `aria-disabled` ile, odak ilk yeni habere.
 - **Sponsor kartı** (akışta): kesikli altın kenar, ilan sarısı zemin, ilk öğe DOM metni "● SPONSOR" (nokta `aria-hidden`), solda
-  112 px görsel (srcset küçük kopya), firma adı (başlık değil), 3 satır metin, yalnız düğme bağlantı ("Ayrıntılar" ya da firmanın
+  144 px görsel + firma adı, altında kartın tam genişliğinde metin (bağlantılı kartta en çok 3 satır, bağlantısızda kırpılmaz), yalnız düğme bağlantı ("Ayrıntılar" ya da firmanın
   yazısı; isteğe bağlı "Ara"). Oswald ve kulüp kırmızısı kullanılmaz. Kural: 3. haberden sonra, sonra en sık 8 haberde bir, en çok
   3; her kart farklı firma; boşsa `li` silinir; geç gelirse okunan yerin üstüne eklenmez. Yükseklik ≤ 200 px.
 - **Gol kapağı** (`.video-kart`): 16:9, sol üstte dakika rozeti, ortada kırmızı oynat dairesi, sağ altta süre, altında oyuncu ·
   gol türü ve maç satırı. Ana sayfada yatay kaydırılan şerit (`ul` + `li`, otomatik ilerleme yok, kart genişliği `min(77vw, 320px)`),
   arşivde liste. Videosuz gol: `.gol-satir` (dakika, oyuncu, Penaltı rozeti; büyük yazıda rozet alt satıra iner).
-- **Sıradaki maç kartı** (`.sonraki-mac`): ortalı, küçük; lig · geri sayım, iki takım baş harf rozeti ("ÇF" kırmızı, rakip gri),
+- **Sıradaki maç kartı** (`.sonraki-mac`): ortalı, küçük; lig · geri sayım, bizim takımda özgün "ÇT" işareti (baş harf "ÇF" YOK: kulüp kısaltmasına çok yakın), rakipte gri baş harf rozeti,
   ortada saat kutusu, tarih ve stat, "Maç bilgisi →". Canlı skor yok; "Canlı" rozeti sabit (yanıp sönmez).
 - **"Kim yok?"**: yayında sakatlık kayıtlarından en çok 3 ad + durum çipi, "Kaynaklı sakatlık bilgisi →".
 - **Haplar** (`fieldset > legend` + `.hap-iz` / `.cip-satir`, gerçek `input[type=radio]` görsel olarak gizli ama odaklanabilir):
@@ -437,13 +437,14 @@ metni kullanılmadı. Ekran görüntüleri: `docs/ekran/onizleme-ana-360.png`, `
   yükseklikte (kayma yok). Sezon Temmuz–Haziran ("2026-27"), en çok 4 hap (fazlası seçim kutusu); rakip 10'dan fazlaysa seçim kutusu.
 - **Sekmeler** (Takım): WAI-ARIA tablist, ok / Home / End, adres `#kadro|#sakatlik|#fikstur` (paneller `panel-<ad>`), geri tuşu çalışır.
 - **Kadro kartı**: forma numarası büyük kırmızı (fotoğraf yoksa ızgara deseni üstünde), ad, numara · mevki, sakat/cezalı çipi.
-  Mevki başlıkları `h3`. **Sakatlık satırı:** ad, mevki, durum çipi (metin: Sakat / Cezalı / Şüpheli / Döndü), not, tahmini dönüş,
+  Mevki başlıkları `h3`. **Sakatlık satırı:** ad, mevki, durum çipi (metin: Sakat / Cezalı / Durumu belirsiz / Döndü), tahmini dönüş (yalnız yönetici girdiyse; tanı/not gösterilmez),
   **Kaynak** (bağlantılı) ve "Güncellendi <zaman>" (`time[datetime]`); üstte KVKK notu.
 - **Fikstür satırı**: ay başlıkları (`h4`), gün/ay kutusu, maç, tarih · iç saha/deplasman · lig, sağda saat ya da skor + G/B/M rozeti
   ("Galibiyet/Beraberlik/Mağlubiyet" ekran okuyucuda); sıradaki maç solda kırmızı çizgi + "SIRADAKİ".
 - **Video facade** (`videoFasad`): kendi kapağımız + oynat düğmesi; dokununca youtube-nocookie iframe (`autoplay`, `cc_lang_pref=tr`)
   ya da `<video preload="none" controls>`, odak oynatıcıya. Dokunmadan önce YouTube'a SIFIR istek, i.ytimg.com hiç kullanılmaz.
-  Altyazı alanı yok: "Bu videoda altyazı yok" notu.
+  mp4'te `goller.altyazi_url` (kendi depomuzdan .vtt) varsa `<track kind="captions" srclang="tr" label="Türkçe" default>`; yoksa
+  "Bu videoda altyazı yok" notu. Odak halkası `.odak-halka` katmanında, kapak görselinin üstünde.
 - **Yorumlar**: görünür etiket "Yorumun", sayaç (sessiz kesme yok, eşiklerde duyuru), `aria-disabled` gönderim (çift dokunma tek kayıt),
   yeni yorum listeye eklenir (liste yeniden çizilmez), odak alanda; düzenle/sil/gizle yerinde; başkasının yorumunda "Şikâyet et"
   (neden seçimi). Boş: "Tribün sessiz. İlk sözü sen söyle!".
@@ -470,7 +471,8 @@ metni kullanılmadı. Ekran görüntüleri: `docs/ekran/onizleme-ana-360.png`, `
 ### 9.5 Performans kuralları
 
 - LCP ≤ 2,5 sn (Yavaş 4G), ≤ 4 sn (Hızlı 3G); CLS < 0,05 her sayfada (`testler/performans-testleri.js` ölçer).
-- 3 yazı tipi dosyası (~37 KB; latin + Türkçe), `font-display: optional` + metrik eşlenmiş yedekler, ikisi `preload`.
+- 3 yazı tipi dosyası (~37 KB; latin + Türkçe), `font-display: optional` + metrik eşlenmiş yedekler, üçü de `preload` (2. tur: kalın gövde ilk ziyarette yedeğe düşmesin).
+- İçerik görsellerinde `sizes` etkin piksel oranı 2 ile sınırlı (`boyutlar()` / `kapakKaynagi({ kutu })`): DPR 3 telefonda -1600 kopyası inmez; LCP DPR 3'te de ölçülür.
 - Hero ≤ 60 KB WebP, srcset/sizes. Küçük kapaklar `loading=lazy` + width/height. Reklam görselinin yuvaya uygun küçük kopyası.
 - Modül zinciri derinliği ≤ 2: her sayfanın statik içe aktarmaları `<link rel="modulepreload">`; yorumlar ve reklam modülü tembel.
 - Önbellek: `_headers` (bir yola tek Cache-Control), `sw.js`, `assets/onbellek.js`.
@@ -487,3 +489,32 @@ Kulübün rozetinden, kartalından, yazısından ve "ÇFK" kısaltmasından hiç
 `docs/kontrast.py`'nin "013 çiftleri" tablosundadır; hepsi eşiği geçer (en düşük: koyu temada seçili hap / iz 3.07:1, arayüz eşiği 3:1;
 seçili hapta ayrıca ✓ var). Tasarım testi betiği çalıştırır, 0 başarısız bekler.
 
+
+### 9.8 2. tur düzeltmeleri (5 Kasım 2026)
+
+- **Haber kapağı** `.makale .kapak-buyuk { height: auto }` (+ genel `img, video { height: auto }`): `height="900"` özniteliği kapağı
+  900 px yapıyordu; artık 16:9, başlık 360/430 px'te ilk ekranda (test). Kırık kapak `gorselYedek()` ile desenli yer tutucuya döner.
+  Sitenin fotoğraflarında srcset yalnız VAR olan kopyalardan kurulur (`foto-kaynaklari.js` `genislikler`); testler aynı kökenden
+  her 404'ü hata sayar.
+- **Ana sayfa:** maç bittikten sonra 36 saat hero "MAÇ SONU · <skor>" (+ Galibiyet/Beraberlik/Mağlubiyet, "Golleri izle →");
+  hero'nun hemen altında tek satır **"SIRADAKİ · Çorum FK – Deneme FK · Salı 19:00 · 4 gün 16 saat kaldı"** (`#siradaki-serit`, 52 px,
+  ilk ekranda); "Daha fazla haber" bitince görünür "Hepsi bu kadar · Tüm haberler okundu". Bağlantı yok + önbellek yoksa iskelet
+  kalmaz: hero etiketi "BAĞLANTI YOK", gol şeridi ve maç bölümü gizlenir, şerit fikstür bağlantısı olur.
+- **Tek skor biçimi** `skorYaz()`: "2 – 1" (kısa çizgi, iki yanında bölünmez ince boşluk) kartlarda, maç başlığında, fikstürde.
+  **Tek tarih biçimi** kartlarda "29 Ekim". Gol arşivinde kart maç satırını tekrar etmez; fikstür meta satırı "Sal · İç saha · Lig"
+  (tarih kutuda); kadro kartında fotoğraf yoksa meta satırı yok (forma no kartın büyük rakamı).
+- **Gol arşivi filtresi:** Sezon akışta, yalnız tek satırlık rakip çipleri yapışır (sabit alan ≤ %25); çubuk ekranın %20'sinden
+  uzunsa (%200 yazı) yapışmaz. Tek sezonda iz yok (düz çerçeveli etiket). "Maç →" başlığın temel çizgisinde.
+- **Odak:** hero bağlantısında kendi halkası (outline), video "Oynat"ta görselin üstünde halka; testler ekran görüntüsü farkıyla dener.
+- **Künye sayfaları** (kurallar, kaynaklar, gizlilik): Profil sekmesi etkin (`aria-current="true"`) ve geri düğmesi.
+- **%200 yazı:** hero'da atıf kendi satırında (etiketin üstüne binmez), başlık `min(--fs-hero, 11vw)` (kelime ortasından kırılmaz).
+- **Paylaş** (haber, maç, gol): telefonun paylaşım menüsü (`navigator.share`) varsa "Paylaş", yoksa "WhatsApp'ta paylaş" (wa.me).
+- **Maç sayfası:** planlı maçta rozet "4 gün kaldı" / "Yarın maç var" / "Bugün maç var!" (resmî "PLANLANDI" yok), varsa "Maç notu"
+  kutusu (`maclar.mac_notu`: bilet, kapı saati, yayın).
+- **Haber:** varsa en üstte "Düzeltme:" kutusu (`duzeltme_notu`), sonda "Kaynak: …" (bağlantılı, `rel="noopener nofollow"`), kapak
+  alt metni `kapak_alt`. **Gol:** videonun altında "Video: <hak sahibi>" (`video_kaynak`). **Sakatlık:** yalnız durum (Sakat / Cezalı /
+  **Durumu belirsiz** / Döndü), kaynak (bağlantılı) ve kaynak tarihi; tanı/açıklama metni ziyaretçiye hiç gösterilmez.
+- **Sponsor kartı:** "Uygulama sponsoru · Çorum FK'nın sponsoru değildir" notu etiketle aynı boy ve kontrastta; düğmeler: ilki dolu
+  nötr (metin rengi zemin, kulüp kırmızısı değil), ikincisi çerçeveli, ikisi de ≥ 44×44.
+- **PWA:** `manifest.webmanifest` (standalone, `#0B0B0B`, 192/512 + maskable PNG, `apple-touch-icon` 180; `araclar/simge-olustur.js`
+  özgün ÇT işaretinden üretir). Paylaşım görselinin rozeti: "Bağımsız taraftar uygulaması · Çorum FK'nın resmî uygulaması değildir".

@@ -24,6 +24,9 @@ async function ekranTestleri() {
   const guvenli = async (ad, f) => { try { await f(); } catch (e) { kalan.push(`görünüm: ${ad}: yarıda kaldı -> ${String(e.message || e).split('\n')[0]}`); } };
   const tarayici = await chromium.launch();
   const disIstek = [], hatalar = [];
+  // 2. tur (denetçi 11): aynı kökenden 404 = test hatası. Yalnız amblem geri dönüş denemesinin kasıtlı eksik dosyaları hariç.
+  const yok404 = new Set();
+  const KASITLI_404 = /^\/assets\/logo\/(amblem\.png|amblem-yedek\.svg)$/;
 
   async function baglam(vp, tema, ekstra = {}) {
     const ctx = await tarayici.newContext({ viewport: vp, deviceScaleFactor: 1, locale: 'tr-TR', timezoneId: 'America/New_York', colorScheme: tema === 'koyu' ? 'dark' : 'light', ...ekstra });
@@ -33,11 +36,13 @@ async function ekranTestleri() {
       const p = ctx.pages().find((x) => x.url().startsWith(ADRES));
       const veri = p ? await p.evaluate((k) => localStorage.getItem(k), 'sahte-depo-v1:' + yol).catch(() => null) : null;
       const m = veri && /^data:([^;,]+);base64,(.*)$/.exec(veri);
-      if (m) return r.fulfill({ status: 200, contentType: m[1], body: Buffer.from(m[2], 'base64') });
+      const cors = { 'Access-Control-Allow-Origin': '*' }; // kapaklar crossorigin="anonymous" (gerçek depo gibi)
+      if (m) return r.fulfill({ status: 200, contentType: m[1], headers: cors, body: Buffer.from(m[2], 'base64') });
       const ornek = ornekReklamGorseli(yol);
-      return ornek ? r.fulfill({ status: 200, contentType: gorselTuru(yol), body: ornek }) : r.fulfill({ status: 404, body: '' });
+      return ornek ? r.fulfill({ status: 200, contentType: gorselTuru(yol), headers: cors, body: ornek }) : r.fulfill({ status: 404, body: '' });
     });
-    ctx.on('page', (p) => { p.setDefaultTimeout(10000); p.on('pageerror', (e) => hatalar.push(p.url() + ': ' + e.message)); p.on('dialog', (d) => d.accept()); });
+    ctx.on('page', (p) => { p.on('response', (r) => { const y = r.url().startsWith(ADRES) && r.url().replace(ADRES, '').split('?')[0]; if (r.status() === 404 && y && !KASITLI_404.test(y)) yok404.add(y); });
+      p.setDefaultTimeout(10000); p.on('pageerror', (e) => hatalar.push(p.url() + ': ' + e.message)); p.on('dialog', (d) => d.accept()); });
     const p = await ctx.newPage();
     // Sahte verinin örnek reklamı: ilk reklam veren Narçil Cafe yayında (ana akış, haber sonu, M1 maçında "Maçın sponsoru").
     // Görselleri docs/ilk-reklam/'dan sunulur (yukarıdaki depo taklidi).
@@ -268,6 +273,7 @@ async function ekranTestleri() {
   });
 
   kontrol('görünüm testlerinde JavaScript hatası yok', !hatalar.length, hatalar.join(' | '));
+  kontrol('görünüm testlerinde aynı kökenden 404 yok (kırık kapak / eksik dosya)', !yok404.size, [...yok404].join(' | '));
   const yabanci = disIstek.filter((u) => !/^https:\/\/(www\.youtube-nocookie\.com|ornek\.test)/.test(u));
   kontrol('dış istek yok (Google Fonts, jsDelivr dahil; supabase-js sitenin kendisinden); yalnız YouTube gömme ve örnek mp4 denenir', !yabanci.length, [...new Set(yabanci)].join(' | '));
   kontrol('dış istek: jsDelivr\'e hiç istek gitmedi', !disIstek.some((u) => /jsdelivr/i.test(u)), [...new Set(disIstek)].join(' | '));

@@ -1,9 +1,13 @@
-# Cloudflare Pages yanıt başlıkları (bkz. README 5. bölüm). <meta> CSP'de çalışmayanlar burada:
+# Cloudflare Pages yanıt başlıkları (bkz. README 5. bölüm).
 #  - frame-ancestors / X-Frame-Options: site (özellikle yönetim paneli) başka bir sitenin çerçevesine konamaz (tıklama hırsızlığı).
+#  - HSTS: tarayıcı siteye bir yıl boyunca yalnız https ile gelir (ilk ziyaretten sonra http'ye düşürme saldırısı yok).
 #  - nosniff, Referrer-Policy, Permissions-Policy.
-# Sayfaların asıl CSP'si her HTML'deki <meta http-equiv="Content-Security-Policy"> satırıdır; buradaki CSP onunla birlikte uygulanır.
+# CSP: depodaki her HTML'de <meta http-equiv="Content-Security-Policy"> (yerelde de çalışsın diye). YAYINDA araclar/yayin-hazirla.js
+# meta satırını sayfalardan çıkarıp buradaki satırın YERİNE tam CSP'yi yazar (meta CSP, Chrome'un önden yükleme tarayıcısını
+# bekletiyordu) ve *.supabase.co yerine ayar.js'teki proje adresini koyar. Aşağıdaki satır yalnız derlemesiz yayın için yedektir.
 /*
   Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
@@ -12,7 +16,10 @@
 # Önbellek (performans incelemesi §5.8). Bir yola birden çok kural uyarsa Cloudflare aynı başlığı VİRGÜLLE BİRLEŞTİRİR:
 # Cache-Control kuralları çakışmasın diye her klasör ayrı, /assets/:dosya yalnız tek düzeyi (assets/stil.css, ortak.js…) tutar.
 # HTML için Cloudflare varsayılanı (yeniden doğrula + ETag) kalır. Değişmeyenler: dosya adı değişirse yeni ad verilir
-# (ör. hero-2026-11.webp; supabase-js sürüm klasörüyle). Kod: 5 dk taze + arka planda yenileme (karışık sürüm en çok 5 dk).
+# (ör. hero-2026-11.webp; supabase-js sürüm klasörüyle). Kod: 5 dk taze + 7 güne kadar arka planda yenileme. Karışık sürüm
+# (yeni HTML + eski JS) service worker'la ÖNLENİR: sw.js her dağıtımda içerik özetiyle yeni sürüm olur, kabuğu HTTP önbelleğini
+# atlayarak (cache: 'reload') baştan indirir ve sayfayı da JS'i de aynı sürümden verir. SW'siz ilk ziyarette HTML her seferinde
+# doğrulanır; JS en çok 5 dk eski kalabilir, sonra arka planda yenilenir.
 /assets/fonts/*
   Cache-Control: public, max-age=31536000, immutable
 /assets/vendor/*
@@ -30,6 +37,10 @@
 # Service worker her zaman doğrulansın (yeni sürüm hemen yakalansın)
 /sw.js
   Cache-Control: no-cache
+# Ana ekrana ekleme (PWA) bildirimi
+/manifest.webmanifest
+  Content-Type: application/manifest+json; charset=utf-8
+  Cache-Control: public, max-age=3600
 
 # Geliştirici dosyaları yayına zaten çıkmaz (Cloudflare yapı komutu: node araclar/yayin-hazirla.js → yalnız site dosyaları).
 # Biri yapı komutu olmadan bütün klasörü yayınlarsa diye ikinci emniyet: arama motorlarında çıkmasınlar.

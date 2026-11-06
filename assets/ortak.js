@@ -1,8 +1,8 @@
 // Ortak yardımcılar: DOM üretimi (innerHTML yok), tarih, oturum, üst bar, alt menü, duyurular, video kapağı.
 import { supabase, sahteMod, ayarEksik } from './istemci.js';
 import { TAKIM_ADI, AMBLEM_DOSYASI, SAHIP_ADI, ILETISIM_EPOSTA } from './ayar.js';
-import { kapakAdresiGecerli } from './kurallar.js';
-import { fotoKaynagi } from './foto-kaynaklari.js';
+import { kapakAdresiGecerli, SAKATLIK_DURUMLARI } from './kurallar.js';
+import { fotoKaynagi, FOTO_KAYNAKLARI } from './foto-kaynaklari.js';
 
 export { supabase, sahteMod, TAKIM_ADI };
 /** Supabase istemcisi var mı (ayar.js dolu ya da test modu). Senkron: sayfalar sorguyu oturumu beklemeden başlatır. */
@@ -109,16 +109,58 @@ export function guvenliGorsel(url) {
   return null;
 }
 
+/** Görselin ekranda kaplayacağı CSS genişliği (px) → sizes. Etkin piksel oranı 2 ile sınırlanır (performans incelemesi §2):
+ *  DPR 3 telefonda 360 px kutu 1080 değil 720 piksellik kopyayı ister (800w; -1600 değil). Göz farkı yok, bayt 3-4 kat az. */
+export function boyutlar(kutu) {
+  const dpr = (typeof devicePixelRatio === 'number' && devicePixelRatio > 0) ? devicePixelRatio : 1;
+  return Math.max(1, Math.round((kutu * Math.min(dpr, 2)) / dpr)) + 'px';
+}
+/** Ekran genişliğine göre kutu: tam genişlikte görsel (en çok içerik genişliği 720 px). */
+export const tamGenislik = (enCok = 720) => Math.min(typeof innerWidth === 'number' && innerWidth > 0 ? innerWidth : enCok, enCok);
+
 /**
- * Kapak için src + srcset. Adı "-1600.webp" ile biten görselin (sitenin fotoğrafları ve panelin yüklediği kapaklar)
- * -480 ve -800 kopyaları da vardır: tarayıcı ekrana uyanı seçer (performans bütçesi).
+ * Kapak için src + srcset (+ sizes, crossorigin). Panelin yüklediği kapakların adı "-1600.webp" ile biter, -480 ve -800 kopyaları
+ * da vardır. Sitenin kendi fotoğraflarında (assets/img/) kopya genişlikleri assets/foto-kaynaklari.js "genislikler"den gelir
+ * (ör. Saat Kulesi yatay 828/1280/1600): olmayan dosya istenmez (404 yok). kutu verilirse sizes etkin DPR ≤ 2 ile hesaplanır.
+ * Depodaki (Supabase) kapaklar crossorigin="anonymous" ile istenir: yanıt opak olmaz, service worker çevrimdışı için saklayabilir.
  */
-export function kapakKaynagi(url, { varsayilan = 800 } = {}) {
+export function kapakKaynagi(url, { varsayilan = 800, kutu = null } = {}) {
   const src = guvenliGorsel(url);
   if (!src) return null;
-  const m = /^(.*)-1600\.webp$/.exec(src);
-  if (!m) return { src, srcset: null };
-  return { src: `${m[1]}-${varsayilan}.webp`, srcset: `${m[1]}-480.webp 480w, ${m[1]}-800.webp 800w, ${m[1]}-1600.webp 1600w` };
+  const crossorigin = /^https:\/\//.test(src) ? 'anonymous' : null;
+  const sizes = kutu ? boyutlar(kutu) : null;
+  const yerel = /^assets\/img\/([a-z0-9-]+?)-(\d+)\.webp$/.exec(src);
+  const kayit = yerel && FOTO_KAYNAKLARI[yerel[1]];
+  let kok = null, genislikler = null;
+  if (kayit && Array.isArray(kayit.genislikler)) { kok = 'assets/img/' + yerel[1]; genislikler = kayit.genislikler; }
+  else {
+    const m = /^(.*)-1600\.webp$/.exec(src);
+    if (m) { kok = m[1]; genislikler = [480, 800, 1600]; }
+  }
+  if (!kok) return { src, srcset: null, sizes: null, crossorigin };
+  const secilen = genislikler.reduce((a, b) => (Math.abs(b - varsayilan) < Math.abs(a - varsayilan) ? b : a));
+  return { src: `${kok}-${secilen}.webp`, srcset: genislikler.map((g) => `${kok}-${g}.webp ${g}w`).join(', '), sizes, crossorigin };
+}
+
+/**
+ * kapakKaynagi() sonucundan <img>: crossorigin, sizes ve srcset src'den ÖNCE yazılır (tarayıcı ilk seçimde doğru kopyayı ister),
+ * kırık görselde yer tutucuya döner. ops: { sinif, alt, width, height, loading, fetchpriority }.
+ */
+export function kapakGorseli(k, { sinif = null, alt = '', width = null, height = null, loading = null, fetchpriority = null, sizes = null } = {}) {
+  return gorselYedek(h('img', { crossorigin: k.crossorigin, class: sinif, alt, width, height, loading, fetchpriority, decoding: 'async',
+    sizes: k.sizes || sizes, srcset: k.srcset, src: k.src }));
+}
+
+/**
+ * Kırık görsel (silinmiş dosya, ağ hatası) boş ya da kırık simgeli bir kutu bırakmaz: yerine aynı sınıflı desenli yer tutucu
+ * (span.kapak-yok) konur; kutu en-boy oranını korur (kayma yok).
+ */
+export function gorselYedek(img, sinif = '') {
+  img.addEventListener('error', () => {
+    if (!img.isConnected) return;
+    img.replaceWith(h('span', { class: ((sinif || img.className || '') + ' kapak-yok').trim(), 'aria-hidden': 'true', 'data-gorsel-hata': '' }));
+  }, { once: true });
+  return img;
 }
 
 /** Fotoğraf atfı: yöneticinin yazdığı kapak kaynağı ya da sitenin kendi fotoğraflarının kaydı (assets/foto-kaynaklari.js). */
@@ -130,8 +172,9 @@ export function fotoAtfi(url, kapakKaynak) {
 }
 
 // Giriş sonrası dönüş adresi: sadece site içi .html sayfaları (açık yönlendirme yok)
+// Yayında (Cloudflare Pages) adresler uzantısızdır (/goller, araclar/yayin-hazirla.js): ikisi de kabul edilir
 export function guvenliDonus(d) {
-  return typeof d === 'string' && /^[a-z]+\.html(\?[\w=&%-]*)?(#[\w-]*)?$/.test(d) ? d : 'index.html';
+  return typeof d === 'string' && /^[a-z]+(\.html)?(\?[\w=&%-]*)?(#[\w-]*)?$/.test(d) ? d : 'index.html';
 }
 
 export function girisAdresi(bolum = '') {
@@ -196,6 +239,25 @@ export function durumRozeti(durum) {
   return h('span', { class: 'rozet ' + (durum || '') }, DURUM_ADI[durum] || durum || '');
 }
 
+/** Planlanmış maçın taraftar dilinde rozeti: "Bugün maç var!", "Yarın maç var", "4 gün kaldı" (Türkiye takvim günüyle). */
+export function macGunuMetni(iso, simdi = Date.now()) {
+  if (!iso || isNaN(Date.parse(iso))) return null;
+  const gun = (x) => Date.parse(gunAnahtari(x) + 'T00:00:00Z');
+  const fark = Math.round((gun(iso) - gun(new Date(simdi).toISOString())) / 864e5);
+  if (fark === 0) return Date.parse(iso) > simdi ? 'Bugün maç var!' : null; // başladı ama sonuç girilmedi: "Sonuç bekleniyor"
+  if (fark === 1) return 'Yarın maç var';
+  if (fark > 1) return `${fark} gün kaldı`;
+  return null; // tarihi geçmiş ama sonucu girilmemiş
+}
+/** Maç sayfası durum rozeti: planlıda geri sayım (resmî "PLANLANDI" yerine), canlı/bitti olduğu gibi. */
+export function macRozeti(mac, simdi = Date.now()) {
+  if (mac.durum === 'planlandi') {
+    const m = macGunuMetni(mac.tarih, simdi);
+    return h('span', { class: 'rozet planlandi' + (m === 'Bugün maç var!' ? ' bugun' : '') }, m || 'Sonuç bekleniyor');
+  }
+  return durumRozeti(mac.durum);
+}
+
 export function evSahibiDeplasman(mac) {
   return mac.ic_saha ? [TAKIM_ADI, mac.rakip] : [mac.rakip, TAKIM_ADI];
 }
@@ -204,9 +266,12 @@ export function skorVar(mac) {
   return mac.durum !== 'planlandi' && mac.corum_skor != null && mac.rakip_skor != null;
 }
 
+/** Tek skor biçimi (her yerde aynı): rakamlar arasında kısa çizgi (en dash), iki yanında bölünmez ince boşluk: "2 – 1". */
+export const SKOR_AYRAC = '\u202F\u2013\u202F';
+export function skorYaz(ev, dep) { return `${ev}${SKOR_AYRAC}${dep}`; }
 export function skorMetni(mac) {
   if (!skorVar(mac)) return null;
-  return mac.ic_saha ? `${mac.corum_skor} - ${mac.rakip_skor}` : `${mac.rakip_skor} - ${mac.corum_skor}`;
+  return mac.ic_saha ? skorYaz(mac.corum_skor, mac.rakip_skor) : skorYaz(mac.rakip_skor, mac.corum_skor);
 }
 
 /** Biten maçın sonucu: { harf: 'G'|'B'|'M', ad: 'Galibiyet'|… } (renk tek başına anlam taşımaz). */
@@ -216,6 +281,9 @@ export function sonucBilgisi(mac) {
   if (mac.corum_skor < mac.rakip_skor) return { harf: 'M', ad: 'Mağlubiyet', sinif: 'm' };
   return { harf: 'B', ad: 'Beraberlik', sinif: 'b' };
 }
+
+/** Sakatlık durumunun ziyaretçiye görünen adı: "belirsiz"/"supheli" → "Durumu belirsiz" (söylenti gibi okunmasın; başkan 7). */
+export const SAKATLIK_ETIKETI = Object.freeze({ ...SAKATLIK_DURUMLARI, belirsiz: 'Durumu belirsiz', supheli: 'Durumu belirsiz' });
 
 export function dakikaMetni(gol) {
   return gol.ek_dakika ? `${gol.dakika}+${gol.ek_dakika}'` : `${gol.dakika}'`;
@@ -261,17 +329,24 @@ export function mp4Mu(url) {
  * (goller.kapak_url) ya da kırmızı-siyah desen. Dokununca nocookie iframe ya da <video controls preload=none> yerleşir
  * ve odak oynatıcıya taşınır. baslik: "Gol videosu: Ali Örnek, 23. dakika, Örnekköy Spor maçı".
  */
-export function videoFasad(url, { baslik = 'Gol videosu', kapak = null, sure = null } = {}) {
+/** Altyazı dosyası yalnız projenin kendi deposundan (.vtt): https://<proje>.supabase.co/storage/v1/object/public/…vtt */
+export function altyaziGecerli(url) {
+  return typeof url === 'string' && /^https:\/\/[a-z0-9-]+\.supabase\.co\/storage\/v1\/object\/public\/[\w\-./%]+\.vtt$/i.test(url) && !/\.\./.test(url);
+}
+
+export function videoFasad(url, { baslik = 'Gol videosu', kapak = null, sure = null, altyazi = null } = {}) {
   const id = youtubeKimlik(url);
   const mp4 = !id && mp4Mu(url) ? url : null;
   if (!id && !mp4) return null;
-  const k = kapakKaynagi(kapak, { varsayilan: 800 });
+  const k = kapakKaynagi(kapak, { varsayilan: 800, kutu: tamGenislik() });
   const kap = h('div', { class: 'video tam-genis', 'data-video': id ? 'youtube' : 'mp4' });
   const dugme = h('button', { type: 'button', class: 'video-baslat', 'aria-describedby': 'video-not' },
-    k ? h('img', { src: k.src, srcset: k.srcset, sizes: '(max-width: 760px) 100vw, 720px', alt: '', width: '800', height: '450', decoding: 'async' }) : h('span', { class: 'kapak-yok', 'aria-hidden': 'true' }),
+    k ? kapakGorseli(k, { width: '800', height: '450' }) : h('span', { class: 'kapak-yok', 'aria-hidden': 'true' }),
     h('span', { class: 'oynat', 'aria-hidden': 'true' }, simge(OYNAT_YOLU, { dolu: true })),
     h('span', { class: 'yazi', 'aria-hidden': 'true' }, 'Oynat', sure ? ` · ${sure}` : ''),
-    h('span', { class: 'gorunmez' }, `Videoyu oynat: ${baslik}${sure ? ', süre ' + sure : ''}`));
+    // Odak halkası kapak görselinin ÜSTÜNDE çizilir (düğmenin kendi outline'ı görselin altında kalıyordu; 2.4.7)
+    h('span', { class: 'odak-halka', 'aria-hidden': 'true' }),
+    h('span', { class: 'gorunmez' }, `Videoyu oynat: ${baslik}${sure ? ` (${sure})` : ''}`));
   dugme.addEventListener('click', () => {
     let oynatici;
     if (id) {
@@ -281,7 +356,10 @@ export function videoFasad(url, { baslik = 'Gol videosu', kapak = null, sure = n
         referrerpolicy: 'strict-origin-when-cross-origin',
       });
     } else {
-      oynatici = h('video', { src: mp4, controls: true, preload: 'none', playsinline: '', 'aria-label': baslik, poster: k ? k.src : null });
+      const vtt = altyaziGecerli(altyazi) ? altyazi : null;
+      // Altyazı (1.2.2): kendi depomuzdaki .vtt; başka kökenden <track> için CORS gerekir (crossorigin)
+      oynatici = h('video', { src: mp4, controls: true, preload: 'none', playsinline: '', 'aria-label': baslik, poster: k ? k.src : null, crossorigin: vtt ? 'anonymous' : null },
+        vtt ? h('track', { kind: 'captions', srclang: 'tr', label: 'Türkçe', src: vtt, default: '' }) : null);
     }
     dugme.replaceWith(oynatici);
     oynatici.focus();
@@ -289,6 +367,28 @@ export function videoFasad(url, { baslik = 'Gol videosu', kapak = null, sure = n
   }, { once: true });
   kap.append(dugme);
   return kap;
+}
+
+// ---------------------------------------------------------------- paylaş
+const WA_YOLU = 'M20 11.5a8.5 8.5 0 0 1-12.6 7.4L3 20l1.2-4.2A8.5 8.5 0 1 1 20 11.5z';
+const PAYLAS_YOLU = 'M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M12 3v12M7 8l5-5 5 5';
+/**
+ * "Paylaş" düğmesi (haber, maç, gol). Telefonun paylaşım menüsü varsa (navigator.share) o açılır; yoksa ya da iptal edilmeden
+ * hata verirse WhatsApp (wa.me). Bağlantının kendisi her zaman wa.me adresidir: JavaScript'siz de çalışır.
+ * metin: paylaşılacak kısa yazı (adres ayrıca eklenir).
+ */
+export function paylasDugmesi(metin, adres = location.href.split('#')[0], { baslik = document.title } = {}) {
+  const yerel = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  const a = h('a', { class: 'paylas', href: 'https://wa.me/?text=' + encodeURIComponent(`${metin} ${adres}`), target: '_blank', rel: 'noopener', 'data-paylas': yerel ? 'yerel' : 'whatsapp' },
+    simge(yerel ? PAYLAS_YOLU : WA_YOLU), h('span', null, yerel ? 'Paylaş' : "WhatsApp'ta paylaş"), yerel ? null : h('span', { class: 'gorunmez' }, ' (yeni sekmede açılır)'));
+  if (yerel) {
+    a.addEventListener('click', async (e) => {
+      e.preventDefault();
+      try { await navigator.share({ title: baslik, text: metin, url: adres }); }
+      catch (x) { if (x && x.name !== 'AbortError') window.open(a.href, '_blank', 'noopener'); }
+    });
+  }
+  return a;
 }
 
 // ---------------------------------------------------------------- hata metinleri
@@ -408,7 +508,7 @@ function geriKur() {
   geri.addEventListener('click', (e) => {
     // Site içinden gelindiyse tarayıcı geçmişine dön (kaydırma konumu korunur); değilse bağlantının adresine git
     let ayniSite = false;
-    try { ayniSite = !!document.referrer && new URL(document.referrer).origin === location.origin && !/giris\.html/.test(document.referrer); } catch (x) { ayniSite = false; }
+    try { ayniSite = !!document.referrer && new URL(document.referrer).origin === location.origin && !/\/giris(\.html)?(\?|#|$)/.test(document.referrer); } catch (x) { ayniSite = false; }
     if (ayniSite && history.length > 1) { e.preventDefault(); history.back(); }
   });
 }
@@ -458,16 +558,36 @@ function swKaydet() {
  * Sayfalar içerik sorgusunu bu sözü BEKLEMEDEN başlatır (const oturumS = sayfaBaslat(); … await oturumS).
  */
 // Yapışkan filtre / sekme çubuğu varsa yüksekliği scroll-padding'e eklenir (--yapiskan-h): klavyeyle odaklanan kart çubuğun altında kalmaz
+// Çubuk ekranın %20'sinden uzunsa (büyük yazı tipi, %200) yapışmaz (.yapiskan-degil): sabit alan ekranın yarısını yemesin (1.4.10)
 function yapiskanIzle() {
   const el = document.querySelector('.filtreler, .sekme-yapiskan');
   if (!el || typeof ResizeObserver !== 'function') return;
-  const yaz = () => document.documentElement.style.setProperty('--yapiskan-h', (getComputedStyle(el).position === 'sticky' ? Math.ceil(el.getBoundingClientRect().height) : 0) + 'px');
+  const yaz = () => {
+    const boy = Math.ceil(el.getBoundingClientRect().height);
+    el.classList.toggle('yapiskan-degil', boy > innerHeight * 0.2);
+    document.documentElement.style.setProperty('--yapiskan-h', (getComputedStyle(el).position === 'sticky' ? boy : 0) + 'px');
+  };
   new ResizeObserver(yaz).observe(el);
   addEventListener('resize', yaz); // kısa ekranda çubuk yapışkan değil (stil.css): pay sıfır
   yaz();
 }
 
+// Üst bar ve alt menünün GERÇEK yüksekliği (büyük yazı tipinde 56/64 px'ten uzun): scroll-padding, künye alt boşluğu ve yapışkan
+// çubukların top değeri bunu kullanır (--ust-gercek / --alt-menu-gercek; stil.css'te px belirteçleri yalnız yedek)
+function cubukIzle() {
+  if (typeof ResizeObserver !== 'function') return;
+  const kok = document.documentElement.style;
+  for (const [secici, ad] of [['header.ust', '--ust-gercek'], ['#alt-nav', '--alt-menu-gercek']]) {
+    const el = document.querySelector(secici);
+    if (!el) continue;
+    const yaz = () => kok.setProperty(ad, Math.ceil(el.getBoundingClientRect().height) + 'px');
+    new ResizeObserver(yaz).observe(el);
+    yaz();
+  }
+}
+
 export function sayfaBaslat() {
+  cubukIzle();
   yapiskanIzle();
   amblemKur();
   kunyeDoldur();

@@ -1,6 +1,7 @@
-// Maç ayrıntısı: başlık/skor, "Maçın sponsoru" yuvası (alt satırı: Çorum FK'nın sponsoru değildir), goller (gol sayfasına
+// Maç ayrıntısı: başlık/skor (planlıda "4 gün kaldı" / "Bugün maç var!" rozeti), maç notu (bilet / yayın / kapı saati:
+// maclar.mac_notu), Paylaş, "Maçın sponsoru" yuvası (alt satırı: Çorum FK'nın sponsoru değildir), goller (gol sayfasına
 // bağlantılı kartlar; video burada YÜKLENMEZ), yorumlar (tembel yüklenir).
-import { supabase, hazir, h, $, sayfaBaslat, param, kimlikGecerli, tarihYaz, evSahibiDeplasman, skorMetni, durumRozeti, sonucBilgisi, cevrimdisiKutusu, TAKIM_ADI } from '../ortak.js';
+import { supabase, hazir, h, $, sayfaBaslat, param, kimlikGecerli, tarihYaz, saatYaz, evSahibiDeplasman, skorMetni, macRozeti, sonucBilgisi, cevrimdisiKutusu, paylasDugmesi, TAKIM_ADI } from '../ortak.js';
 import { reklamYuvalariniDoldur } from '../reklam-yukle.js';
 import { golKarti } from '../gol-kart.js';
 
@@ -34,8 +35,11 @@ async function yukle() {
   document.title = `${ev} - ${dep} · Çorumspor Taraftar`;
   const skor = skorMetni(mac);
   const sonuc = sonucBilgisi(mac);
-  kok.replaceChildren(h('header', { class: 'mac-basi gunes-motif', id: 'mac-basi' },
-    h('div', { class: 'ust-satir' }, durumRozeti(mac.durum), mac.organizasyon ? h('span', null, mac.organizasyon) : null, sonuc ? h('span', { class: 'sonuc-rozet ' + sonuc.sinif, title: sonuc.ad }, h('span', { 'aria-hidden': 'true' }, sonuc.harf), h('span', { class: 'gorunmez' }, sonuc.ad)) : null),
+  const paylasMetni = skor ? `${ev} ${skor} ${dep}${mac.durum === 'bitti' ? ' (maç sonu)' : ''}`
+    : `${ev} – ${dep} · ${tarihYaz(mac.tarih, { saat: false, gun: true, yil: false })} ${saatYaz(mac.tarih)}${mac.stadyum ? ' · ' + mac.stadyum : ''}`;
+  const not = typeof mac.mac_notu === 'string' && mac.mac_notu.trim() ? mac.mac_notu.trim() : null;
+  kok.replaceChildren(...[h('header', { class: 'mac-basi gunes-motif', id: 'mac-basi' },
+    h('div', { class: 'ust-satir' }, macRozeti(mac), mac.organizasyon ? h('span', null, mac.organizasyon) : null, sonuc ? h('span', { class: 'sonuc-rozet ' + sonuc.sinif, title: sonuc.ad }, h('span', { 'aria-hidden': 'true' }, sonuc.harf), h('span', { class: 'gorunmez' }, sonuc.ad)) : null),
     h('h1', { class: 'takimlar' },
       h('span', { class: 'takim-ad' + (ev === TAKIM_ADI ? ' biz' : '') }, ev), ' ',
       h('span', { class: 'orta', id: 'skor' }, skor || 'vs'), ' ',
@@ -43,7 +47,9 @@ async function yukle() {
     h('div', { class: 'meta' },
       h('time', { datetime: mac.tarih, id: 'mac-tarihi' }, tarihYaz(mac.tarih, { gun: true }), ' (TSİ)'),
       mac.stadyum ? h('span', null, mac.stadyum) : null,
-      h('span', null, mac.ic_saha ? 'İç saha maçı' : 'Deplasman maçı'))));
+      h('span', null, mac.ic_saha ? 'İç saha maçı' : 'Deplasman maçı'))),
+    not ? h('aside', { class: 'mac-notu', id: 'mac-notu', 'aria-label': 'Maç notu' }, h('p', null, h('strong', null, 'Maç notu: '), not)) : null,
+    h('div', { class: 'eylem-satir' }, paylasDugmesi(paylasMetni))].filter(Boolean));
   kok.dataset.durum = 'tamam';
 
   // Maç sponsoru reklam yuvası: başlığın altında, gollerden ve yorumlardan önce

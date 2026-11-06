@@ -132,7 +132,10 @@ başlığı birleştirir; yeni kural eklerken klasörleri çakıştırmayın (te
 Yapı komutu (`yayin-hazirla.js`) iki şeyi de yapar: `assets/ayar.js`'te gerçek bir Supabase adresi varsa her sayfaya o adres için
 `preconnect` ekler (ilk veri isteği daha hızlı başlar) ve `sw.js`'i (service worker) yayına koyar. Service worker sitenin kabuğunu
 ve son görülen herkese açık veriyi saklar: stadyumda internet giderse son haberler / goller yine açılır. Giriş, yorum, reklam
-sayımı ve YouTube **hiç** önbelleğe alınmaz. Sürüm değiştirmek için `sw.js`'teki `SURUM` satırını değiştirin.
+sayımı ve YouTube **hiç** önbelleğe alınmaz. Sürümü yapı komutu kendisi yazar (yayın içeriğinin özeti): elle değiştirmeyin.
+Yapı komutu `assets/ayar.js`'te yer tutucu (PROJE-KODUNUZ, ANON-ANAHTARINIZ, iletisim@ornek.com) görürse **durur**; bilerek taslak
+yayın için Cloudflare'de `YAYIN_TASLAK=1` ortam değişkeni verin. Yayın kopyasında CSP `_headers`'a başlık olarak (proje adresinize
+daraltılmış) yazılır, iç bağlantılar uzantısız olur (`/goller`).
 
 Notlar:
 - GitHub Pages de çalışır ama GitHub'ın kuralları ticari siteleri (reklam satışı) kısıtlar.

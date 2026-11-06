@@ -101,9 +101,10 @@ async function tasarimTestleri() {
     [`mac.html?id=${M1}`, '#mac[data-durum="tamam"]', 'Takım', 'true'],
     ['giris.html', '#g-eposta', 'Profil', 'true'],
     ['sifre.html', '#sifre-icerik, main form, main .mesaj', 'Profil', 'true'],
-    ['kurallar.html', '#kurallar', null, null],
-    ['gizlilik.html', '#son-guncelleme', null, null],
-    ['kaynaklar.html', '#kaynak-listesi', null, null],
+    // Künye sayfalarına Profil'den gidilir: Profil sekmesi etkin (true) ve üst barda geri düğmesi (tasarımcı 9)
+    ['kurallar.html', '#kurallar', 'Profil', 'true'],
+    ['gizlilik.html', '#son-guncelleme', 'Profil', 'true'],
+    ['kaynaklar.html', '#kaynak-listesi', 'Profil', 'true'],
   ];
   await guvenli('ekran yapısı', async () => {
     const { ctx, p } = await baglam();
@@ -296,8 +297,10 @@ async function tasarimTestleri() {
     const sezonlar = await p.$$eval('input[name=sezon]', (l) => l.map((i) => i.value));
     kontrol('goller: sezon değerleri "2026-27" biçiminde (Temmuz–Haziran)', sezonlar.length && sezonlar.every((s) => /^\d{4}-\d{2}$/.test(s)), sezonlar.join(','));
     // her kapak gol.html?id= bağlantısı; adı oyuncu ve dakika içerir; görsel alt="" (T-31)
-    const kartlar = await p.$$eval('#arsiv a.video-kart, #arsiv a.gol-satir', (l) => l.map((a) => ({ href: a.getAttribute('href'), ad: a.textContent.replace(/\s+/g, ' ').trim(), alt: [...a.querySelectorAll('img')].map((i) => i.getAttribute('alt')) })));
+    const kartlar = await p.$$eval('#arsiv a.video-kart, #arsiv a.gol-satir', (l) => l.map((a) => ({ href: a.getAttribute('href'), ad: (a.getAttribute('aria-label') || a.textContent).replace(/\s+/g, ' ').trim(), alt: [...a.querySelectorAll('img')].map((i) => i.getAttribute('alt')) })));
     kontrol('goller: her gol tek bağlantı gol.html?id=…, adında dakika, kapak görseli alt="" (T-31)', kartlar.length > 0 && kartlar.every((k) => /^gol\.html\?id=[0-9a-f-]{36}$/.test(k.href) && /dakika/.test(k.ad) && k.alt.every((x) => x === '')), JSON.stringify(kartlar[0]));
+    // 2. tur (erişilebilirlik 9): ad tek cümle; rakip bir kez, başıboş " , " yok
+    kontrol('goller (2. tur): gol kartı adı tek cümle ("Ali Örnek, 67. dakika · Kurgu Gençlik 1 – 1 Çorum FK, 29 Ekim · Kafa golü · video 0:38"), rakip bir kez', kartlar.every((k) => /^[^,]+, \d+(\+\d+)?\. dakika · /.test(k.ad) && !/ , /.test(k.ad) && (k.ad.match(/Kurgu Gençlik|Örnekköy Spor/g) || []).length <= 1), JSON.stringify(kartlar.map((k) => k.ad)));
     await ctx.close();
   });
 
@@ -401,7 +404,7 @@ async function tasarimTestleri() {
     await p.click('#sekme-sakatlik');
     await p.waitForSelector('#sakatlik-icerik[data-durum="tamam"]');
     const s = await p.$$eval('#sakatlik-icerik li', (l) => l.map((li) => ({ m: li.textContent, t: !!li.querySelector('time[datetime]'), kaynak: /Kaynak:/.test(li.textContent) })));
-    kontrol('takım: sakatlık kayıtlarında durum METİN olarak (Sakat/Cezalı/Şüpheli/Döndü), kaynak ve time[datetime] güncelleme zamanı (T-72)', s.length >= 2 && s.every((x) => /Sakat|Cezalı|Şüpheli|Döndü/.test(x.m) && x.t && x.kaynak), JSON.stringify(s).slice(0, 200));
+    kontrol('takım: sakatlık kayıtlarında durum METİN olarak (Sakat/Cezalı/Durumu belirsiz/Döndü), kaynak ve time[datetime] güncelleme zamanı (T-72)', s.length >= 2 && s.every((x) => /Sakat|Cezalı|Durumu belirsiz|Döndü/.test(x.m) && x.t && x.kaynak), JSON.stringify(s).slice(0, 200));
     kontrol('takım: taslak sakatlık kaydı ziyaretçiye görünmüyor (seed: 3 kayıttan 1\'i taslak)', s.length === 2, s.length);
     kontrol('takım: adres #sakatlik oldu (paylaşılabilir sekme)', /#sakatlik$/.test(p.url()));
     await p.click('#sekme-fikstur');
@@ -597,8 +600,86 @@ async function tasarimTestleri() {
     kontrol('çevrimdışı (013): veri ve önbellek yoksa hata kutusu ve "Tekrar dene" (boş sayfa değil)', (await p.getByRole('button', { name: 'Tekrar dene' }).count()) >= 1 && !(await p.$$('#arsiv .iskelet')).length);
     await git(p, 'index.html', '#akis[data-durum="hata"]');
     kontrol('çevrimdışı (013): ana sayfa önbelleksiz: hero metni ve "Tekrar dene"', /İnternet gitti/.test(await p.textContent('#hero-baslik')) && (await p.getByRole('button', { name: 'Tekrar dene' }).count()) >= 1);
+    // 2. tur (tasarımcı 4): iskelet sonsuza kadar kalmaz; hero etiketi "Manşet" değil "Bağlantı yok"
+    await p.waitForTimeout(500);
+    const iskelet = await p.evaluate(() => ({ kalan: [...document.querySelectorAll('main .iskelet')].filter((e) => e.getClientRects().length && !e.closest('[hidden]')).map((e) => e.parentElement.id || e.parentElement.className), etiket: document.querySelector('#hero-etiket').textContent, serit: document.querySelector('#siradaki-serit').textContent }));
+    kontrol('çevrimdışı (2. tur): ana sayfada görünür iskelet kalmaz (gol şeridi, maç kartı gizli; şerit fikstür bağlantısı), hero etiketi "Bağlantı yok"', !iskelet.kalan.length && iskelet.etiket === 'Bağlantı yok' && /Fikstür/.test(iskelet.serit), JSON.stringify(iskelet));
+    await git(p, 'goller.html', '#arsiv[data-durum="hata"]');
+    const gi = await p.evaluate(() => [...document.querySelectorAll('main .iskelet')].filter((e) => e.getClientRects().length && !e.closest('[hidden]')).length);
+    kontrol('çevrimdışı (2. tur): gol arşivinde filtre iskeletleri kalmaz', gi === 0, gi);
     void ilk;
     await ctx.close();
+  });
+
+  // ------------------------------------------------------------------ 2. tur: odak göstergeleri, gerçek çubuk boyları, yapışkan filtre
+  await guvenli('2. tur odak', async () => {
+    const { ctx, p } = await baglam({ width: 390, height: 844 });
+    // Video "Oynat": halka kapak görselinin ÜSTÜNDE görünür (önceden ekran görüntüsü farkı 0 pikseldi)
+    await git(p, `gol.html?id=${G1}`, '#gol[data-durum="tamam"] .video-baslat img');
+    await p.waitForFunction(() => document.querySelector('.video-baslat img').complete);
+    const once = await p.locator('.video').screenshot({ animations: 'disabled' });
+    for (let i = 0; i < 40 && !(await p.evaluate(() => document.activeElement.classList.contains('video-baslat'))); i++) await p.keyboard.press('Tab');
+    const odakta = await p.evaluate(() => ({ el: document.activeElement.className, fv: document.activeElement.matches(':focus-visible'), golge: getComputedStyle(document.querySelector('.video-baslat .odak-halka')).boxShadow }));
+    const sonra = await p.locator('.video').screenshot({ animations: 'disabled' });
+    kontrol('gol (2. tur): klavyeyle odaklanan "Oynat" düğmesinde halka görünür (ekran görüntüsü değişir; halka görselin üstünde) (2.4.7)', odakta.el === 'video-baslat' && odakta.fv && /px/.test(odakta.golge) && !once.equals(sonra), JSON.stringify(odakta));
+    // Hero bağlantısı: halka bağlantının kendisinde (outline: none değil)
+    await git(p, 'index.html', '#akis[data-durum="tamam"]');
+    const heroOnce = await p.locator('#hero').screenshot({ animations: 'disabled' });
+    for (let i = 0; i < 20 && !(await p.evaluate(() => !!document.activeElement.closest('#hero-baslik'))); i++) await p.keyboard.press('Tab');
+    const hl = await p.evaluate(() => { const c = getComputedStyle(document.activeElement); return { hero: !!document.activeElement.closest('#hero-baslik'), stil: c.outlineStyle, gen: parseFloat(c.outlineWidth), renk: c.outlineColor }; });
+    const heroSonra = await p.locator('#hero').screenshot({ animations: 'disabled' });
+    kontrol('ana (2. tur): hero bağlantısında ≥3 px açık mavi halka (bağlantının kendisinde), görüntü değişir (2.4.7)', hl.hero && hl.stil === 'solid' && hl.gen >= 3 && hl.renk === 'rgb(138, 180, 248)' && !heroOnce.equals(heroSonra), JSON.stringify(hl));
+    // Koyu temada iskelet parıltısı hafif (beyaz leke değil)
+    const parilti = await p.evaluate(() => { document.documentElement.dataset.theme = 'dark'; const v = getComputedStyle(document.documentElement).getPropertyValue('--iskelet-parilti').trim(); document.documentElement.removeAttribute('data-theme'); return v; });
+    kontrol('iskelet (2. tur): koyu temada parıltı belirteci çok hafif (≤ .1)', /\/\s*0?\.0\d\s*\)/.test(parilti), parilti);
+    await ctx.close();
+  });
+
+  await guvenli('2. tur çubuklar', async () => {
+    // %200 yazı (320×640): çubukların GERÇEK boyu ölçülür; künyenin son bağlantısı alt menünün altında kalmaz (1.4.4 / 2.4.11)
+    const { ctx, p } = await baglam({ width: 320, height: 640 });
+    for (const [url, bekle] of [['index.html', '#akis[data-durum="tamam"]'], ['kurallar.html', '#kurallar']]) {
+      await git(p, url, bekle);
+      await p.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+      await p.waitForTimeout(250);
+      const v = await p.evaluate(() => ({ alt: getComputedStyle(document.documentElement).getPropertyValue('--alt-menu-gercek').trim(), ust: getComputedStyle(document.documentElement).getPropertyValue('--ust-gercek').trim(), nav: Math.ceil(document.querySelector('#alt-nav').getBoundingClientRect().height), bar: Math.ceil(document.querySelector('header.ust').getBoundingClientRect().height) }));
+      kontrol(`${url} %200 yazı (2. tur): --alt-menu-gercek / --ust-gercek ölçülen boy (sabit 64/56 px değil)`, v.alt === v.nav + 'px' && v.ust === v.bar + 'px' && v.nav > 64, JSON.stringify(v));
+      const sonuc = [];
+      for (const ad of ['Gizlilik ve KVKK', 'Topluluk kuralları', 'Fotoğraf kaynakları']) {
+        await p.evaluate((ad) => { const a = [...document.querySelectorAll('footer .baglantilar a')].find((x) => x.textContent === ad); a.focus(); }, ad);
+        await durulsun(p);
+        sonuc.push([ad, await ortulme(p)]);
+      }
+      // sayfanın en altına inince son bağlantı tamamen menünün üstünde
+      await p.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; scrollTo(0, document.documentElement.scrollHeight); });
+      await p.waitForTimeout(80);
+      const enAlt = await p.evaluate(() => { const a = [...document.querySelectorAll('footer .baglantilar a')].pop().getBoundingClientRect(); return { bag: Math.round(a.bottom), nav: Math.round(document.querySelector('#alt-nav').getBoundingClientRect().top) }; });
+      kontrol(`${url} %200 yazı (2. tur): künye bağlantıları odakta alt menünün altında kalmaz, en altta tamamen görünür`, sonuc.every(([, o]) => o === 0) && enAlt.bag <= enAlt.nav, JSON.stringify({ sonuc, enAlt }));
+    }
+    // Gol arşivi: %200 yazıda yapışkan filtre ekranın %20'sinden uzunsa yapışmaz
+    await git(p, 'goller.html', '#arsiv[data-durum="tamam"] .arsiv-mac');
+    await p.evaluate(() => { document.documentElement.style.fontSize = '200%'; dispatchEvent(new Event('resize')); });
+    await p.waitForTimeout(250);
+    const f = await p.evaluate(() => { const e = document.querySelector('.filtreler'); return { sinif: e.classList.contains('yapiskan-degil'), konum: getComputedStyle(e).position, boy: Math.round(e.getBoundingClientRect().height), ekran: innerHeight }; });
+    kontrol('goller %200 yazı (2. tur): filtre çubuğu uzadıysa yapışkan değil (ekranın yarısı çubuklara gitmez; 1.4.10)', f.boy <= f.ekran * 0.2 || (f.sinif && f.konum === 'static'), JSON.stringify(f));
+    await ctx.close();
+    // Normal yazı 360×740: kaydırınca sabit alan (üst bar + yapışkan rakip satırı + alt menü) ≤ %25
+    for (const vp of [{ width: 360, height: 740 }, { width: 430, height: 932 }]) {
+      const b = await baglam(vp);
+      await git(b.p, 'goller.html', '#arsiv[data-durum="tamam"] .arsiv-mac');
+      await b.p.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; scrollTo(0, 600); });
+      await b.p.waitForTimeout(150);
+      const d = await b.p.evaluate(() => {
+        const ust = document.querySelector('header.ust').getBoundingClientRect(), fl = document.querySelector('.filtreler').getBoundingClientRect(), nav = document.querySelector('#alt-nav').getBoundingClientRect();
+        return { yapisti: Math.round(fl.top) === Math.round(ust.bottom), sabit: Math.round(ust.height + fl.height + nav.height), ekran: innerHeight, sezonAkista: getComputedStyle(document.querySelector('.sezon-formu')).position !== 'sticky' };
+      });
+      kontrol(`goller ${vp.width}×${vp.height} (2. tur): yalnız rakip satırı yapışır, sabit alan ≤ %25 (tasarımcı 3)`, d.yapisti && d.sezonAkista && d.sabit <= d.ekran * 0.25, JSON.stringify(d));
+      const tek = await b.p.evaluate(() => { const iz = document.querySelector('#sezonlar'); return { tek: iz.classList.contains('tek'), zemin: getComputedStyle(iz).backgroundColor, n: iz.querySelectorAll('input').length }; });
+      if (tek.n === 1) kontrol(`goller ${vp.width} (2. tur): tek sezonda iz (hap içinde hap) yok`, tek.tek && /rgba\(0, 0, 0, 0\)|transparent/.test(tek.zemin), JSON.stringify(tek));
+      const kart = await b.p.evaluate(() => ({ meta: document.querySelectorAll('#arsiv .video-kart .meta').length, kart: document.querySelectorAll('#arsiv .video-kart').length }));
+      kontrol(`goller ${vp.width} (2. tur): arşivde kartlar maç satırını tekrar etmez (grup başlığı söylüyor)`, kart.kart >= 1 && kart.meta === 0, JSON.stringify(kart));
+      await b.ctx.close();
+    }
   });
 
   // ------------------------------------------------------------------ fotoğraf atıfları

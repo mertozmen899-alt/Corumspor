@@ -1,9 +1,9 @@
 // Gol arşivi: Sezon (Temmuz–Haziran, "2026-27") ve Rakip filtreleri (fieldset/legend + yerel radyo düğmeleri; rakip çoksa
 // <select>), sonuç sayısı #durum'a duyurulur, seçim adrese yazılır (?sezon=&rakip=). Goller maç maç gruplanır; her gol
 // gol.html?id= sayfasına giden TEK bağlantı. Video bu sayfada yüklenmez (YouTube'a istek yok).
-import { supabase, hazir, h, $, sayfaBaslat, tarihYaz, hataMetni, duyur, cevrimdisiKutusu } from '../ortak.js';
+import { supabase, hazir, h, $, sayfaBaslat, hataMetni, duyur, cevrimdisiKutusu } from '../ortak.js';
 import { sezonAdi } from '../kurallar.js';
-import { golKarti, macEtiketi } from '../gol-kart.js';
+import { golKarti, macEtiketi, kartTarihi } from '../gol-kart.js';
 import { sonVeri, sonVeriYaz } from '../onbellek.js';
 
 const MAC_SAYFA = 8;        // "Daha fazla gol" her basışta 8 maç daha
@@ -37,6 +37,8 @@ function filtreleriCiz() {
   const sezonlar = [...new Set(maclar.map((m) => sezonAdi(m.tarih)))].sort().reverse();
   if (!secim.sezon || !sezonlar.includes(secim.sezon)) secim.sezon = sezonlar[0] || null;
   $('#sezonlar').replaceChildren(...sezonlar.slice(0, 4).flatMap((s) => radyo('sezon', s, s, s === secim.sezon)));
+  // Tek sezon: seçilecek bir şey yok; iz (hap içinde hap) yerine düz etiket görünümü (tasarımcı 11)
+  $('#sezonlar').classList.toggle('tek', sezonlar.length === 1);
   if (sezonlar.length > 4) {
     // 4'ten fazla sezon: eskiler için seçim kutusu
     const sec = h('select', { id: 'sezon-eski', 'aria-label': 'Daha eski sezonlar' }, h('option', { value: '' }, 'Eski sezon…'), ...sezonlar.slice(4).map((s) => h('option', { value: s, selected: s === secim.sezon }, s)));
@@ -66,10 +68,11 @@ function macGrubu(mac) {
   const goller = [...mac.goller].sort(golSirasi);
   return h('section', { class: 'arsiv-mac', 'data-mac-id': mac.id, 'aria-labelledby': 'mac-' + mac.id },
     h('div', { class: 'grup-baslik' },
-      h('span', { class: 'grup-ust' }, tarihYaz(mac.tarih, { saat: false, yil: false }), ' · ', mac.ic_saha ? 'İç saha' : 'Deplasman'),
+      h('span', { class: 'grup-ust' }, kartTarihi(mac.tarih), ' · ', mac.ic_saha ? 'İç saha' : 'Deplasman'),
       h('h2', { id: 'mac-' + mac.id }, macEtiketi(mac)),
       h('a', { href: 'mac.html?id=' + encodeURIComponent(mac.id), 'aria-label': `Maç ayrıntısı: ${macEtiketi(mac)}` }, 'Maç →')),
-    h('ul', { class: 'gol-listesi' }, goller.map((g, i) => h('li', { class: 'gol' }, golKarti(g, mac, { ilk: gosterilenMac === 0 && i === 0 })))));
+    // Grup başlığı maçı zaten söylüyor: kartta maç satırı tekrar edilmez (tasarımcı 5)
+    h('ul', { class: 'gol-listesi' }, goller.map((g, i) => h('li', { class: 'gol' }, golKarti(g, mac, { ilk: gosterilenMac === 0 && i === 0, macSatiri: false, kutu: Math.min(innerWidth, 720) - 32 })))));
 }
 
 function listeyiCiz({ duyurulsun = false } = {}) {
@@ -93,7 +96,7 @@ function dahaCiz(liste = suzulmus()) {
   return ilk;
 }
 
-$('#filtreler').addEventListener('change', (e) => {
+function degisti(e) {
   const t = e.target;
   if (t.name === 'sezon' || t.id === 'sezon-eski') { if (!t.value) return; secim.sezon = t.value; secim.rakip = ''; filtreleriCiz(); }
   else if (t.name === 'rakip') secim.rakip = t.value;
@@ -104,8 +107,8 @@ $('#filtreler').addEventListener('change', (e) => {
   window.scrollTo(0, y);
   const yeniden = t.id && document.getElementById(t.id);
   if (yeniden && document.activeElement !== yeniden) yeniden.focus({ preventScroll: true });
-});
-$('#filtreler').addEventListener('submit', (e) => e.preventDefault());
+}
+for (const f of [$('#sezon-formu'), $('#filtreler')]) { f.addEventListener('change', degisti); f.addEventListener('submit', (e) => e.preventDefault()); }
 
 dugme.addEventListener('click', () => {
   const ilk = dahaCiz();
@@ -122,10 +125,13 @@ async function yukle() {
     const eski = sonVeri('goller');
     if (eski) { maclar = eski.veri; filtreleriCiz(); listeyiCiz(); arsiv.prepend(cevrimdisiKutusu('Bağlantı yok; son görülen goller gösteriliyor.', () => location.reload(), { sonGuncelleme: eski.zaman })); arsiv.dataset.durum = 'onbellek'; return; }
     arsiv.replaceChildren(cevrimdisiKutusu(hataMetni(error, 'Goller yüklenemedi.'), () => { arsiv.replaceChildren(); yukle(); }));
+    // Filtre iskeletleri sonsuza kadar kalmaz: veri yokken filtre de yok (tasarımcı 4)
+    $('#sezon-formu').hidden = true; $('#filtreler').hidden = true;
     arsiv.dataset.durum = 'hata';
     return;
   }
   maclar = data;
+  $('#sezon-formu').hidden = false; $('#filtreler').hidden = false;
   sonVeriYaz('goller', data.slice(0, 12));
   const p = new URLSearchParams(location.search);
   secim.sezon = p.get('sezon');

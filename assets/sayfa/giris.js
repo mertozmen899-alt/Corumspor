@@ -74,6 +74,7 @@ if (!hazir || !oturum.hazir) {
   // --- giriş
   $('#giris-formu').addEventListener('submit', async (ev) => {
     ev.preventDefault();
+    uyar(''); // önceki gönderimin uyarısı #uyari'da kalmasın (gezinme kipinde eski metin okunmasın)
     const email = $('#g-eposta').value.trim();
     const password = $('#g-sifre').value;
     const hatalar = {};
@@ -100,6 +101,7 @@ if (!hazir || !oturum.hazir) {
   });
   $('#unuttum-formu').addEventListener('submit', async (ev) => {
     ev.preventDefault();
+    uyar(''); // önceki gönderimin uyarısı #uyari'da kalmasın (gezinme kipinde eski metin okunmasın)
     const email = $('#u-eposta').value.trim();
     if (hatalariGoster(ev.target, EPOSTA.test(email) ? {} : { 'u-eposta': 'Geçerli bir e-posta adresi yaz.' })) return;
     const d = $('#u-gonder');
@@ -117,6 +119,7 @@ if (!hazir || !oturum.hazir) {
   // --- kayıt
   $('#kayit-formu').addEventListener('submit', async (ev) => {
     ev.preventDefault();
+    uyar(''); // önceki gönderimin uyarısı #uyari'da kalmasın (gezinme kipinde eski metin okunmasın)
     const kullanici_adi = $('#k-ad').value.trim();
     const email = $('#k-eposta').value.trim();
     const password = $('#k-sifre').value;

@@ -6,23 +6,26 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://*.supabase.co data: blob:; media-src 'self' https: blob:; frame-src https://www.youtube-nocookie.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Takım · Çorumspor Taraftar</title>
-<meta name="description" content="Çorumspor kadrosu, kulübün açıkladığı sakatlık ve ceza bilgileri, fikstür ve sonuçlar.">
+<meta name="description" content="Çorum FK kadrosu, kulübün açıkladığı sakatlık ve ceza bilgileri, fikstür ve sonuçlar.">
 <meta property="og:site_name" content="Çorumspor Taraftar">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="tr_TR">
 <meta property="og:title" content="Takım · Çorumspor Taraftar">
-<meta property="og:description" content="Çorumspor kadrosu, kulübün açıkladığı sakatlık ve ceza bilgileri, fikstür ve sonuçlar.">
+<meta property="og:description" content="Çorum FK kadrosu, kulübün açıkladığı sakatlık ve ceza bilgileri, fikstür ve sonuçlar. Çorum FK'nın resmî uygulaması değildir.">
 <meta property="og:image" content="assets/img/og-1200x630.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Çorumspor Taraftar: bağımsız taraftar uygulaması (kırmızı-siyah, özgün ÇT işareti)">
 <meta name="theme-color" content="#0B0B0B">
 <link rel="icon" href="assets/logo/amblem-yedek.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/logo/apple-touch-icon-180.png">
 <link rel="preload" href="assets/fonts/oswald-700-tr.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/source-sans-3-400-tr.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/source-sans-3-700-tr.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/stil.css">
 <script src="assets/tema.js"></script>
-<script defer src="assets/vendor/supabase-js-2.45.4/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o"></script>
+<script defer fetchpriority="high" src="assets/vendor/supabase-js-2.45.4/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o"></script>
 <link rel="modulepreload" href="assets/sayfa/takim.js">
 <link rel="modulepreload" href="assets/ortak.js">
 <link rel="modulepreload" href="assets/istemci.js">
@@ -83,7 +86,7 @@
 <footer class="alt">
   <div class="kap">
     <p><strong>Çorumspor Taraftar</strong> · bağımsız taraftar uygulaması. <strong>Çorum FK'nın resmî uygulaması değildir</strong>; kulüple bir bağı yoktur. Kulüp adı hak sahibine aittir.</p>
-    <p>Künye: <span data-ayar="SAHIP_ADI">uygulama sahibi</span> · İletişim ve kaldırma talepleri: <a data-ayar="ILETISIM_EPOSTA" href="kurallar.html#iletisim">iletişim adresi</a> (kaldırma talebine 24 saat içinde dönülür).</p>
+    <p>Künye: <span data-ayar="SAHIP_ADI">uygulama sahibi</span> · İletişim ve kaldırma talepleri: <a data-ayar="ILETISIM_EPOSTA" href="kurallar.html#iletisim">iletişim adresi</a> (kaldırma taleplerine en kısa sürede dönülür).</p>
     <p class="baglantilar"><a href="gizlilik.html">Gizlilik ve KVKK</a><a href="kurallar.html">Topluluk kuralları</a><a href="kaynaklar.html">Fotoğraf kaynakları</a></p>
   </div>
 </footer>

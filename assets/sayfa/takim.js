@@ -1,15 +1,16 @@
 // Takım: sekmeler (WAI-ARIA tablist; seçili sekme adreste #kadro | #sakatlik | #fikstur, geri tuşu çalışır)
 //  Kadro: mevkiye göre gruplu oyuncu kartları (fotoğraf yalnız hakkı varsa; yoksa forma numarası)
-//  Sakatlık: yalnız kulübün açıkladığı bilgi, kaynağı ve güncelleme zamanıyla (KVKK m.6: sağlık verisi)
+//  Sakatlık: yalnız durum (Sakat / Cezalı / Durumu belirsiz / Döndü), kaynağı (bağlantılı) ve kaynak tarihiyle. Tanı / açıklama
+//  metni (aciklama) ziyaretçiye HİÇ gösterilmez ve istenmez (KVKK m.6 sağlık verisi; 014'ten beri yalnız yönetici okur).
 //  Fikstür: sıradaki maçlar (yakından uzağa) ve sonuçlar (yeniden eskiye), ay başlıklarıyla; sonuç harfle (G/B/M)
-import { supabase, hazir, h, $, sayfaBaslat, tarihYaz, saatYaz, goreceZaman, hataMetni, evSahibiDeplasman, skorMetni, sonucBilgisi, durumRozeti, sekmeKlavyesi, kapakKaynagi, cevrimdisiKutusu } from '../ortak.js';
-import { SAKATLIK_DURUMLARI } from '../kurallar.js';
+import { supabase, hazir, h, $, sayfaBaslat, tarihYaz, saatYaz, goreceZaman, hataMetni, evSahibiDeplasman, skorMetni, sonucBilgisi, durumRozeti, sekmeKlavyesi, kapakKaynagi, kapakGorseli, cevrimdisiKutusu, SAKATLIK_ETIKETI } from '../ortak.js';
 import { sonVeri, sonVeriYaz } from '../onbellek.js';
 
 const oturumS = sayfaBaslat();
 const MEVKILER = [['kaleci', 'Kaleciler'], ['defans', 'Defans'], ['orta_saha', 'Orta saha'], ['forvet', 'Forvet']];
 const MEVKI_TEKIL = { kaleci: 'Kaleci', defans: 'Defans', orta_saha: 'Orta saha', forvet: 'Forvet' };
-const DURUM_SIRASI = { sakat: 0, cezali: 1, belirsiz: 2, dondu: 3 };
+const DURUM_SIRASI = { sakat: 0, cezali: 1, belirsiz: 2, supheli: 2, dondu: 3 };
+const KAYNAK_URL = /^https:\/\/[a-z0-9.-]+\.[a-z]{2,63}(\/[^\s"<>]*)?$/i;
 const SEKMELER = ['kadro', 'sakatlik', 'fikstur'];
 const tablist = document.querySelector('[role="tablist"]');
 
@@ -34,15 +35,16 @@ sekmeAc(location.hash.slice(1), { adres: false });
 
 // ------------------------------------------------------------ kadro
 function oyuncuKarti(o, sakatlik) {
-  const k = kapakKaynagi(o.foto_url, { varsayilan: 480 });
+  const k = kapakKaynagi(o.foto_url, { varsayilan: 480, kutu: 180 });
   const durum = sakatlik && sakatlik.durum !== 'dondu' ? sakatlik.durum : null;
+  // Mevki başlığı (DEFANS…) zaten grubun adı; fotoğraf yoksa forma no kartın büyük rakamı: meta satırı tekrar etmez (tasarımcı 5)
   return h('li', null, h('div', { class: 'oyuncu-kart', 'data-oyuncu-id': o.id },
-    durum ? h('span', { class: 'oyuncu-isaret durum-cip ' + durum }, SAKATLIK_DURUMLARI[durum]) : null,
+    durum ? h('span', { class: 'oyuncu-isaret durum-cip ' + durum }, SAKATLIK_ETIKETI[durum] || durum) : null,
     h('div', { class: 'oyuncu-gorsel gunes-motif', 'aria-hidden': k ? null : 'true' },
-      k ? h('img', { src: k.src, srcset: k.srcset, sizes: '160px', alt: '', width: '320', height: '240', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'no' }, o.forma_no ?? '–')),
+      k ? kapakGorseli(k, { width: '320', height: '240', loading: 'lazy' }) : h('span', { class: 'no' }, o.forma_no ?? '–')),
     h('div', { class: 'oyuncu-govde' },
       h('span', { class: 'ad' }, o.ad),
-      h('span', { class: 'mevki' }, o.forma_no != null ? h('span', null, h('span', { class: 'gorunmez' }, 'Forma numarası '), String(o.forma_no), ' · ') : null, MEVKI_TEKIL[o.mevki]))));
+      o.forma_no != null ? h('span', { class: k ? 'mevki' : 'gorunmez' }, h('span', { class: 'gorunmez' }, 'Forma numarası '), k ? 'No ' : '', String(o.forma_no)) : null)));
 }
 
 function kadroCiz(oyuncular, sakatliklar) {
@@ -66,12 +68,14 @@ function sakatlikCiz(liste) {
   $('#sekme-sakatlik').textContent = sayi ? `Sakatlık (${sayi})` : 'Sakatlık';
   if (!l.length) { kok.replaceChildren(h('p', { class: 'bos' }, 'Şu an sakat ya da cezalı oyuncu yok. ⚡')); return; }
   kok.replaceChildren(h('ul', { class: 'sakatlik-listesi' }, l.map((s) => h('li', { class: 'sakatlik', 'data-sakatlik-id': s.id },
-    h('p', { class: 'ad' }, s.oyuncular ? s.oyuncular.ad : 'Oyuncu', s.oyuncular ? h('small', null, MEVKI_TEKIL[s.oyuncular.mevki] || '') : null),
-    h('span', { class: 'durum-cip ' + s.durum }, SAKATLIK_DURUMLARI[s.durum]),
-    s.aciklama ? h('p', { class: 'aciklama' }, s.aciklama) : null,
+    // Ad ve mevki ekran okuyucuda bitişik okunmasın ("Deniz DefansDefans" değil "Deniz, Defans")
+    h('p', { class: 'ad' }, s.oyuncular ? s.oyuncular.ad : 'Oyuncu', s.oyuncular ? h('small', null, h('span', { class: 'gorunmez' }, ', '), MEVKI_TEKIL[s.oyuncular.mevki] || '') : null),
+    h('span', { class: 'durum-cip ' + s.durum }, SAKATLIK_ETIKETI[s.durum] || s.durum),
     h('p', { class: 'kaynak' },
       s.beklenen_donus ? `Tahmini dönüş: ${tarihYaz(s.beklenen_donus + 'T12:00:00Z', { saat: false, yil: false })} · ` : '',
-      'Kaynak: ', s.kaynak_url ? h('a', { href: s.kaynak_url, rel: 'noopener', target: '_blank' }, s.kaynak, h('span', { class: 'gorunmez' }, ' (yeni sekmede açılır)')) : s.kaynak,
+      'Kaynak: ', typeof s.kaynak_url === 'string' && KAYNAK_URL.test(s.kaynak_url)
+        ? h('a', { href: s.kaynak_url, rel: 'noopener nofollow', target: '_blank' }, s.kaynak, h('span', { class: 'gorunmez' }, ' (yeni sekmede açılır)')) : s.kaynak,
+      s.kaynak_tarihi ? [' · ', h('time', { datetime: s.kaynak_tarihi, class: 'kaynak-tarihi' }, tarihYaz(String(s.kaynak_tarihi).slice(0, 10) + 'T12:00:00Z', { saat: false }))] : null,
       ' · Güncellendi ', h('time', { datetime: s.guncellendi }, goreceZaman(s.guncellendi)))))));
 }
 
@@ -99,7 +103,8 @@ function macSatiri(mac, { siradaki = false } = {}) {
     h('span', null,
       siradaki ? h('span', { class: 'siradaki-etiket' }, 'Sıradaki') : null,
       h('span', { class: 'eslesme' }, ev, ' – ', dep),
-      h('span', { class: 'bilgi' }, h('time', { datetime: mac.tarih }, tarihYaz(mac.tarih, { saat: !skor ? false : true, gun: true, kisa: true })),
+      // Tarih solda kutuda (10 KAS): meta satırı gün adı (+ bitende saat) ile başlar, tarih yalnız ekran okuyucuya (tasarımcı 5)
+      h('span', { class: 'bilgi' }, h('time', { datetime: mac.tarih }, gunAdi, skor ? ' ' + saatYaz(mac.tarih) : '', h('span', { class: 'gorunmez' }, ', ' + tarihYaz(mac.tarih, { saat: false }))),
         ' · ', mac.ic_saha ? 'İç saha' : 'Deplasman', mac.organizasyon ? ' · ' + mac.organizasyon : '', mac.durum === 'canli' ? ' · ' : null, mac.durum === 'canli' ? durumRozeti('canli') : null)),
     h('span', { class: 'sag' },
       skor ? [h('span', { class: 'skor' }, h('span', { class: 'gorunmez' }, 'Skor: '), skor)] : h('span', { class: 'saat' }, saatYaz(mac.tarih), h('span', { class: 'gorunmez' }, ' (TSİ)')),
@@ -119,7 +124,7 @@ function fiksturCiz(data) {
 async function yukle() {
   const [oy, sa, ma] = await Promise.all([
     supabase.from('oyuncular').select('id, ad, forma_no, mevki, foto_url, sira').eq('aktif', true).order('sira', { ascending: true }).limit(80),
-    supabase.from('sakatliklar').select('id, oyuncu_id, durum, aciklama, kaynak, kaynak_url, beklenen_donus, guncellendi, oyuncular(ad, mevki)').eq('yayinda', true).order('guncellendi', { ascending: false }).limit(60),
+    supabase.from('sakatliklar').select('id, oyuncu_id, durum, kaynak, kaynak_url, kaynak_tarihi, beklenen_donus, guncellendi, oyuncular(ad, mevki)').eq('yayinda', true).order('guncellendi', { ascending: false }).limit(60),
     supabase.from('maclar').select('id, rakip, tarih, stadyum, ic_saha, organizasyon, corum_skor, rakip_skor, durum').order('tarih', { ascending: false }).limit(300),
   ]);
   const eski = sonVeri('takim');

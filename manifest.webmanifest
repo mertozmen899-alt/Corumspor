@@ -1,0 +1,20 @@
+{
+  "name": "Çorumspor Taraftar",
+  "short_name": "ÇT Taraftar",
+  "description": "Bağımsız taraftar uygulaması: haberler, gol videoları, kadro ve fikstür. Çorum FK'nın resmî uygulaması değildir.",
+  "lang": "tr",
+  "dir": "ltr",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0B0B0B",
+  "background_color": "#0B0B0B",
+  "categories": ["sports", "news"],
+  "icons": [
+    { "src": "assets/logo/simge-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/logo/simge-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/logo/simge-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

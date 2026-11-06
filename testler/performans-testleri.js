@@ -9,7 +9,7 @@ const http = require('http'), fs = require('fs'), path = require('path'), zlib =
 const { ornekReklamGorseli, gorselTuru } = require('./tarayici-testleri');
 
 const KOK = path.resolve(__dirname, '..');
-const TUR = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.json': 'application/json', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
+const TUR = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.json': 'application/json', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.webmanifest': 'application/manifest+json' };
 const G1 = '22222222-0000-4000-8000-000000000001';
 const G3 = '22222222-0000-4000-8000-000000000003';
 const H1 = '33333333-0000-4000-8000-000000000001';
@@ -20,13 +20,29 @@ const PROFILLER = {
   'Hızlı 3G': { latency: 562.5, downloadThroughput: (1.44 * 1024 * 1024) / 8, uploadThroughput: (675 * 1024) / 8, cpu: 4, lcp: 4000 },
 };
 
-function sunucuAc() {
+/**
+ * Yerel test sunucusu. ops.kok: sunulacak klasör (varsayılan depo; yayin/ çıktısı da olabilir).
+ * ops.cf: Cloudflare Pages "güzel adres" taklidi: /x.html → 308 /x, /index.html → 308 /, /x → x.html (performans 2. tur §3).
+ * s.kapat(true): bundan sonraki her bağlantı kesilir (çevrimdışı taklidi; service worker önbelleği denenir).
+ */
+function sunucuAc({ kok = KOK, cf = false } = {}) {
   return new Promise((ok) => {
+    let kesik = false;
     const s = http.createServer((q, r) => {
-      let yol = decodeURIComponent(q.url.split('?')[0].split('#')[0]);
+      if (kesik) return q.socket.destroy();
+      const [yolKismi, sorgu = ''] = q.url.split('#')[0].split('?');
+      let yol = decodeURIComponent(yolKismi);
+      if (cf) {
+        if (/\.html$/.test(yol)) {
+          const hedef = yol === '/index.html' || yol.endsWith('/index.html') ? yol.slice(0, -'index.html'.length) : yol.slice(0, -5);
+          r.writeHead(308, { Location: hedef + (sorgu ? '?' + sorgu : ''), 'Cache-Control': 'no-store' });
+          return r.end();
+        }
+        if (!path.extname(yol) && yol !== '/') yol += '.html';
+      }
       if (yol === '/') yol = '/index.html';
-      const dosya = path.join(KOK, yol);
-      if (!dosya.startsWith(KOK + path.sep) || !fs.existsSync(dosya) || fs.statSync(dosya).isDirectory()) { r.writeHead(404); return r.end('yok'); }
+      const dosya = path.join(kok, yol);
+      if (!dosya.startsWith(kok + path.sep) || !fs.existsSync(dosya) || fs.statSync(dosya).isDirectory()) { r.writeHead(404); return r.end('yok'); }
       const tur = TUR[path.extname(dosya)] || 'application/octet-stream';
       let govde = fs.readFileSync(dosya);
       // Yayında Supabase istemcisi (assets/vendor, defer) modüllerle PARALEL iner. Testte onun yerine geçen sahte istemci
@@ -40,6 +56,7 @@ function sunucuAc() {
       r.writeHead(200, { 'Content-Type': tur, 'Cache-Control': 'no-store', ...(sikistir ? { 'Content-Encoding': 'gzip' } : {}), 'Content-Length': veri.length });
       r.end(veri);
     }).listen(0, '127.0.0.1', () => ok(s));
+    s.kapat = (v) => { kesik = v; if (v && s.closeAllConnections) s.closeAllConnections(); };
   });
 }
 
@@ -67,8 +84,8 @@ async function performansTestleri() {
   const tarayici = await chromium.launch();
   const hatalar = [];
 
-  async function baglam(vp = { width: 390, height: 844 }, profil = null) {
-    const ctx = await tarayici.newContext({ viewport: vp, deviceScaleFactor: 1, locale: 'tr-TR', timezoneId: 'Europe/Istanbul', hasTouch: true, isMobile: true });
+  async function baglam(vp = { width: 390, height: 844 }, profil = null, dpr = 1) {
+    const ctx = await tarayici.newContext({ viewport: vp, deviceScaleFactor: dpr, locale: 'tr-TR', timezoneId: 'Europe/Istanbul', hasTouch: true, isMobile: true });
     const istekler = [];
     // Dış adreslere çıkılmaz; YouTube/ytimg istekleri SAYILIR (engellenmeden önce kaydedilir)
     await ctx.route((url) => !url.href.startsWith(ADRES), (r) => { istekler.push(r.request().url()); return r.abort(); });
@@ -76,7 +93,7 @@ async function performansTestleri() {
     await ctx.route(/^https:\/\/sahte\.supabase\.co\/storage\/v1\/object\/public\//, (r) => {
       const yol = decodeURIComponent(new URL(r.request().url()).pathname.replace('/storage/v1/object/public/', ''));
       const ornek = ornekReklamGorseli(yol);
-      return ornek ? r.fulfill({ status: 200, contentType: gorselTuru(yol), body: ornek }) : r.fulfill({ status: 404, body: 'yok' });
+      return ornek ? r.fulfill({ status: 200, contentType: gorselTuru(yol), headers: { 'Access-Control-Allow-Origin': '*' }, body: ornek }) : r.fulfill({ status: 404, body: 'yok' });
     });
     await ctx.addInitScript(() => {
       try { if (!sessionStorage.getItem('__kuruldu')) { sessionStorage.setItem('__kuruldu', '1'); } } catch (e) {}
@@ -136,6 +153,28 @@ async function performansTestleri() {
         await ctx.close();
       });
     }
+  }
+
+  // ------------------------------------------------------------------ 2. tur: DPR 3 telefon (etkin DPR ≤ 2: -1600 kopya inmez)
+  for (const [url, bekle] of SAYFALAR.slice(0, 5)) {
+    const profil = PROFILLER['Yavaş 4G'];
+    const ad = `${url.split('?')[0]} (Yavaş 4G, 360×780 DPR 3)`;
+    await guvenli(ad, async () => {
+      const { ctx, p } = await baglam({ width: 360, height: 780 }, profil, 3);
+      await p.goto(adres(url), { waitUntil: 'load' });
+      await p.waitForSelector(bekle, { state: 'attached' });
+      await p.waitForTimeout(600);
+      const lcp = await p.evaluate(() => ({ t: Math.round(window.__lcp), oge: window.__lcpOge }));
+      const buyuk = await p.evaluate(() => performance.getEntriesByType('resource').map((r) => r.name).filter((u) => /-1600\.webp$/.test(u)).map((u) => u.split('/').pop()));
+      await kaydir(p);
+      await p.waitForTimeout(300);
+      const cls = await p.evaluate(() => Math.round(window.__cls * 1000) / 1000);
+      olcumler.push(`${ad}: LCP ${lcp.t} ms (${lcp.oge}), CLS ${cls}`);
+      kontrol(`${ad}: LCP ≤ 2,5 sn`, lcp.t > 0 && lcp.t <= profil.lcp, `${lcp.t} ms (${lcp.oge})`);
+      kontrol(`${ad}: CLS < 0,05`, cls < 0.05, cls);
+      kontrol(`${ad}: hiçbir içerik görseli -1600 kopyası inmedi (sizes etkin DPR ≤ 2)`, !buyuk.length, buyuk.join(' '));
+      await ctx.close();
+    });
   }
 
   // ------------------------------------------------------------------ istekler, modül derinliği, YouTube
@@ -257,6 +296,59 @@ async function performansTestleri() {
     const cc = (yol) => kurallar.filter((k) => k.re.test(yol) && k.basliklar.includes('cache-control')).map((k) => k.yol);
     kontrol('_headers: yazı tipi/görsel/vendor uzun süreli, kod 5 dk, sw.js no-cache', cc('/assets/fonts/x.woff2').length === 1 && cc('/assets/stil.css').join() === '/assets/:dosya' && cc('/sw.js').join() === '/sw.js' && cc('/index.html').length === 0);
   });
+
+  // ------------------------------------------------------------------ 2. tur: service worker Cloudflare'in 308 yönlendirmeleri arkasında
+  // Cloudflare Pages /x.html'i /x'e 308 ile yönlendirir; önbelleğe yönlendirilmiş yanıt girerse çevrimdışı hiçbir sayfa açılmıyordu.
+  // Hem yayin/ çıktısı (uzantısız bağlantılar, içerik özetli sürüm) hem depo (geliştirme sürümü) bu sunucuyla denenir.
+  const { hazirla } = require('../araclar/yayin-hazirla.js');
+  const os = require('os');
+  const yayinKok = fs.mkdtempSync(path.join(os.tmpdir(), 'yayin-sw-'));
+  hazirla({ kok: KOK, hedef: yayinKok, taslak: true });
+  for (const [etiket, kok] of [['yayin/ çıktısı', yayinKok], ['depo (geliştirme sürümü)', KOK]]) {
+    await guvenli(`service worker ${etiket}`, async () => {
+      const cf = await sunucuAc({ kok, cf: true });
+      const A = 'http://127.0.0.1:' + cf.address().port;
+      const ctx = await tarayici.newContext({ viewport: { width: 390, height: 844 }, locale: 'tr-TR', timezoneId: 'Europe/Istanbul' });
+      await ctx.route((u) => !u.href.startsWith(A), (r) => r.abort());
+      const p = await ctx.newPage();
+      p.setDefaultTimeout(15000);
+      const yon = [];
+      p.on('response', (r) => { if (r.status() === 308) yon.push(new URL(r.url()).pathname); });
+      // ayar.js yer tutucu: sayfa "yapılandırılmadı" uyarısı verir ama kabuğu tam (SW için yeterli). localhost'ta swKaydet kaydetmez: elle
+      await p.goto(A + '/index.html');
+      const sw = await p.evaluate(async () => { const k = await navigator.serviceWorker.register('sw.js'); await navigator.serviceWorker.ready; return !!k.active; });
+      await p.reload();
+      await p.waitForFunction(() => !!navigator.serviceWorker.controller);
+      if (etiket.startsWith('yayin')) {
+        const html = await p.content();
+        kontrol(`SW ${etiket}: yayında iç bağlantılar uzantısız (Cloudflare'de 308 gidiş-dönüşü yok)`, /href="goller"/.test(html) && !/href="goller\.html"/.test(html), (html.match(/href="[a-z]+(\.html)?"/g) || []).slice(0, 6).join(' '));
+        const surum = await p.evaluate(async () => (await caches.keys()).filter((k) => k.startsWith('kabuk-')));
+        kontrol(`SW ${etiket}: kabuk önbelleği içerik özetli sürüm (kabuk-y-…)`, surum.length === 1 && /^kabuk-y-[0-9a-f]{12}$/.test(surum[0]), surum.join(','));
+      }
+      const anahtarlar = await p.evaluate(async () => { const out = []; for (const k of await caches.keys()) for (const r of await (await caches.open(k)).keys()) out.push(new URL(r.url).pathname); return out; });
+      kontrol(`SW ${etiket}: kök (/) ve sayfalar uzantısız anahtarla önbellekte`, ['/', '/goller', '/takim', '/haber', '/cevrimdisi'].every((y) => anahtarlar.includes(y)), anahtarlar.filter((y) => !y.startsWith('/assets')).join(' '));
+      cf.kapat(true); // ağ yok
+      const sonuc = [];
+      for (const u of ['/', '/index.html', '/goller.html', '/goller', '/takim.html', `/haber.html?id=${H1}`, '/kurallar']) {
+        let d;
+        try {
+          await p.goto(A + u, { waitUntil: 'load' });
+          d = await p.evaluate(() => ({ baslik: document.title, serit: !!document.querySelector('.resmi-degil'), stil: getComputedStyle(document.body).backgroundColor !== 'rgba(0, 0, 0, 0)' }));
+        } catch (e) { d = { hata: String(e.message || e).split('\n')[0] }; }
+        sonuc.push([u, d]);
+      }
+      kontrol(`SW ${etiket}: Cloudflare 308 arkasında çevrimdışı her sayfa açılır (/, .html'li ve uzantısız adres, sorgulu haber), stil de önbellekten`, sw && sonuc.every(([, d]) => d.serit && d.stil && / · Çorumspor Taraftar$/.test(d.baslik) && !/İnternet yok/.test(d.baslik)), JSON.stringify(sonuc));
+      let yedek;
+      try { await p.goto(A + '/olmayan-sayfa', { waitUntil: 'load' }); yedek = await p.title(); } catch (e) { yedek = 'HATA ' + e.message.split('\n')[0]; }
+      const cevrimdisiBaslik = (/<title>([^<]+)<\/title>/.exec(fs.readFileSync(path.join(KOK, 'cevrimdisi.html'), 'utf8')) || [])[1];
+      kontrol(`SW ${etiket}: açılmamış sayfa çevrimdışı yedeğine (cevrimdisi.html) düşer`, yedek === cevrimdisiBaslik, `${yedek} / ${cevrimdisiBaslik}`);
+      void yon;
+      await ctx.close();
+      cf.kapat(false);
+      cf.close();
+    });
+  }
+  fs.rmSync(yayinKok, { recursive: true, force: true });
 
   kontrol('performans testlerinde JavaScript hatası yok', !hatalar.length, [...new Set(hatalar)].join(' | '));
   await tarayici.close();
