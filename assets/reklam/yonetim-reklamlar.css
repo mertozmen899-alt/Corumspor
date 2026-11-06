@@ -133,9 +133,24 @@
 .ry-ozet-ust { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
 .ry-ozet-gorsel { width: 120px; height: auto; border-radius: 6px; flex: none; }
 .ry-ozet-tanim { padding-left: 18px; font-size: 13px; }
+/* 015 (reklamveren 5): yazdırırken yalnız özet basılır ve boş 2. sayfa çıkmaz. Eskiden öteki öğeler yalnız görünmez yapılıyordu
+   (visibility), yerlerini koruyup sayfayı uzatıyorlardı: artık özetin atası olmayan her şey display:none, atalar dolgusuz ve akışta. */
 @media print {
-  html.ry-yazdir body * { visibility: hidden !important; }
-  html.ry-yazdir .ry-ozet, html.ry-yazdir .ry-ozet * { visibility: visible !important; }
-  html.ry-yazdir .ry-ozet { position: absolute; inset: 0 auto auto 0; width: 100%; border: 0; color: #000; background: #fff; }
+  @page { margin: 12mm; }
+  html.ry-yazdir body :not(:has(.ry-ozet)):not(.ry-ozet):not(.ry-ozet *) { display: none !important; }
+  html.ry-yazdir body, html.ry-yazdir body :has(.ry-ozet) {
+    margin: 0 !important; padding: 0 !important; border: 0 !important; min-height: 0 !important; height: auto !important;
+    max-width: none !important; box-shadow: none !important; position: static !important; background: #fff !important; overflow: visible !important;
+  }
+  html.ry-yazdir .ry-ozet { position: static; width: auto; margin: 0; padding: 0; border: 0; color: #000; background: #fff; }
   html.ry-yazdir .ry-ozet-dugmeler { display: none; }
+  html.ry-yazdir .ry-ozet-tablo { break-inside: auto; }
 }
+/* 015 (reklamveren 3): özet tablosu telefonda da etiketli (üstteki 720 px kuralı .ry-tablo td[data-baslik] için; Toplam satırı sola) */
+@media (max-width: 720px) {
+  .ry-ozet-tablo tfoot th { padding-top: 8px; }
+}
+/* 015 (denetçi 6): gece bakımı ve ham satır alarmı */
+.ry-bakim { display: grid; gap: 6px; margin: 0 0 12px; }
+.ry-bakim:empty { display: none; }
+.ry-bakim ul { margin: 4px 0 0; padding-left: 18px; font-weight: 400; }

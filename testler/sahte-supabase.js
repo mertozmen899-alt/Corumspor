@@ -25,6 +25,10 @@
 // (onay_bekliyor: kelime listesi yorum_kelimeleri + maçın ön onay penceresi; farklı 3 hesaptan şikâyet → kendiliğinden gizli;
 // yasaklı hesap düzenleyemez/şikâyet edemez), reklamda firma_anahtar, sunucuda yasaklı sektör onayı, tıklama eylemi,
 // yerleşim, sekme başına saatlik sınır, yalnız gösterilen reklama olay, reklam_raporu'nun yeni sütunları ve reklam_gunluk_raporu.
+// 015 (015_son_tur.sql): reklam başına dakikada 120 gösterim / 20 tıklama / 240 yerleşim (SINIRLAR), tıklama oranı = tıklanan farklı
+// sayfa açılışı ÷ gösterim (tiklayan_ziyaret), dönem bugünü aşmaz + devam_ediyor (RM.raporDonemi), reklam_ham_satir_alarmi,
+// reklam_gunluk_toplanan (boş: sahte modda gece bakımı yok), şikâyet: saatte 10 / günde 30, yalnız 24 saatlik hesaplar sayılır,
+// yönetici yorumu gizlenmez; görsel/düğme yazısı değişince sektör onayı sıfırlanır; haberler.kaynak_gerekli; ad değiştirme 7 günde bir.
 
 import * as RM from '../assets/reklam/reklam-mantik.js';
 import * as K from '../assets/kurallar.js';
@@ -104,7 +108,7 @@ function ornekReklamlar() {
 function baslangicVerisi() {
   const haber = (n, baslik, ozet, gun, kapak, yayinda = true, manset = false) => ({
     id: H(n), baslik, ozet, kapak_url: kapak ? IMG(kapak) : null, kapak_kaynak: kapak && ATIF[kapak] ? ATIF[kapak] : null, manset, yayinda, yayin_tarihi: yayinda ? gunOnce(gun) : null,
-    kaynak: null, kaynak_url: null, duzeltme_notu: null, duzeltme_tarihi: null, kapak_alt: null, // 014
+    kaynak: null, kaynak_url: null, duzeltme_notu: null, duzeltme_tarihi: null, kapak_alt: null, kaynak_gerekli: false, // 014, 015
     govde: `Bu bir test haberidir (${n}). İçerik uydurmadır.\n\nİkinci paragraf: taraftarlar tribünleri doldurdu.\nAynı paragrafta yeni satır.\n\n<script>alert("xss")</script> etiketi düz metin olarak görünmeli.`,
     yazar_id: U.admin, created_at: gunOnce(gun + 1), updated_at: gunOnce(gun),
   });
@@ -126,7 +130,7 @@ function baslangicVerisi() {
       haber(1, 'Test haberi 1: Sahada üç puan', 'Örnekköy Spor karşısında 2-1 galibiyet.', 1, 'corum-ulu-camii'),
       // 013: manşet (ana sayfanın açılış görseli). Kapağı sitenin varsayılan hero fotoğrafı (Saat Kulesi)
       haber(2, 'Test haberi 2: Deplasmanda bir puan', 'Kurgu Gençlik ile 1-1.', 2, 'corum-saat-kulesi-gece-yatay', true, true),
-      { ...haber(3, 'Test haberi 3: Biletler satışta', 'Deneme FK maçının biletleri.', 3, null), kaynak: 'Kulüp açıklaması', kaynak_url: 'https://ornek.test/biletler' }, // 014: kaynaklı haber
+      { ...haber(3, 'Test haberi 3: Biletler satışta', 'Deneme FK maçının biletleri.', 3, null), kaynak: 'Kulüp açıklaması', kaynak_url: 'https://ornek.test/biletler', kaynak_gerekli: true }, // 014: kaynaklı haber; 015: bilet haberi (kaynak zorunlu)
       haber(4, 'Test haberi 4: Antrenman notları', 'Hazırlıklar sürüyor.', 4, null),
       haber(5, 'Test haberi 5: Altyapıdan haberler', null, 5, 'hattusa-aslanli-kapi'),
       haber(6, 'Test haberi 6: Tribün koreografisi', 'Taraftar grupları hazırlanıyor.', 6, null),
@@ -170,6 +174,7 @@ function baslangicVerisi() {
     reklam_sinir_dakikalari: [],
     reklam_yerlesimleri: [], // 014
     reklam_sekme_sayaclari: [], // 014
+    reklam_gunluk_toplanan: [], // 015: gece bakımının topladığı günler (sahte modda bakım yok)
     yorum_duzenlemeleri: [],
   };
 }
@@ -180,7 +185,7 @@ function dbOku() {
     const s = localStorage.getItem(DB_ANAHTAR);
     if (s) {
       const db = JSON.parse(s);
-      for (const k of ['reklamlar', 'reklam_olaylari', 'reklam_sinir_dakikalari', 'yorum_duzenlemeleri', 'oyuncular', 'sakatliklar', 'yorum_sikayetleri', 'yorum_kelimeleri', 'reklam_yerlesimleri', 'reklam_sekme_sayaclari']) db[k] = db[k] || [];
+      for (const k of ['reklamlar', 'reklam_olaylari', 'reklam_sinir_dakikalari', 'yorum_duzenlemeleri', 'oyuncular', 'sakatliklar', 'yorum_sikayetleri', 'yorum_kelimeleri', 'reklam_yerlesimleri', 'reklam_sekme_sayaclari', 'reklam_gunluk_toplanan']) db[k] = db[k] || [];
       return db;
     }
   } catch (e) {}
@@ -301,7 +306,7 @@ class Sorgu {
 
   gorunur(db, ctx, tablo, r) {
     if (tablo === 'haberler') return r.yayinda || ctx.admin;
-    if (tablo === 'reklamlar' || tablo === 'reklam_olaylari' || tablo === 'yorum_sikayetleri' || tablo === 'yorum_kelimeleri') return ctx.admin; // RLS: yalnız yönetici okur
+    if (tablo === 'reklamlar' || tablo === 'reklam_olaylari' || tablo === 'yorum_sikayetleri' || tablo === 'yorum_kelimeleri' || tablo === 'reklam_gunluk_toplanan') return ctx.admin; // RLS: yalnız yönetici okur
     if (tablo === 'oyuncular') return r.aktif || ctx.admin;        // 013
     if (tablo === 'sakatliklar') return r.yayinda || ctx.admin;    // 013: ziyaretçi yalnız yayındakini görür
     if (tablo === 'yorumlar') {
@@ -407,10 +412,17 @@ class Sorgu {
         if (y.kullanici_id === ctx.uid) throw gecersiz('Kendi yorumunu şikâyet edemezsin; istersen silebilirsin.');
         r.sikayet_eden = ctx.uid; r.created_at = simdi(); r.neden = r.neden || 'diger';
         if (!['hakaret', 'nefret', 'hedef_gosterme', 'spam', 'kisisel_veri', 'diger'].includes(r.neden)) throw { code: '23514', message: 'check constraint yorum_sikayetleri_neden_check' };
+        // 015: kişi başına saatte 10 / günde 30 şikâyet (sikayet_hakki)
+        const benimki = db.yorum_sikayetleri.filter((x) => x.sikayet_eden === ctx.uid);
+        if (benimki.filter((x) => Date.now() - Date.parse(x.created_at) < 3600e3).length >= K.SIKAYET_SINIRLARI.saatte) throw { code: 'P0001', message: 'Bir saatte en fazla 10 şikâyet gönderebilirsin. Biraz sonra yeniden dene.', hint: 'sikayet_siniri' };
+        if (benimki.filter((x) => Date.now() - Date.parse(x.created_at) < 864e5).length >= K.SIKAYET_SINIRLARI.gunde) throw { code: 'P0001', message: 'Bir günde en fazla 30 şikâyet gönderebilirsin. Yarın yeniden dene.', hint: 'sikayet_siniri' };
         if (db.yorum_sikayetleri.some((x) => x.yorum_id === r.yorum_id && x.sikayet_eden === ctx.uid)) throw { code: '23505', message: 'duplicate key value violates unique constraint "yorum_sikayeti_tek"' };
         // 014: farklı 3 hesaptan (yöneticinin son kararından sonra) şikâyet → yorum kendiliğinden gizlenir
-        const sonra = db.yorum_sikayetleri.filter((x) => x.yorum_id === r.yorum_id && (!y.moderasyon_zamani || x.created_at > y.moderasyon_zamani));
-        if (!y.gizli && new Set([...sonra.map((x) => x.sikayet_eden), ctx.uid]).size >= 3) Object.assign(y, { gizli: true, gizleme_nedeni: 'sikayet' });
+        // 015: yalnız şikâyet anında en az 24 saatlik hesaplar sayılır; yönetici yorumu kendiliğinden gizlenmez
+        const eskiHesap = (uid, an) => { const pr = db.profiles.find((x) => x.id === uid); return !!pr && Date.parse(pr.created_at) <= Date.parse(an) - K.SIKAYET_SINIRLARI.hesapYasiSaat * 3600e3; };
+        const sonra = [...db.yorum_sikayetleri, r].filter((x) => x.yorum_id === r.yorum_id && (!y.moderasyon_zamani || x.created_at > y.moderasyon_zamani) && eskiHesap(x.sikayet_eden, x.created_at));
+        const yazanYonetici = (db.profiles.find((x) => x.id === y.kullanici_id) || {}).role === 'admin';
+        if (!y.gizli && !yazanYonetici && new Set(sonra.map((x) => x.sikayet_eden)).size >= K.SIKAYET_SINIRLARI.otomatikGizlemeEsigi) Object.assign(y, { gizli: true, gizleme_nedeni: 'sikayet' });
       } else if (this.t === 'reklamlar') {
         if (!ctx.admin) throw rlsHatasi(this.t);
         const an = reklamSimdi().toISOString();
@@ -461,10 +473,15 @@ class Sorgu {
       if (this.t === 'sakatliklar') { sakatlikDogrula({ ...r, ...v }); v.guncellendi = simdi(); }
       if (this.t === 'goller' && 'kapak_url' in v && !K.kapakAdresiGecerli(v.kapak_url)) throw { code: '23514', message: 'new row for relation "goller" violates check constraint "goller_kapak_kaynagi"' };
       if (this.t === 'goller') golDogrula({ ...r, ...v }, r);
-      if (this.t === 'haberler') { const ara = { ...r, ...v }; haberDogrula(ara, r); Object.assign(v, { kaynak: ara.kaynak, kaynak_url: ara.kaynak_url, duzeltme_notu: ara.duzeltme_notu, duzeltme_tarihi: ara.duzeltme_tarihi, kapak_alt: ara.kapak_alt }); }
+      if (this.t === 'haberler') { const ara = { ...r, ...v }; haberDogrula(ara, r); Object.assign(v, { kaynak: ara.kaynak, kaynak_url: ara.kaynak_url, duzeltme_notu: ara.duzeltme_notu, duzeltme_tarihi: ara.duzeltme_tarihi, kapak_alt: ara.kapak_alt, kaynak_gerekli: ara.kaynak_gerekli }); }
       if (this.t === 'maclar') macDogrula({ ...r, ...v });
       if (this.t === 'oyuncular' && 'foto_url' in v && !K.kapakAdresiGecerli(v.foto_url)) throw { code: '23514', message: 'new row for relation "oyuncular" violates check constraint "oyuncular_foto_kaynagi"' };
       if (this.t === 'profiles' && 'kullanici_adi' in v && v.kullanici_adi !== r.kullanici_adi && K.kullaniciAdiAyrilmis(v.kullanici_adi)) throw { code: '22023', message: 'Bu kullanıcı adı kullanılamaz: yönetici, resmî hesap ya da kulüp gibi görünen adlar ayrılmıştır.' };
+      if (this.t === 'profiles') { // 015: ad değiştirme 7 günde bir (yönetici muaf); ad_degisti'yi kişi yazamaz
+        const degisti = 'kullanici_adi' in v && v.kullanici_adi !== r.kullanici_adi;
+        if (degisti && !ctx.admin && r.ad_degisti && Date.now() - Date.parse(r.ad_degisti) < K.AD_DEGISTIRME_GUN * 864e5) throw { code: 'P0001', message: 'Kullanıcı adını 7 günde bir değiştirebilirsin.', hint: 'ad_degisti' };
+        v.ad_degisti = degisti ? simdi() : r.ad_degisti ?? null;
+      }
       if (this.t === 'haberler' && !K.kapakAdresiGecerli('kapak_url' in v ? v.kapak_url : r.kapak_url)) throw kapakHatasi();
       if (this.t === 'reklamlar') {
         const ara = { ...r, ...v, id: r.id, created_at: r.created_at, olusturan: r.olusturan };
@@ -535,6 +552,8 @@ const kisitHatasi = (tablo, ad) => ({ code: '23514', message: `new row for relat
 /** 014 haberler: kaynak, kaynak_url (https), duzeltme_notu (+ duzeltme_tarihi sunucuda), kapak_alt. */
 function haberDogrula(r, eski) {
   for (const k of ['kaynak', 'kaynak_url', 'duzeltme_notu', 'kapak_alt']) r[k] = r[k] == null || String(r[k]).trim() === '' ? null : String(r[k]).trim();
+  r.kaynak_gerekli = !!r.kaynak_gerekli;
+  if (r.kaynak_gerekli && !r.kaynak) throw gecersiz('Kadro, transfer, sakatlık ya da bilet haberinde kaynak zorunlu (ör. "Kulüp açıklaması").'); // 015 haber_kaynak_kontrol
   const h = K.haberHatalari(r);
   if (h.kaynak) throw kisitHatasi('haberler', 'haberler_kaynak');
   if (h.kaynak_url) throw kisitHatasi('haberler', 'haberler_kaynak_url');
@@ -568,14 +587,14 @@ function sektorDogrula(r, eski) {
   r.firma_anahtar = RM.firmaAnahtari(r.firma_adi);
   if (!eski) r.sektor_onay_zamani = r.sektor_onayi ? an : null;
   else {
-    const icerik = ['baglanti_url', 'telefon', 'gorsel_url', 'gorsel_kucuk_url', 'kisa_metin'].some((k) => (r[k] ?? null) !== (eski[k] ?? null)) || r.firma_anahtar !== RM.firmaAnahtari(eski.firma_adi);
+    const icerik = ['baglanti_url', 'telefon', 'gorsel_url', 'gorsel_kucuk_url', 'kisa_metin', 'gorsel_metni', 'dugme_metni'].some((k) => (r[k] ?? null) !== (eski[k] ?? null)) || r.firma_anahtar !== RM.firmaAnahtari(eski.firma_adi);
     const yeniden = !!r.sektor_onayi && (!eski.sektor_onayi || (r.sektor_onay_zamani ?? null) !== (eski.sektor_onay_zamani ?? null));
     if (yeniden) r.sektor_onay_zamani = an;
     else if (icerik) r.sektor_onayi = false;
     if (!r.sektor_onayi) r.sektor_onay_zamani = null;
     else if (!yeniden) r.sektor_onay_zamani = eski.sektor_onay_zamani ?? null;
   }
-  if (r.durum === 'yayinda' && !r.sektor_onayi) throw gecersiz('Yayına almadan önce yasaklı sektör listesini onaylayın (firma, bağlantı, telefon, görsel ya da metin değiştiyse yeniden).');
+  if (r.durum === 'yayinda' && !r.sektor_onayi) throw gecersiz('Yayına almadan önce yasaklı sektör listesini onaylayın (firma, bağlantı, telefon, görsel, görsel yazısı, düğme yazısı ya da metin değiştiyse yeniden).');
 }
 
 /** reklamlar_dogrula tetikleyicisinin aynası: hata varsa ilkini fırlatır, satırı yerinde düzeltir. */
@@ -687,7 +706,9 @@ function rpcCalistir(db, ctx, ad, p) {
     const tumOlay = [...db.reklam_olaylari.filter(icinde), ...db.reklam_yerlesimleri.filter(icinde).map((y) => ({ ...y, tur: 'yerlesim' }))];
     const say = (l) => {
       const g = l.filter((o) => o.tur === 'gosterim').length, t = l.filter((o) => o.tur === 'tiklama');
-      return { gosterim: g, tiklama: t.length, tiklama_web: t.filter((o) => o.eylem === 'web').length, tiklama_whatsapp: t.filter((o) => o.eylem === 'whatsapp').length,
+      // 015: tıklama yapılan farklı sayfa açılışı (günlük toplamdaki gibi gün başına farklı ziyaret)
+      const tiklayan = new Set(t.map((o) => RM.istanbulGunu(o.created_at) + '|' + o.sayfa_ziyaret_id)).size;
+      return { gosterim: g, tiklama: t.length, tiklayan_ziyaret: tiklayan, tiklama_web: t.filter((o) => o.eylem === 'web').length, tiklama_whatsapp: t.filter((o) => o.eylem === 'whatsapp').length,
         tiklama_ara: t.filter((o) => o.eylem === 'ara').length, yerlesim: l.filter((o) => o.tur === 'yerlesim').length };
     };
     if (ad === 'reklam_gunluk_raporu') {
@@ -707,17 +728,34 @@ function rpcCalistir(db, ctx, ad, p) {
       const supheli = new Set(db.reklam_sinir_dakikalari.filter((x) => x.reklam_id === r.id && x.dakika >= basAn && x.dakika < sonAn).map((x) => x.dakika)).size;
       const kesisir = r.durum !== 'taslak' && r.baslangic < sonAn && r.bitis > basAn;
       if (!ol.length && !supheli && !kesisir) return null;
-      const db0 = [b, RM.istanbulGunu(r.baslangic)].sort().pop();
-      const ds0 = [e, RM.istanbulGunu(new Date(Date.parse(r.bitis) - 1))].sort()[0];
-      const gun = ds0 >= db0 ? Math.round((Date.parse(ds0 + 'T00:00:00Z') - Date.parse(db0 + 'T00:00:00Z')) / 864e5) + 1 : 0;
-      return { reklam_id: r.id, firma_adi: r.firma_adi, alan: r.alan, mac_id: r.mac_id, gosterim: c.gosterim, tiklama: c.tiklama, tiklama_orani: RM.tiklamaOrani(c.gosterim, c.tiklama), supheli_dakika: supheli,
+      // 015: dönem ve yayın günü bugünü (TSİ) aşmaz; devam_ediyor (SQL reklam_raporu ile aynı: RM.raporDonemi)
+      const dn = RM.raporDonemi(b, e, r, simdi);
+      const gun = dn.yayin_gun;
+      return { reklam_id: r.id, firma_adi: r.firma_adi, alan: r.alan, mac_id: r.mac_id, gosterim: c.gosterim, tiklama: c.tiklama, tiklama_orani: RM.tiklamaOrani(c.gosterim, c.tiklayan_ziyaret), supheli_dakika: supheli,
         firma_anahtar: RM.firmaAnahtari(r.firma_adi), tiklama_web: c.tiklama_web, tiklama_whatsapp: c.tiklama_whatsapp, tiklama_ara: c.tiklama_ara, yerlesim: c.yerlesim,
         gorunurluk_orani: c.yerlesim > 0 ? Math.round((Math.min(c.gosterim, c.yerlesim) * 10000) / c.yerlesim) / 100 : null,
-        yayin_baslangic: r.baslangic, yayin_bitis: r.bitis, donem_baslangic: gun ? db0 : null, donem_bitis: gun ? ds0 : null, yayin_gun: gun,
-        gunluk_ortalama_gosterim: gun ? Math.round((c.gosterim * 10) / gun) / 10 : null };
+        yayin_baslangic: r.baslangic, yayin_bitis: r.bitis, donem_baslangic: dn.donem_baslangic, donem_bitis: dn.donem_bitis, yayin_gun: gun,
+        gunluk_ortalama_gosterim: gun ? Math.round((c.gosterim * 10) / gun) / 10 : null, tiklayan_ziyaret: c.tiklayan_ziyaret, devam_ediyor: dn.devam_ediyor };
     }).filter(Boolean);
     satirlar.sort((x, y) => y.gosterim - x.gosterim || x.firma_adi.localeCompare(y.firma_adi, 'tr'));
     return { data: satirlar, error: null };
+  }
+  if (ad === 'reklam_ham_satir_alarmi') { // 015: yalnız yönetici; son N günde reklam başına günde eşiği aşan ham satır
+    if (!ctx.admin) throw { code: '42501', message: 'Bu listeyi yalnızca yöneticiler görebilir.' };
+    const gunSayisi = Math.max(1, Math.min(Number(p.p_gun_sayisi) || 7, 90));
+    const sinir = RM.istanbulGunu(new Date(simdi.getTime() - (gunSayisi - 1) * 864e5));
+    const say = new Map();
+    for (const o of [...db.reklam_olaylari, ...db.reklam_yerlesimleri]) {
+      const g = RM.istanbulGunu(o.created_at);
+      if (g < sinir) continue;
+      const k = g + '|' + o.reklam_id; say.set(k, (say.get(k) || 0) + 1);
+    }
+    const l = [...say].filter(([, n]) => n > RM.SINIRLAR.hamSatirAlarmi).map(([k, n]) => {
+      const [gun, id] = k.split('|');
+      return { gun, reklam_id: id, firma_adi: (db.reklamlar.find((x) => x.id === id) || {}).firma_adi || '', ham_satir: n, esik: RM.SINIRLAR.hamSatirAlarmi };
+    });
+    l.sort((a, b2) => b2.gun.localeCompare(a.gun) || b2.ham_satir - a.ham_satir);
+    return { data: l, error: null };
   }
   return { data: null, error: { code: 'PGRST202', message: 'Could not find the function public.' + ad } };
 }

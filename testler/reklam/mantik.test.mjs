@@ -216,6 +216,7 @@ test('tıklama oranı ve Türkçe sayı biçimi', () => {
   assert.equal(M.tiklamaOrani(200, 5), 2.5);
   assert.equal(M.tiklamaOrani(3, 1), 33.33);
   assert.equal(M.tiklamaOrani(0, 2), null);
+  assert.equal(M.tiklamaOrani(1, 2), 100, '015: oran %100\'ü aşmaz (pay = tıklanan farklı sayfa açılışı)');
   assert.equal(M.oranBicimle(2.5), '2,50');
   assert.equal(M.oranBicimle(1234.5), '1.234,50');
   assert.equal(M.oranBicimle(null), '');
@@ -227,21 +228,23 @@ test('CSV: UTF-8 BOM, noktalı virgül, CRLF, Türkçe oran, tırnak ve formül 
   const csv = M.raporCsv([
     { firma_adi: 'Narçil Cafe; Kahve', alan: 'ana_akis', gosterim: 1200, tiklama: 30, tiklama_orani: 2.5, supheli_dakika: 3, yerlesim: 1600, gorunurluk_orani: 75,
       tiklama_web: 20, tiklama_whatsapp: 6, tiklama_ara: 4, yayin_baslangic: '2026-11-06T09:00:00Z', yayin_bitis: '2026-11-13T21:00:00Z',
-      donem_baslangic: '2026-11-06', donem_bitis: '2026-11-14', yayin_gun: 9, gunluk_ortalama_gosterim: 133.3 },
+      donem_baslangic: '2026-11-06', donem_bitis: '2026-11-14', yayin_gun: 9, gunluk_ortalama_gosterim: 133.3, tiklayan_ziyaret: 28, devam_ediyor: true },
     { firma_adi: '=HYPERLINK("x")', alan: 'mac_sponsoru', mac_id: 'm1', gosterim: 0, tiklama: 0, tiklama_orani: null },
     { firma_adi: 'Şükrü "Usta" Pide', alan: 'haber_sonu', gosterim: '3', tiklama: '1' },
     { firma_adi: 'Genel', alan: 'mac_sponsoru', mac_id: null, gosterim: 1, tiklama: 0 },
   ], { donem: '2026-11-01 – 2026-11-30', macAdi: (id) => (id === 'm1' ? '22 Ekim 2026 19:00 · Çorum FK – Örnekköy Spor' : '') });
   assert.equal(csv.charCodeAt(0), 0xfeff);
   const satirlar = csv.slice(1).split('\r\n');
-  assert.equal(satirlar[0], 'Firma;Alan;Maç;Dönem;Yayın başlangıç;Yayın bitiş;Yayın günü;Sayfa açılışı;Gösterim;Görünürlük oranı (%);Günlük ortalama gösterim;Tıklama;Web tıklaması;WhatsApp tıklaması;Arama;Tıklama oranı (%);Şüpheli trafik (sayılmadı, dk)');
-  assert.equal(satirlar[1], '"Narçil Cafe; Kahve";Ana sayfa akışı;;2026-11-06 – 2026-11-14;6 Kasım 2026 12:00;14 Kasım 2026 00:00;9;1600;1200;75,00;133,3;30;20;6;4;2,50;3');
-  assert.equal(satirlar[2], `"'=HYPERLINK(""x"")";Maç sponsoru;22 Ekim 2026 19:00 · Çorum FK – Örnekköy Spor;2026-11-01 – 2026-11-30;;;;0;0;;;0;0;0;0;;0`);
-  assert.equal(satirlar[3], '"Şükrü ""Usta"" Pide";Haber sonu;;2026-11-01 – 2026-11-30;;;;0;3;;;1;0;0;0;33,33;0');
-  assert.equal(satirlar[4], 'Genel;Maç sponsoru;Tüm maçlar;2026-11-01 – 2026-11-30;;;;0;1;;;0;0;0;0;0,00;0');
+  // 015: tek tarih biçimi (GG.AA.YYYY [SS:DD]), "(devam ediyor)", tıklama yapılan sayfa açılışı sütunu
+  assert.equal(satirlar[0], 'Firma;Alan;Maç;Dönem;Yayın başlangıç;Yayın bitiş;Yayın günü;Sayfa açılışı;Gösterim;Görünürlük oranı (%);Günlük ortalama gösterim;Tıklama;Web tıklaması;WhatsApp tıklaması;Arama;Tıklama yapılan sayfa açılışı;Tıklama oranı (%);Şüpheli trafik (sayılmadı, dk)');
+  assert.equal(satirlar[1], '"Narçil Cafe; Kahve";Ana sayfa akışı;;06.11.2026 – 14.11.2026 (devam ediyor);06.11.2026 12:00;14.11.2026 00:00;9;1600;1200;75,00;133,3;30;20;6;4;28;2,50;3');
+  assert.equal(satirlar[2], `"'=HYPERLINK(""x"")";Maç sponsoru;22 Ekim 2026 19:00 · Çorum FK – Örnekköy Spor;01.11.2026 – 30.11.2026;;;;0;0;;;0;0;0;0;0;;0`);
+  assert.equal(satirlar[3], '"Şükrü ""Usta"" Pide";Haber sonu;;01.11.2026 – 30.11.2026;;;;0;3;;;1;0;0;0;1;33,33;0');
+  assert.equal(satirlar[4], 'Genel;Maç sponsoru;Tüm maçlar;01.11.2026 – 30.11.2026;;;;0;1;;;0;0;0;0;0;0,00;0');
   assert.equal(satirlar[5], '');
+  assert.ok(!/\d{4}-\d{2}-\d{2}|Kasım 2026/.test(csv.replace('22 Ekim 2026 19:00 · Çorum FK – Örnekköy Spor', '')), 'CSV\'de ISO ya da uzun Türkçe tarih kalmadı');
   // hiçbir satırda şüpheli trafik yoksa sütun hiç yok (reklam verene giden dosyada teknik sütun kalmaz)
-  assert.equal(M.raporCsv([]), '\ufeffFirma;Alan;Maç;Dönem;Yayın başlangıç;Yayın bitiş;Yayın günü;Sayfa açılışı;Gösterim;Görünürlük oranı (%);Günlük ortalama gösterim;Tıklama;Web tıklaması;WhatsApp tıklaması;Arama;Tıklama oranı (%)\r\n');
+  assert.equal(M.raporCsv([]), '\ufeffFirma;Alan;Maç;Dönem;Yayın başlangıç;Yayın bitiş;Yayın günü;Sayfa açılışı;Gösterim;Görünürlük oranı (%);Günlük ortalama gösterim;Tıklama;Web tıklaması;WhatsApp tıklaması;Arama;Tıklama yapılan sayfa açılışı;Tıklama oranı (%)\r\n');
   assert.ok(!/Şüpheli/.test(M.raporCsv([{ firma_adi: 'A', alan: 'ana_akis', gosterim: 1, tiklama: 0, supheli_dakika: 0 }])));
 });
 
@@ -255,9 +258,12 @@ test('013/014: firma süzgeci ortak firma anahtarıyla (Türkçe küçük harf, 
   for (const [girdi, beklenen] of ORNEK.firma_anahtari) assert.equal(M.firmaAnahtari(girdi), beklenen, girdi);
 });
 
-test('dakika sınırları (014): reklam başına dakikada 30 gösterim / 6 tıklama, sekme başına saatte 20 gösterim / 10 tıklama, ziyaret başına 5 tıklama (SQL ile aynı)', () => {
-  assert.equal(M.SINIRLAR.gosterimDakikaSiniri, 30);
-  assert.equal(M.SINIRLAR.tiklamaDakikaSiniri, 6);
+test('dakika sınırları (015): reklam başına dakikada 120 gösterim / 20 tıklama / 240 yerleşim, sekme başına saatte 20 gösterim / 10 tıklama, ziyaret başına 5 tıklama (SQL ile aynı)', () => {
+  assert.equal(M.SINIRLAR.gosterimDakikaSiniri, 120);
+  assert.equal(M.SINIRLAR.tiklamaDakikaSiniri, 20);
+  assert.equal(M.SINIRLAR.yerlesimDakikaSiniri, 240);
+  assert.equal(M.SINIRLAR.hamSatirAlarmi, 20000);
+  assert.equal(M.SINIRLAR.bakimGecikmeGun, 2);
   assert.equal(M.SINIRLAR.ziyaretTiklamaSiniri, 5);
   assert.equal(M.SINIRLAR.sekmeSaatGosterimSiniri, 20);
   assert.equal(M.SINIRLAR.sekmeSaatTiklamaSiniri, 10);
@@ -304,8 +310,46 @@ test('014: bağlantısız reklamda metinde adres uyarısı, tıklama eylemi, en 
   assert.equal(M.tiklamaEylemi('whatsapp://send?phone=905321234567'), 'whatsapp');
   assert.equal(M.tiklamaEylemi('https://kaleoto.com.tr/stok'), 'web');
   assert.equal(M.tiklamaEylemi('javascript:alert(1)'), null);
-  assert.deepEqual(M.enYogunGun([{ gun: '2026-11-08', gosterim: 40 }, { gun: '2026-11-09', gosterim: 30 }, { gun: '2026-11-09', gosterim: 25 }]), { gun: '2026-11-09', gosterim: 55 });
+  assert.deepEqual(M.enYogunGun([{ gun: '2026-11-08', gosterim: 40 }, { gun: '2026-11-09', gosterim: 30 }, { gun: '2026-11-09', gosterim: 25 }]), { gun: '2026-11-09', gosterim: 55, mac: false });
   assert.equal(M.enYogunGun([]), null);
+  // 015: eşitlikte maç günü öne geçer (sırası ne olursa olsun)
+  assert.equal(M.enYogunGun([{ gun: '2026-11-06', gosterim: 2 }, { gun: '2026-11-11', gosterim: 2, mac_gunu: true }]).gun, '2026-11-11');
+  assert.equal(M.enYogunGun([{ gun: '2026-11-11', gosterim: 2, mac_gunu: true }, { gun: '2026-11-06', gosterim: 2 }]).gun, '2026-11-11');
+  assert.equal(M.enYogunGun([{ gun: '2026-11-06', gosterim: 3 }, { gun: '2026-11-11', gosterim: 2, mac_gunu: true }]).gun, '2026-11-06');
+  assert.equal(M.enYogunGun([{ gun: '2026-11-07', gosterim: 2 }, { gun: '2026-11-06', gosterim: 2 }]).gun, '2026-11-06', 'maç günü yoksa en erken gün');
+});
+
+test('015: rapor dönemi bugünü aşmaz, "(devam ediyor)"; ay ortası raporu', () => {
+  const simdi = new Date('2026-11-06T09:00:00Z'); // 6 Kasım 12:00 TSİ
+  const ay = (r) => M.raporDonemi('2026-11-01', '2026-11-30', { durum: 'yayinda', ...r }, simdi);
+  // ay boyu yayın, rapor 6 Kasım'da: 1–6 Kasım (6 gün, devam ediyor), 25 gün değil
+  assert.deepEqual(ay({ baslangic: '2026-10-20T00:00:00Z', bitis: '2026-12-20T00:00:00Z' }), { donem_baslangic: '2026-11-01', donem_bitis: '2026-11-06', yayin_gun: 6, devam_ediyor: true });
+  // bugün başlayan: 1 gün
+  assert.deepEqual(ay({ baslangic: '2026-11-06T00:47:00Z', bitis: '2026-12-06T20:59:00Z' }), { donem_baslangic: '2026-11-06', donem_bitis: '2026-11-06', yayin_gun: 1, devam_ediyor: true });
+  // bitmiş yayın: devam etmiyor
+  assert.deepEqual(ay({ baslangic: '2026-11-01T00:00:00Z', bitis: '2026-11-04T21:00:00Z' }), { donem_baslangic: '2026-11-01', donem_bitis: '2026-11-04', yayin_gun: 4, devam_ediyor: false });
+  // ileride başlayacak: dönem yok
+  assert.deepEqual(ay({ baslangic: '2026-11-10T00:00:00Z', bitis: '2026-11-20T00:00:00Z' }), { donem_baslangic: null, donem_bitis: null, yayin_gun: 0, devam_ediyor: false });
+  // duraklatılmış: dönem bugünde kesilir ama "devam ediyor" yazmaz
+  assert.equal(ay({ durum: 'duraklatildi', baslangic: '2026-10-20T00:00:00Z', bitis: '2026-12-20T00:00:00Z' }).devam_ediyor, false);
+  assert.equal(M.donemMetni({ donem_baslangic: '2026-11-01', donem_bitis: '2026-11-06', devam_ediyor: true }), '01.11.2026 – 06.11.2026 (devam ediyor)');
+  assert.equal(M.donemMetni({ donem_baslangic: null }), '');
+  assert.equal(M.gunNoktali('2026-11-06'), '06.11.2026');
+  assert.equal(M.anNoktali('2026-11-06T00:47:00Z'), '06.11.2026 03:47');
+});
+
+test('015: "1 hafta" / "1 ay" bitişi o günün 23:59\'u (TSİ); ay sonu taşmaz', () => {
+  assert.equal(M.sureBitisi('2026-11-06T00:47:00Z', { gun: 7 }), '2026-11-13T23:59');
+  assert.equal(M.sureBitisi('2026-11-06T00:47:00Z', { ay: 1 }), '2026-12-06T23:59');
+  assert.equal(M.sureBitisi('2026-11-05T22:30:00Z', { ay: 1 }), '2026-12-06T23:59', 'TSİ günü (6 Kasım 01:30) esas');
+  assert.equal(M.sureBitisi('2027-01-31T09:00:00Z', { ay: 1 }), '2027-02-28T23:59');
+  assert.equal(M.sureBitisi('2026-12-28T09:00:00Z', { gun: 7 }), '2027-01-04T23:59');
+});
+
+test('015: akış yuvası notu (1. yuva ilk sayfada; 2./3. yalnız "Daha fazla haber" açılınca)', () => {
+  assert.equal(M.akisYuvaNotu(1), 'Akışta 1. sponsor: ilk sayfada');
+  assert.equal(M.akisYuvaNotu(2), 'Akışta 2. sponsor: yalnız "Daha fazla haber" açılınca');
+  assert.equal(M.akisYuvaNotu(3), 'Akışta 3. sponsor: yalnız "Daha fazla haber" açılınca');
 });
 
 test('sayfa ziyareti kimliği: uuid v4, randomUUID yoksa yedek yol', () => {
@@ -314,4 +358,13 @@ test('sayfa ziyareti kimliği: uuid v4, randomUUID yoksa yedek yol', () => {
   const yedek = M.yeniZiyaretKimligi({ getRandomValues: (b) => globalThis.crypto.getRandomValues(b) });
   assert.match(yedek, uuid);
   assert.notEqual(M.yeniZiyaretKimligi(), M.yeniZiyaretKimligi());
+});
+
+test('015: haber sonu görseli sizes (kutu genişliği, etkin DPR ≤ 2): 360 px telefonda 480 kopyası yeter', () => {
+  assert.equal(M.haberSonuBoyutu(360, 1), '302px');
+  assert.equal(M.haberSonuBoyutu(360, 2), '302px');
+  assert.equal(M.haberSonuBoyutu(360, 3), '201px', 'DPR 3: 201 × 3 = 604 px → 480w (yoğunluk 2,39) ile 1200w (5,97) arasında 480 seçilir');
+  assert.equal(M.haberSonuBoyutu(430, 3), '248px');
+  assert.equal(M.haberSonuBoyutu(1280, 1), '291px', 'geniş ekranda görsel kartın %44\'ü');
+  assert.equal(M.haberSonuBoyutu(undefined, undefined), '302px');
 });

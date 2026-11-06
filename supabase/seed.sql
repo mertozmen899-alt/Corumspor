@@ -92,6 +92,10 @@ on conflict (id) do nothing;
 -- 014: haber kaynağı, maç notu (bilet / yayın / kapı saati)
 update public.haberler set kaynak = 'Kulüp açıklaması (örnek)', kaynak_url = 'https://ornek.test/biletler'
   where id = '33333333-0000-4000-8000-000000000003' and kaynak is null;
+-- 015: bilet haberi "kadro / transfer / sakatlık / bilet haberi" (kaynak zorunlu)
+update public.haberler set kaynak_gerekli = true where id = '33333333-0000-4000-8000-000000000003' and not kaynak_gerekli;
+-- 015: uygulama sahibinin adı kullanıcı adı olarak alınamaz (assets/ayar.js SAHIP_ADI ile aynı yazın; parantez içi atılır)
+insert into public.ayrilmis_adlar (ad) values ('Mert (uygulama sahibi)') on conflict (anahtar) do nothing;
 update public.maclar set mac_notu = 'Biletler kulübün resmî satış noktalarında. Kapılar maçtan 2 saat önce açılır (örnek).'
   where id = '11111111-0000-4000-8000-000000000003' and mac_notu is null;
 

@@ -7,9 +7,9 @@
 // buradaki kontroller sadece yöneticiye erken ve Türkçe uyarı vermek içindir).
 
 import {
-  ALANLAR, ALAN_METIN_ONERISI, SINIRLAR, YASAKLI_SEKTORLER, akisReklamlari, alanDolulugu, baglantiGecerli, baglantiNormallestir, buAyAraligi,
-  durumEtiketi, enYogunGun, firmaAnahtari, firmaSuz, gosterimSirasi, isoYerelGirise, istanbulBicimle, istanbulGunu, metindeAdresVar, oranBicimle,
-  raporCsv, reklamDogrula, reklamDurumu, reklamSec, reklamSunulabilir, telefonKaydi, telefonuUluslararasiYap, tiklamaOrani,
+  ALANLAR, ALAN_METIN_ONERISI, SINIRLAR, YASAKLI_SEKTORLER, akisReklamlari, akisYuvaNotu, alanDolulugu, baglantiGecerli, baglantiNormallestir, buAyAraligi,
+  donemMetni, durumEtiketi, enYogunGun, firmaAnahtari, firmaSuz, gosterimSirasi, isoYerelGirise, istanbulBicimle, istanbulGunu, metindeAdresVar, oranBicimle,
+  raporCsv, reklamDogrula, reklamDurumu, reklamSec, reklamSunulabilir, sureBitisi, telefonKaydi, telefonuUluslararasiYap, tiklamaOrani,
   whatsappBaglantisiOlustur, yerelGiristenIso,
 } from './reklam-mantik.js';
 import { reklamKartiOlustur } from './reklam.js';
@@ -164,7 +164,9 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
         // 014 (denetçi 6): akışta aktif_reklamlar ile AYNI kural (en fazla 3 farklı firma); öteki alanlarda tek kazanan
         const sira = gosterimSirasi(durum.reklamlar, r, s);
         if (sira) {
-          gosterim = h('span', { class: 'ry-not ry-not-iyi', text: r.alan === 'ana_akis' ? `Akışta ${sira.sira}. sponsor (şu an gösteriliyor)` : 'Şu an gösteriliyor' });
+          // 015 (reklamveren 4): 2./3. akış yuvası ilk sayfada yok (yalnız "Daha fazla haber" açılınca)
+          gosterim = h('span', { class: 'ry-not' + (r.alan !== 'ana_akis' || sira.sira === 1 ? ' ry-not-iyi' : ''), 'data-akis-sira': r.alan === 'ana_akis' ? String(sira.sira) : null,
+            text: r.alan === 'ana_akis' ? akisYuvaNotu(sira.sira) : 'Şu an gösteriliyor' });
         } else {
           const onde = r.alan === 'ana_akis'
             ? akisReklamlari(durum.reklamlar, SINIRLAR.akisYuvaSayisi, s).filter((x) => firmaAnahtari(x.firma_adi) !== firmaAnahtari(r.firma_adi)).map((x) => x.firma_adi)
@@ -195,7 +197,40 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       h('div', { class: 'ry-arac' },
         h('h2', { text: 'Reklamlar' }),
         h('button', { type: 'button', class: 'ry-dugme ry-ana', id: 'ry-yeni', onclick: () => formAc(null) }, '+ Yeni reklam')),
+      bakimKutusu,
       h('div', { class: 'ry-tablo-kap' }, tablo));
+  }
+
+  // 015 (denetçi 1, 6): gece bakımı (pg_cron → reklam_bakim) en son ne zaman çalıştı + ham satır alarmı
+  const bakimKutusu = h('div', { class: 'ry-bakim', id: 'ry-bakim' });
+  async function bakimDurumuYukle() {
+    const s = simdi();
+    const satirlar = [];
+    try {
+      const [son, eski, alarm] = await Promise.all([
+        sb.from('reklam_gunluk_toplanan').select('toplandi').order('toplandi', { ascending: false }).limit(1),
+        sb.from('reklam_olaylari').select('created_at').order('created_at', { ascending: true }).limit(1),
+        Promise.resolve(sb.rpc('reklam_ham_satir_alarmi', { p_gun_sayisi: 7 })).catch((e) => ({ data: null, error: e })),
+      ]);
+      const sonBakim = !son.error && son.data && son.data[0] ? son.data[0].toplandi : null;
+      const enEski = !eski.error && eski.data && eski.data[0] ? eski.data[0].created_at : null;
+      const gecikme = SINIRLAR.bakimGecikmeGun * 864e5;
+      const gecikti = sonBakim ? s.getTime() - Date.parse(sonBakim) > gecikme : !!enEski && s.getTime() - Date.parse(enEski) > gecikme;
+      satirlar.push(h('p', { class: 'ry-yardim', id: 'ry-son-bakim' }, 'Son bakım: ',
+        h('strong', { text: sonBakim ? istanbulBicimle(sonBakim) : 'henüz yok' }),
+        sonBakim ? '' : ' (günlük toplamlar ilk gece bakımında yazılır)'));
+      if (gecikti) {
+        satirlar.push(h('p', { class: 'ry-uyari-satir', id: 'ry-bakim-uyari' },
+          `Gece bakımı ${SINIRLAR.bakimGecikmeGun} günden uzun süredir çalışmadı. pg_cron açık mı? (README: "pg_cron" adımı; kontrol: select * from cron.job where jobname = 'reklam-bakim'). Çalışmazsa ham olaylar silinmez ve veritabanı büyür.`));
+      }
+      const al = alarm && !alarm.error && Array.isArray(alarm.data) ? alarm.data : [];
+      if (al.length) {
+        satirlar.push(h('div', { class: 'ry-uyari-satir', id: 'ry-ham-alarm' },
+          h('strong', { text: `Ham satır alarmı: bir reklama bir günde ${SAYI.format(SINIRLAR.hamSatirAlarmi)}'den fazla sayım satırı yazıldı (otomatik trafik olabilir).` }),
+          h('ul', {}, al.slice(0, 10).map((a) => h('li', { text: `${a.firma_adi} · ${a.gun}: ${SAYI.format(Number(a.ham_satir))} satır` })))));
+      }
+    } catch (e) { /* durum alınamazsa liste yine çizilir */ }
+    bakimKutusu.replaceChildren(...satirlar);
   }
 
   async function durumDegistir(r, yeni) {
@@ -227,9 +262,10 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
     // 014 (reklamveren 9): yeni reklam "Hemen başlasın" (kayıt anında başlar), süre 1 hafta; düğmelerle 1 ay ya da maç paketi
     const yeniBas = new Date(Math.floor(s.getTime() / 60000) * 60000);
     const d = r || { firma_adi: '', kisa_metin: '', gorsel_url: '', gorsel_kucuk_url: null, gorsel_metni: '', dugme_metni: '', telefon: null, sektor_onayi: false, baglanti_url: null, alan: 'ana_akis', mac_id: null,
-      baslangic: yeniBas.toISOString(), bitis: new Date(yeniBas.getTime() + 7 * 864e5).toISOString(), oncelik: 0, durum: 'taslak' };
+      baslangic: yeniBas.toISOString(), bitis: yerelGiristenIso(sureBitisi(yeniBas, { gun: 7 })), oncelik: 0, durum: 'taslak' }; // 015: 1 hafta sonra 23:59
     // Yasaklı sektör onayı içerik değişince sıfırlanır (sunucu da sıfırlar, 014): ilk hâli sakla
-    const ICERIK = ['firma_adi', 'kisa_metin', 'gorsel_url', 'gorsel_kucuk_url', 'baglanti_url', 'telefon'];
+    // 015 (denetçi 4): görseldeki yazı ve düğme yazısı da içerik (sunucu reklamlar_sektor da sıfırlar)
+    const ICERIK = ['firma_adi', 'kisa_metin', 'gorsel_url', 'gorsel_kucuk_url', 'baglanti_url', 'telefon', 'gorsel_metni', 'dugme_metni'];
     const ilkIcerik = r ? Object.fromEntries(ICERIK.map((k) => [k, k === 'firma_adi' ? firmaAnahtari(r[k]) : r[k] ?? null])) : null;
     let sektorSifirlandi = false;
 
@@ -254,7 +290,7 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
     let gorselKucukUrl = d.gorsel_kucuk_url || null;
     const sektorKutular = YASAKLI_SEKTORLER.map(([k, t]) => h('label', { class: 'ry-secenek' }, h('input', { type: 'checkbox', name: 'sektor', value: k, checked: !!d.sektor_onayi }), ' ', t));
     const sektorOnayli = () => sektorKutular.every((l) => l.querySelector('input').checked);
-    const sektorNot = h('small', { class: 'ry-uyari-satir', id: 'ry-sektor-not', hidden: true }, 'İçerik değişti (firma, bağlantı, telefon, görsel ya da metin): yasaklı sektör listesini yeniden kontrol edip işaretleyin.');
+    const sektorNot = h('small', { class: 'ry-uyari-satir', id: 'ry-sektor-not', hidden: true }, 'İçerik değişti (firma, bağlantı, telefon, görsel, görseldeki yazı, düğme yazısı ya da metin): yasaklı sektör listesini yeniden kontrol edip işaretleyin.');
     const dosya = h('input', { id: 'ry-gorsel', type: 'file', accept: SINIRLAR.gorselTurleri.join(',') });
     const gorselUrl = h('input', { id: 'ry-gorsel_url', name: 'gorsel_url', type: 'url', value: d.gorsel_url || '', placeholder: 'https://…', 'aria-label': 'Görsel adresi' });
     const gorselDurum = h('small', { class: 'ry-yardim', id: 'ry-gorsel-durum' });
@@ -291,11 +327,10 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
     const bit = h('input', { id: 'ry-bitis', type: 'datetime-local', value: isoYerelGirise(d.bitis) });
     const hemen = h('input', { type: 'checkbox', id: 'ry-hemen', checked: !r });
     let tarihElle = false; // yönetici tarihleri kendisi girdiyse maç seçimi tarihleri değiştirmez
+    // 015 (reklamveren 5): bitiş o günün 23:59'u (TSİ): esnafa "6 Aralık 23:59'a kadar" denir
     const sureEkle = (gun, ay = 0) => {
       const b = new Date(hemen.checked ? simdi().getTime() : Date.parse(yerelGiristenIso(bas.value) || simdi().toISOString()));
-      const e = new Date(b.getTime() + gun * 864e5);
-      if (ay) e.setMonth(e.getMonth() + ay);
-      bit.value = isoYerelGirise(e);
+      bit.value = sureBitisi(b, { gun, ay });
       tarihElle = true;
       guncelle();
     };
@@ -607,7 +642,12 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
   const GUN_BICIMI = new Intl.DateTimeFormat('tr-TR', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric', weekday: 'short' });
   const gunYaz = (g) => (g ? GUN_BICIMI.format(new Date(g + 'T12:00:00Z')) : '');
   const yuzde = (o) => (o == null || o === '' ? '–' : `%${oranBicimle(o)}`);
-  const donemYaz = (s, yedek) => (s.donem_baslangic && s.donem_bitis ? `${gunYaz(s.donem_baslangic)} – ${gunYaz(s.donem_bitis)}` : yedek);
+  // 015 (reklamveren 2): dönem bugünü aşmaz; yayın sürüyorsa "(devam ediyor)"
+  const donemYaz = (s, yedek) => donemMetni(s, gunYaz) || yedek;
+  // 015 (reklamveren 1): tıklama oranı = tıklama yapılan farklı sayfa açılışı ÷ gösterim (sunucu hesaplar; %100'ü aşmaz)
+  const tiklayan = (s) => (s.tiklayan_ziyaret != null ? Number(s.tiklayan_ziyaret) : Number(s.tiklama) || 0);
+  const oranMetni = (s) => yuzde(s.tiklama_orani != null ? Number(s.tiklama_orani) : tiklamaOrani(s.gosterim, tiklayan(s)));
+  const ORAN_TANIMI = 'Tıklama oranı: düğmesine en az bir kez dokunulan sayfa açılışı ÷ gösterim (%100\'ü aşmaz). Bir kişi aynı kartta birden çok düğmeye (web, WhatsApp, "Ara") basabilir; toplam tıklama ve düğme dağılımı ayrı sütunda.';
 
   function raporKur() {
     raporBolumu.dataset.kuruldu = '1';
@@ -662,9 +702,9 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       ozetDugme.disabled = csvDugme.disabled;
       ozetYer.replaceChildren();
       if (!satirlar.length) { sonuc.replaceChildren(h('p', { class: 'ry-bos', text: 'Bu aralıkta veri yok.' })); gunluk.hidden = true; return; }
-      const top = satirlar.reduce((t, s) => ({ g: t.g + Number(s.gosterim), t: t.t + Number(s.tiklama), y: t.y + (Number(s.yerlesim) || 0), m: t.m + (Number(s.supheli_dakika) || 0),
-        w: t.w + (Number(s.tiklama_web) || 0), wa: t.wa + (Number(s.tiklama_whatsapp) || 0), a: t.a + (Number(s.tiklama_ara) || 0) }), { g: 0, t: 0, y: 0, m: 0, w: 0, wa: 0, a: 0 });
-      const oran = (s) => yuzde(s.tiklama_orani != null ? Number(s.tiklama_orani) : tiklamaOrani(s.gosterim, s.tiklama));
+      const top = satirlar.reduce((t, s) => ({ g: t.g + Number(s.gosterim), t: t.t + Number(s.tiklama), tz: t.tz + tiklayan(s), y: t.y + (Number(s.yerlesim) || 0), m: t.m + (Number(s.supheli_dakika) || 0),
+        w: t.w + (Number(s.tiklama_web) || 0), wa: t.wa + (Number(s.tiklama_whatsapp) || 0), a: t.a + (Number(s.tiklama_ara) || 0) }), { g: 0, t: 0, tz: 0, y: 0, m: 0, w: 0, wa: 0, a: 0 });
+      const oran = oranMetni;
       const eylemler = (w, wa, a) => `${SAYI.format(w)} / ${SAYI.format(wa)} / ${SAYI.format(a)}`;
       const ort = (s) => (s.gunluk_ortalama_gosterim == null ? '–' : SAYI.format(Number(s.gunluk_ortalama_gosterim)));
       sonuc.replaceChildren(h('table', { class: 'ry-tablo ry-rapor-tablo' },
@@ -687,7 +727,7 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
           h('td', { 'data-baslik': 'Görünürlük', class: 'ry-sayi', text: yuzde(top.y ? Math.round((Math.min(top.g, top.y) * 10000) / top.y) / 100 : null) }),
           h('td', { 'data-baslik': 'Tıklama', class: 'ry-sayi', text: SAYI.format(top.t) }),
           h('td', { 'data-baslik': 'Web / WhatsApp / Ara', class: 'ry-sayi', text: eylemler(top.w, top.wa, top.a) }),
-          h('td', { 'data-baslik': 'Oran', class: 'ry-sayi', text: oran({ gosterim: top.g, tiklama: top.t }) }),
+          h('td', { 'data-baslik': 'Oran', class: 'ry-sayi', text: oran({ gosterim: top.g, tiklayan_ziyaret: top.tz }) }),
           h('td', { 'data-baslik': 'Günlük ort. gösterim', class: 'ry-sayi', text: '' }),
           h('td', { 'data-baslik': SUPHELI, class: 'ry-sayi', text: SAYI.format(top.m) })))));
       gunlukCiz();
@@ -699,8 +739,9 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       const l = tumGunluk.filter((g) => !anahtar || (g.firma_anahtar || firmaAnahtari(g.firma_adi)) === anahtar);
       const gunler = new Map();
       for (const g of l) {
-        const t = gunler.get(g.gun) || { gun: g.gun, mac: !!g.mac_gunu, y: 0, g: 0, t: 0 };
+        const t = gunler.get(g.gun) || { gun: g.gun, mac: !!g.mac_gunu, y: 0, g: 0, t: 0, w: 0, wa: 0, a: 0 };
         t.y += Number(g.yerlesim) || 0; t.g += Number(g.gosterim) || 0; t.t += Number(g.tiklama) || 0; t.mac = t.mac || !!g.mac_gunu;
+        t.w += Number(g.tiklama_web) || 0; t.wa += Number(g.tiklama_whatsapp) || 0; t.a += Number(g.tiklama_ara) || 0;
         gunler.set(g.gun, t);
       }
       const satir = [...gunler.values()].sort((a, b) => a.gun.localeCompare(b.gun));
@@ -708,13 +749,14 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       if (!satir.length) { gunluk.replaceChildren(); return; }
       gunluk.replaceChildren(h('table', { class: 'ry-tablo ry-gunluk-tablo' },
         h('caption', { class: 'ry-tablo-baslik', text: 'Gün gün (Türkiye saati; maç günleri işaretli)' }),
-        h('thead', {}, h('tr', {}, ['Gün', 'Sayfa açılışı', 'Gösterim', 'Görünürlük', 'Tıklama'].map((b) => h('th', { scope: 'col', text: b })))),
+        h('thead', {}, h('tr', {}, ['Gün', 'Sayfa açılışı', 'Gösterim', 'Görünürlük', 'Tıklama', 'Web / WhatsApp / Ara'].map((b) => h('th', { scope: 'col', text: b })))),
         h('tbody', {}, satir.map((g) => h('tr', { 'data-gun': g.gun, 'data-mac-gunu': g.mac ? '1' : null },
           h('th', { scope: 'row', 'data-baslik': 'Gün' }, gunYaz(g.gun), g.mac ? h('span', { class: 'ry-rozet ry-rozet-mac', text: 'Maç günü' }) : null),
           h('td', { 'data-baslik': 'Sayfa açılışı', class: 'ry-sayi', text: SAYI.format(g.y) }),
           h('td', { 'data-baslik': 'Gösterim', class: 'ry-sayi', text: SAYI.format(g.g) }),
           h('td', { 'data-baslik': 'Görünürlük', class: 'ry-sayi', text: yuzde(g.y ? Math.round((Math.min(g.g, g.y) * 10000) / g.y) / 100 : null) }),
-          h('td', { 'data-baslik': 'Tıklama', class: 'ry-sayi', text: SAYI.format(g.t) }))))));
+          h('td', { 'data-baslik': 'Tıklama', class: 'ry-sayi', text: SAYI.format(g.t) }),
+          h('td', { 'data-baslik': 'Web / WhatsApp / Ara', class: 'ry-sayi', text: `${SAYI.format(g.w)} / ${SAYI.format(g.wa)} / ${SAYI.format(g.a)}` }))))));
     }
 
     /** Reklam verene gönderilecek tek sayfa (yazdırılabilir; CSP gereği yeni pencere değil, panelin içinde + @media print). */
@@ -724,11 +766,15 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
       const l = firmaSuz(satirlar, firma);
       const anahtar = firmaAnahtari(firma);
       const gunlukF = tumGunluk.filter((g) => (g.firma_anahtar || firmaAnahtari(g.firma_adi)) === anahtar);
-      const yogun = enYogunGun(gunlukF);
-      const yogunMac = yogun && gunlukF.some((g) => g.gun === yogun.gun && g.mac_gunu);
+      const yogun = enYogunGun(gunlukF); // 015: eşitlikte maç günü
+      const yogunMac = !!(yogun && yogun.mac);
       const reklam = durum.reklamlar.filter((x) => firmaAnahtari(x.firma_adi) === anahtar).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
       const gorsel = reklam && (reklam.gorsel_kucuk_url || reklam.gorsel_url);
-      const top = l.reduce((t, s) => ({ g: t.g + Number(s.gosterim), t: t.t + Number(s.tiklama), y: t.y + (Number(s.yerlesim) || 0) }), { g: 0, t: 0, y: 0 });
+      const top = l.reduce((t, s) => ({ g: t.g + Number(s.gosterim), t: t.t + Number(s.tiklama), tz: t.tz + tiklayan(s), y: t.y + (Number(s.yerlesim) || 0),
+        w: t.w + (Number(s.tiklama_web) || 0), wa: t.wa + (Number(s.tiklama_whatsapp) || 0), a: t.a + (Number(s.tiklama_ara) || 0) }), { g: 0, t: 0, tz: 0, y: 0, w: 0, wa: 0, a: 0 });
+      const tiklamaYaz = (t, w, wa, a) => `${SAYI.format(t)} (${SAYI.format(w)} / ${SAYI.format(wa)} / ${SAYI.format(a)})`;
+      // 015 (reklamveren 3): telefonda tablo satırları kart olur; her hücre kendi sütun adını data-baslik ile taşır
+      const OZET_BASLIK = ['Yerleşim', 'Yayında olduğu günler', 'Sayfa açılışı', 'Gösterim', 'Görünürlük', 'Tıklama (web / WhatsApp / ara)', 'Tıklama oranı'];
       const kapat = () => { ozetYer.replaceChildren(); ozetDugme.focus(); };
       const yazdir = () => {
         document.documentElement.classList.add('ry-yazdir');
@@ -742,19 +788,20 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
           h('div', {}, baslik,
             h('p', { class: 'ry-yardim', text: `Çorumspor Taraftar (bağımsız taraftar uygulaması) · Rapor aralığı: ${gunYaz(bas.value)} – ${gunYaz(bit.value)}. Tarihler Türkiye saati.` }))),
         h('table', { class: 'ry-tablo ry-ozet-tablo' },
-          h('thead', {}, h('tr', {}, ['Yerleşim', 'Yayında olduğu günler', 'Sayfa açılışı', 'Gösterim', 'Görünürlük', 'Tıklama (web / WhatsApp / ara)', 'Tıklama oranı'].map((b) => h('th', { scope: 'col', text: b })))),
+          h('thead', {}, h('tr', {}, OZET_BASLIK.map((b) => h('th', { scope: 'col', text: b })))),
           h('tbody', {}, l.map((s) => h('tr', {},
-            h('td', { text: (ALANLAR[s.alan] || s.alan) + (s.mac_id ? ` · ${macAdi(s.mac_id)}` : '') }),
-            h('td', { text: `${donemYaz(s, '–')}${s.yayin_gun != null ? ` (${s.yayin_gun} gün)` : ''}` }),
-            h('td', { class: 'ry-sayi', text: SAYI.format(Number(s.yerlesim) || 0) }),
-            h('td', { class: 'ry-sayi', text: SAYI.format(s.gosterim) }),
-            h('td', { class: 'ry-sayi', text: yuzde(s.gorunurluk_orani) }),
-            h('td', { class: 'ry-sayi', text: `${SAYI.format(s.tiklama)} (${SAYI.format(Number(s.tiklama_web) || 0)} / ${SAYI.format(Number(s.tiklama_whatsapp) || 0)} / ${SAYI.format(Number(s.tiklama_ara) || 0)})` }),
-            h('td', { class: 'ry-sayi', text: yuzde(s.tiklama_orani != null ? Number(s.tiklama_orani) : tiklamaOrani(s.gosterim, s.tiklama)) })))),
+            h('td', { 'data-baslik': OZET_BASLIK[0], text: (ALANLAR[s.alan] || s.alan) + (s.mac_id ? ` · ${macAdi(s.mac_id)}` : '') }),
+            h('td', { 'data-baslik': OZET_BASLIK[1], text: `${donemYaz(s, '–')}${s.yayin_gun != null ? ` (${s.yayin_gun} gün)` : ''}` }),
+            h('td', { 'data-baslik': OZET_BASLIK[2], class: 'ry-sayi', text: SAYI.format(Number(s.yerlesim) || 0) }),
+            h('td', { 'data-baslik': OZET_BASLIK[3], class: 'ry-sayi', text: SAYI.format(s.gosterim) }),
+            h('td', { 'data-baslik': OZET_BASLIK[4], class: 'ry-sayi', text: yuzde(s.gorunurluk_orani) }),
+            h('td', { 'data-baslik': OZET_BASLIK[5], class: 'ry-sayi', text: tiklamaYaz(Number(s.tiklama) || 0, Number(s.tiklama_web) || 0, Number(s.tiklama_whatsapp) || 0, Number(s.tiklama_ara) || 0) }),
+            h('td', { 'data-baslik': OZET_BASLIK[6], class: 'ry-sayi', text: oranMetni(s) })))),
           h('tfoot', {}, h('tr', {}, h('th', { scope: 'row', colspan: 2, text: 'Toplam' }),
-            h('td', { class: 'ry-sayi', text: SAYI.format(top.y) }), h('td', { class: 'ry-sayi', text: SAYI.format(top.g) }),
-            h('td', { class: 'ry-sayi', text: yuzde(top.y ? Math.round((Math.min(top.g, top.y) * 10000) / top.y) / 100 : null) }),
-            h('td', { class: 'ry-sayi', text: SAYI.format(top.t) }), h('td', { class: 'ry-sayi', text: yuzde(tiklamaOrani(top.g, top.t)) })))),
+            h('td', { 'data-baslik': OZET_BASLIK[2], class: 'ry-sayi', text: SAYI.format(top.y) }), h('td', { 'data-baslik': OZET_BASLIK[3], class: 'ry-sayi', text: SAYI.format(top.g) }),
+            h('td', { 'data-baslik': OZET_BASLIK[4], class: 'ry-sayi', text: yuzde(top.y ? Math.round((Math.min(top.g, top.y) * 10000) / top.y) / 100 : null) }),
+            h('td', { 'data-baslik': OZET_BASLIK[5], class: 'ry-sayi', id: 'ry-ozet-toplam-tiklama', text: tiklamaYaz(top.t, top.w, top.wa, top.a) }),
+            h('td', { 'data-baslik': OZET_BASLIK[6], class: 'ry-sayi', text: oranMetni({ gosterim: top.g, tiklayan_ziyaret: top.tz }) })))),
         h('p', { id: 'ry-ozet-yogun', text: yogun ? `En yoğun gün: ${gunYaz(yogun.gun)}${yogunMac ? ' (maç günü)' : ''} · ${SAYI.format(yogun.gosterim)} gösterim.` : 'Bu aralıkta gösterim yok.' }),
         h('h3', { text: 'Tanımlar' }),
         h('ul', { class: 'ry-ozet-tanim' },
@@ -762,6 +809,8 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
           h('li', { text: 'Sayfa açılışı: kartın konduğu sayfa açılışları (kart ekrana gelmemiş olabilir).' }),
           h('li', { text: 'Görünürlük: gösterim ÷ sayfa açılışı.' }),
           h('li', { text: 'Tıklama: kartın düğmesine dokunma; web sitesi, WhatsApp ve "Ara" ayrı sayılır. Aynı sekmede aynı düğmeye 30 dakika içindeki tekrar sayılmaz.' }),
+          h('li', { text: ORAN_TANIMI }),
+          h('li', { text: 'Dönem bugünü aşmaz: yayın sürüyorsa "(devam ediyor)" yazar ve günlük ortalama bugüne kadarki günlerle hesaplanır.' }),
           h('li', { text: 'Uygulamayı yönetenlerin bakışları sayılmaz. Kişisel veri tutulmadığı için rakamlar yaklaşıktır; olağan dışı (otomatik) trafik sayılmaz.' })),
         h('div', { class: 'ry-dugmeler ry-ozet-dugmeler' },
           h('button', { type: 'button', class: 'ry-dugme ry-ana', id: 'ry-ozet-yazdir', onclick: yazdir }, 'Yazdır / PDF'),
@@ -777,7 +826,7 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
         h('button', { type: 'submit', class: 'ry-dugme ry-ana', id: 'ry-rapor-goster' }, 'Göster'),
         h('label', {}, 'Firma ', firmaSec), csvDugme, ozetDugme),
       csvNot,
-      h('p', { class: 'ry-yardim', text: 'Tarihler Türkiye takvim günüdür (her iki gün dahil). "Dönem", istenen aralığın reklamın yayın tarihleriyle kesişen kısmıdır. Gösterim: kartın yarısı en az 1 saniye ekranda kaldı (kişi sayısı değildir). Sayfa açılışı: kartın konduğu sayfa açılışı; görünürlük = gösterim ÷ sayfa açılışı. Aynı ziyaretçinin aynı sayfa açılışındaki tekrarlar sayılmaz. Yöneticilerin (sizin) bakışları sayılmaz.' }),
+      h('p', { class: 'ry-yardim', id: 'ry-rapor-tanim', text: 'Tarihler Türkiye takvim günüdür (her iki gün dahil). "Dönem", istenen aralığın reklamın yayın tarihleriyle kesişen kısmıdır ve bugünü aşmaz (yayın sürüyorsa "devam ediyor"). ' + ORAN_TANIMI + ' Gösterim: kartın yarısı en az 1 saniye ekranda kaldı (kişi sayısı değildir). Sayfa açılışı: kartın konduğu sayfa açılışı; görünürlük = gösterim ÷ sayfa açılışı. Aynı ziyaretçinin aynı sayfa açılışındaki tekrarlar sayılmaz. Yöneticilerin (sizin) bakışları sayılmaz.' }),
       h('p', { class: 'ry-yardim', id: 'ry-rapor-yaklasik', text: `Sayılar yaklaşıktır: kişisel veri (IP) tutulmadığı için bilerek şişirme tam ayırt edilemez. Bir reklama dakikada ${SINIRLAR.gosterimDakikaSiniri} gösterimden ve ${SINIRLAR.tiklamaDakikaSiniri} tıklamadan, bir tarayıcı sekmesinden saatte ${SINIRLAR.sekmeSaatGosterimSiniri} gösterimden fazlası sayılmaz; "${SUPHELI}" 0'dan büyükse o aralıkta sayı şişirilmeye çalışılmış olabilir (firma CSV'sinde ve özette 0 ise hiç görünmez). Reklam verene rakamları "yaklaşık" diye verin.` }),
       sonuc, gunluk, ozetYer);
     getir();
@@ -786,6 +835,7 @@ export async function yonetimBaslat(kok, sb, ops = {}) {
   await Promise.all([reklamlariYukle(), maclariYukle()]);
   sekmeAc('reklamlar');
   listeCiz();
+  bakimDurumuYukle();
 }
 
 /** Uygulamanın yonetim.html'indeki <section id="reklamlar-sekmesi" data-modul="reklamlar"> için giriş noktası. */

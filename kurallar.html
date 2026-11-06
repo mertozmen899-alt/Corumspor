@@ -22,10 +22,9 @@
 <link rel="apple-touch-icon" href="assets/logo/apple-touch-icon-180.png">
 <link rel="preload" href="assets/fonts/oswald-700-tr.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/source-sans-3-400-tr.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="assets/fonts/source-sans-3-700-tr.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/stil.css">
 <script src="assets/tema.js"></script>
-<script defer fetchpriority="high" src="assets/vendor/supabase-js-2.45.4/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o"></script>
+<script defer src="assets/vendor/supabase-js-2.45.4/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o"></script>
 <link rel="modulepreload" href="assets/sayfa/metin.js">
 <link rel="modulepreload" href="assets/ortak.js">
 <link rel="modulepreload" href="assets/istemci.js">
@@ -64,9 +63,17 @@
     </ul>
     <h2>Kurala uymayan yorum ne olur?</h2>
     <p>Her yorumun altında <strong>Şikâyet et</strong> düğmesi var. Şikâyet edilen yorumlara en kısa sürede bakarız; maç günleri önceliklidir. Kurala uymayan yorum gizlenir ya da silinir; tekrar edenin yorum yazması kapatılır.</p>
+    <p>Bazı yorumlar kendiliğinden bekletilir ya da gizlenir:</p>
+    <ul>
+      <li><strong>3 şikâyet:</strong> farklı 3 kişinin şikâyet ettiği yorum, yönetici bakana kadar kendiliğinden gizlenir. Yalnız en az 24 saatlik hesapların şikâyeti sayılır, yönetici yorumları kendiliğinden gizlenmez. Yönetici haksız bulursa yorumu geri açar. Bir hesap saatte en fazla 10, günde en fazla 30 şikâyet gönderebilir.</li>
+      <li><strong>Kelime listesi:</strong> yöneticinin kısa bir kelime listesi var. Listedeki bir kelimeyle başlayan sözcük geçen yorum (harf yerine rakam ya da harflerin arasına nokta konsa da), yönetici onaylayınca görünür.</li>
+      <li><strong>Maç günü ön onay:</strong> büyük maçlarda yönetici maçı ön onaya alabilir. O zaman maçtan 2 saat önceden maçtan 24 saat sonrasına kadar o maça ve gollerine yazılan yorumlar yönetici onayından sonra görünür.</li>
+    </ul>
+    <p>Onay bekleyen yorumunu sen "Onay bekliyor" rozetiyle görürsün; başkaları onaylanana kadar görmez.</p>
+    <p>Kullanıcı adında yönetici, resmî hesap, kulüp ya da uygulama sahibi gibi görünen adlar (rakamla yazılsa da) alınamaz. Kullanıcı adı en fazla 7 günde bir değiştirilebilir.</p>
     <h2 id="iletisim">İletişim ve kaldırma talebi</h2>
-    <p>Bir içeriğin kaldırılmasını istiyorsan (kulüp, oyuncu ya da sen): <a data-ayar="ILETISIM_EPOSTA" href="#iletisim">iletişim adresi</a> adresine yaz. Kaldırma taleplerine en kısa sürede dönülür; yanlış bilgi, hakaret ve kişisel veri içeren içerik önce kaldırılır, sonra konuşulur.</p>
-    <p class="soluk kucuk-yazi">Son güncelleme: 5 Kasım 2026.</p>
+    <p>Bir içeriğin kaldırılmasını istiyorsan (kulüp, oyuncu ya da sen): <a data-ayar="ILETISIM_EPOSTA" href="#iletisim">iletişim adresi</a> adresine yaz. Kaldırma taleplerine en geç 24 saat içinde dönülür; yanlış bilgi, hakaret ve kişisel veri içeren içerik önce kaldırılır, sonra konuşulur.</p>
+    <p class="soluk kucuk-yazi">Son güncelleme: 6 Kasım 2026.</p>
   </article>
 </div>
 <noscript><p class="kap uyari">Bu site JavaScript ile çalışır. Tarayıcında JavaScript'i aç.</p></noscript>
@@ -82,7 +89,7 @@
 <footer class="alt">
   <div class="kap">
     <p><strong>Çorumspor Taraftar</strong> · bağımsız taraftar uygulaması. <strong>Çorum FK'nın resmî uygulaması değildir</strong>; kulüple bir bağı yoktur. Kulüp adı hak sahibine aittir.</p>
-    <p>Künye: <span data-ayar="SAHIP_ADI">uygulama sahibi</span> · İletişim ve kaldırma talepleri: <a data-ayar="ILETISIM_EPOSTA" href="kurallar.html#iletisim">iletişim adresi</a> (kaldırma taleplerine en kısa sürede dönülür).</p>
+    <p>Künye: <span data-ayar="SAHIP_ADI">uygulama sahibi</span> · İletişim ve kaldırma talepleri: <a data-ayar="ILETISIM_EPOSTA" href="kurallar.html#iletisim">iletişim adresi</a> (kaldırma taleplerine en geç 24 saat içinde dönülür).</p>
     <p class="baglantilar"><a href="gizlilik.html">Gizlilik ve KVKK</a><a href="kurallar.html">Topluluk kuralları</a><a href="kaynaklar.html">Fotoğraf kaynakları</a></p>
   </div>
 </footer>

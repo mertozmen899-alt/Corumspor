@@ -19,7 +19,9 @@
 // Sekme kimliği (sessionStorage, rastgele) 014'ten beri gösterimde de gönderilir: sunucu yalnız sekme başına saatlik sınır için
 // en çok 2 saat bir sayaçta tutar, olaya yazmaz.
 
-import { baglantiGecerli, eylemYazisi, gorselAdresiGecerli, MAC_SPONSORU_NOTU, reklamEtiketi, sekmeKimligi, SINIRLAR, telAdresi, tiklamaEylemi, whatsappBaglantisiMi, yeniZiyaretKimligi } from './reklam-mantik.js';
+// 015 (performans 7): haber sonu görselinin sizes'ı uygulamanın boyutlar()'ı ile (etkin DPR ≤ 2; ortak.js sayfada zaten yüklü)
+import { boyutlar } from '../ortak.js';
+import { baglantiGecerli, eylemYazisi, gorselAdresiGecerli, haberSonuBoyutu, MAC_SPONSORU_NOTU, reklamEtiketi, sekmeKimligi, SINIRLAR, telAdresi, tiklamaEylemi, whatsappBaglantisiMi, yeniZiyaretKimligi } from './reklam-mantik.js';
 
 /** Bu sayfa yüklemesinin ziyaret kimliği. Sadece bellekte (localStorage/çerez YOK), sayfa yenilenince değişir. */
 export const SAYFA_ZIYARET_ID = yeniZiyaretKimligi();
@@ -93,7 +95,10 @@ export function reklamKartiOlustur(reklam, { onizleme = false } = {}) {
     if (reklam.gorsel_kucuk_url && gorselAdresiGecerli(reklam.gorsel_kucuk_url)) {
       // Yuvasına göre boy: akışta ~144 px, maçta 64 px, haber sonunda tam genişlik
       img.srcset = `${reklam.gorsel_kucuk_url} ${kare ? 192 : 480}w, ${reklam.gorsel_url} ${kare ? 600 : 1200}w`;
-      img.sizes = kare ? '64px' : reklam.alan === 'ana_akis' ? '144px' : '(max-width: 600px) 100vw, 44vw';
+      // 015 (performans 7): haber sonunda etkin DPR ≤ 2; burada ekran genişliğinden tahmin, yuvaya konunca gerçek genişlikle
+      // yeniden hesaplanır (haberSonuBoyutlariniDuzelt). 360 px telefonda ~302 px kutu → DPR 3'te de 480 kopyası.
+      img.sizes = kare ? '64px' : reklam.alan === 'ana_akis' ? '144px'
+        : haberSonuBoyutu(typeof innerWidth === 'number' ? innerWidth : 360, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1);
     }
     img.alt = (reklam.gorsel_metni || '').trim();
     img.loading = 'lazy';
@@ -244,6 +249,20 @@ export async function reklamOnYukle(alan = 'ana_akis', ops = {}) {
  *   (okunan yer kaymasın; odak kartın altındaki bir öğedeyken de).
  * @returns {Promise<object|null>} gösterilen reklam ya da null
  */
+/**
+ * 015 (performans 7): haber sonu görselinin sizes'ı yuvanın gerçek genişliğiyle: kutu = yuva clientWidth − 27 (kart dolgusu + kenarı);
+ * kart 560 px ve üstündeyse (stil.css @container: görsel yanda) × 0,44. boyutlar() etkin DPR'yi 2 ile sınırlar.
+ * Görsel loading=lazy olduğu için indirme başlamadan önce düzeltilir.
+ */
+function haberSonuBoyutlariniDuzelt(kapsayici, kart) {
+  const img = kart.querySelector('.reklam-gorsel[srcset]');
+  if (!img || !kart.classList.contains('reklam-kart--haber_sonu')) return;
+  const yuva = kapsayici.clientWidth;
+  if (!(yuva > 0)) return;
+  const kutu = Math.max(1, yuva - 27) * (kart.clientWidth >= 560 ? 0.44 : 1);
+  img.sizes = boyutlar(Math.round(kutu));
+}
+
 export async function reklamYerlestir(kapsayici, ops = {}) {
   const { alan, macId = null, onizleme = false, sira = null, gecGelirseAtla = false } = ops;
   if (!kapsayici) return null;
@@ -277,6 +296,7 @@ export async function reklamYerlestir(kapsayici, ops = {}) {
   kapsayici.append(kart);
   kapsayici.hidden = false;
   kapsayici.classList.add('reklam-yuva--dolu');
+  haberSonuBoyutlariniDuzelt(kapsayici, kart);
   if (onizleme) return reklam;
   if (await yoneticiMi(istemci)) { kart.dataset.sayim = 'yonetici'; return reklam; }
   if (kapsayici._reklamTur !== tur) return reklam;

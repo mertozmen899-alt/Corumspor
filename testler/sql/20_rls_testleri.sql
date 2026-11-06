@@ -287,7 +287,7 @@ select test.hata_bekle('taraftar (012): kendini "CorumFK_Resmi" yapamaz',
 select test.hata_bekle('taraftar (012): kendini "ADMİN" yapamaz',
   $q$update public.profiles set kullanici_adi = 'ADMİN' where id = 'bbbbbbbb-0000-4000-8000-000000000002'$q$, 'kullanılamaz');
 select test.esit('taraftar (012): sıradan bir adla yeniden adlandırabilir',
-  test.satir($q$update public.profiles set kullanici_adi = 'burak_cfk' where id = 'bbbbbbbb-0000-4000-8000-000000000002'$q$)::text, '1');
+  test.satir($q$update public.profiles set kullanici_adi = 'burak_19' where id = 'bbbbbbbb-0000-4000-8000-000000000002'$q$)::text, '1');
 select test.esit('taraftar (012): yorumlarda kullanıcı adı okunabilir (gömme kullanici_adi)',
   (select count(*) from public.yorumlar y join public.profiles p on p.id = y.kullanici_id where p.kullanici_adi is not null)::text,
   (select count(*) from public.yorumlar)::text);
@@ -525,6 +525,10 @@ insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at) value
   ('bbbbbbbb-0000-4000-8000-0000000000c2', 'ece@ornek.test', '{"kullanici_adi":"ece"}', now()),
   ('bbbbbbbb-0000-4000-8000-0000000000c3', 'fatma@ornek.test', '{"kullanici_adi":"fatma"}', now()),
   ('bbbbbbbb-0000-4000-8000-0000000000c4', 'gul@ornek.test', '{"kullanici_adi":"Adm1n"}', now());
+-- 015: kendiliğinden gizlemede yalnız en az 24 saatlik hesapların şikâyeti sayılır; bu testteki hesaplar 2 gün önce açılmış gibi
+update public.profiles set created_at = now() - interval '2 days'
+  where id in ('bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-0000-4000-8000-000000000002', 'bbbbbbbb-0000-4000-8000-0000000000c1',
+               'bbbbbbbb-0000-4000-8000-0000000000c2', 'bbbbbbbb-0000-4000-8000-0000000000c3');
 select test.dogru('kayıt (014): rakamlı benzer ad "Adm1n" kullanılmaz, taraftar… adı verilir',
   (select kullanici_adi ~ '^taraftar[0-9a-f]{6}' from public.profiles where id = 'bbbbbbbb-0000-4000-8000-0000000000c4'));
 select test.dogru('ayrılmış ad (014): rakam/simge benzerleri ve "kirmizisimsek" ayrılmış',
@@ -752,9 +756,12 @@ reset role;
 delete from public.sakatliklar where kaynak = 'TFF' and durum = 'cezali';
 
 -- son sürüm denetimi (denetçi 10): yeniden tanımlanan fonksiyonların en yenisi kurulu
-select test.dogru('son sürüm (014): 014 gövdeleri kurulu (reklam_olay_kaydet, aktif_reklamlar, reklam_raporu, kullanici_adi_ayrilmis, yorum_guncelleme_kontrol, sikayet_kontrol)',
+select test.dogru('son sürüm (014/015): 014 ve 015 gövdeleri kurulu (aktif_reklamlar, yorum_guncelleme_kontrol)',
   (select bool_and(pg_get_functiondef(p.oid) ~ 'sürüm 014') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-   where n.nspname = 'public' and p.proname in ('reklam_olay_kaydet', 'aktif_reklamlar', 'reklam_raporu', 'kullanici_adi_ayrilmis', 'yorum_guncelleme_kontrol', 'sikayet_kontrol'))
+   where n.nspname = 'public' and p.proname in ('aktif_reklamlar', 'yorum_guncelleme_kontrol'))
+  and (select bool_and(pg_get_functiondef(p.oid) ~ 'sürüm 015') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname in ('reklam_olay_kaydet', 'reklam_raporu', 'kullanici_adi_ayrilmis', 'sikayet_kontrol', 'sikayet_otomatik_gizle',
+     'reklamlar_sektor', 'reklam_gunluk_topla', 'reklam_rapor_verisi', 'profil_koruma', 'yorum_onay_gerekli'))
   and (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'reklam_olay_kaydet') = 1);
 select test.dogru('son sürüm (013): profil_koruma engelli korumalı, yorum_ekleme_kontrol engelli_mi() çağırıyor, yeni_kullanici ayrılmış adı denetliyor',
   pg_get_functiondef('public.profil_koruma()'::regprocedure) ~ 'engelli'
@@ -769,3 +776,150 @@ select test.dogru('yetki (014): yeni tablolarda RLS açık, anon/authenticated y
   and not has_function_privilege('authenticated', 'public.reklam_gunluk_topla(date)', 'EXECUTE')
   and not has_function_privilege('authenticated', 'public.reklam_rapor_verisi(date, date)', 'EXECUTE')
   and not has_function_privilege('authenticated', 'public.yorum_onay_gerekli(text, uuid, uuid)', 'EXECUTE'));
+
+-- ================================================================ 015: son tur (sunucu)
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at) values
+  ('bbbbbbbb-0000-4000-8000-0000000000d1', 'eski1@ornek.test', '{"kullanici_adi":"eski_bir"}', now()),
+  ('bbbbbbbb-0000-4000-8000-0000000000d2', 'eski2@ornek.test', '{"kullanici_adi":"eski_iki"}', now()),
+  ('bbbbbbbb-0000-4000-8000-0000000000d3', 'eski3@ornek.test', '{"kullanici_adi":"eski_uc"}', now()),
+  ('bbbbbbbb-0000-4000-8000-0000000000e1', 'yeni1@ornek.test', '{"kullanici_adi":"yeni_bir"}', now()),
+  ('bbbbbbbb-0000-4000-8000-0000000000e2', 'yeni2@ornek.test', '{"kullanici_adi":"yeni_iki"}', now()),
+  ('bbbbbbbb-0000-4000-8000-0000000000e3', 'yeni3@ornek.test', '{"kullanici_adi":"yeni_uc"}', now()),
+  ('bbbbbbbb-0000-4000-8000-0000000000f1', 'hakan@ornek.test', '{"kullanici_adi":"hakan"}', now()),
+  ('bbbbbbbb-0000-4000-8000-0000000000f2', 'mert@ornek.test', '{"kullanici_adi":"Mert"}', now());
+update public.profiles set created_at = now() - interval '3 days'
+  where id in ('bbbbbbbb-0000-4000-8000-0000000000d1', 'bbbbbbbb-0000-4000-8000-0000000000d2', 'bbbbbbbb-0000-4000-8000-0000000000d3', 'bbbbbbbb-0000-4000-8000-0000000000f1');
+insert into public.yorumlar (haber_id, metin, kullanici_id) values
+  ('33333333-0000-4000-8000-000000000001', '015 yorum: yeni hesaplar şikâyet eder', 'bbbbbbbb-0000-4000-8000-0000000000c1'),
+  ('33333333-0000-4000-8000-000000000001', '015 yorum: yönetici duyurusu', 'aaaaaaaa-0000-4000-8000-000000000001');
+insert into public.yorumlar (haber_id, metin, kullanici_id)
+  select '33333333-0000-4000-8000-000000000001', '015 toplu yorum ' || i, 'bbbbbbbb-0000-4000-8000-0000000000c1' from generate_series(1, 31) i;
+
+-- uygulama sahibinin adı ayrılmış (seed: SAHIP_ADI "Mert (uygulama sahibi)" → "mert")
+select test.esit('ayrılmış ad (015): seed uygulama sahibinin adını ayrilmis_adlar''a ekler (parantez içi atılır)', (select string_agg(anahtar, ',') from public.ayrilmis_adlar), 'mert');
+select test.dogru('kayıt (015): uygulama sahibinin adı ("Mert") kayıtta kullanılmaz, taraftar… adı verilir',
+  (select kullanici_adi ~ '^taraftar[0-9a-f]{6}' from public.profiles where id = 'bbbbbbbb-0000-4000-8000-0000000000f2'));
+select test.dogru('ayrılmış ad (015): rn→m, 8→at, cfk, sondaki rakam, silinen rakam, sahip adı',
+  public.kullanici_adi_ayrilmis('Adrnin') and public.kullanici_adi_ayrilmis('Moder8or') and public.kullanici_adi_ayrilmis('ÇFK_Haber')
+  and public.kullanici_adi_ayrilmis('C_F_K') and public.kullanici_adi_ayrilmis('Sistem0') and public.kullanici_adi_ayrilmis('Kapta1n')
+  and public.kullanici_adi_ayrilmis('M3rt_1') and public.kullanici_adi_ayrilmis('rn3rt'));
+select test.dogru('ayrılmış ad (015): sıradan adlar yine serbest',
+  not (public.kullanici_adi_ayrilmis('Çorumlu_Mert') or public.kullanici_adi_ayrilmis('turna_10') or public.kullanici_adi_ayrilmis('kral_10') or public.kullanici_adi_ayrilmis('hakan')));
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000c2', false);
+set role authenticated;
+select test.hata_bekle('ayrılmış ad (015): taraftar listeyi okuyamaz/ekleyemez', $q$insert into public.ayrilmis_adlar (ad) values ('ece')$q$, 'row-level security');
+select test.esit('ayrılmış ad (015): taraftar listeyi göremez', (select count(*) from public.ayrilmis_adlar)::text, '0');
+reset role;
+
+-- ad değiştirme 7 günde bir (denetçi 5)
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000c3', false);
+set role authenticated;
+select test.esit('ad değiştirme (015): ilk değiştirme serbest', test.satir($q$update public.profiles set kullanici_adi = 'fatma_2' where id = 'bbbbbbbb-0000-4000-8000-0000000000c3'$q$)::text, '1');
+select test.hata_bekle('ad değiştirme (015): 7 gün dolmadan ikinci kez değiştirilemez',
+  $q$update public.profiles set kullanici_adi = 'fatma_3' where id = 'bbbbbbbb-0000-4000-8000-0000000000c3'$q$, '7 günde bir');
+select test.hata_bekle('ad değiştirme (015): değiştirme zamanını kendisi geri alamaz (sütunu okuyamaz)', $q$select ad_degisti from public.profiles$q$, 'permission denied');
+select test.esit('ad değiştirme (015): başka alanı güncellemek zamanı sıfırlamaz', test.satir($q$update public.profiles set ad_degisti = null where id = 'bbbbbbbb-0000-4000-8000-0000000000c3'$q$)::text, '1');
+select test.hata_bekle('ad değiştirme (015): zamanı boşaltma denemesinden sonra da değiştirilemez',
+  $q$update public.profiles set kullanici_adi = 'fatma_3' where id = 'bbbbbbbb-0000-4000-8000-0000000000c3'$q$, '7 günde bir');
+reset role;
+update public.profiles set ad_degisti = now() - interval '8 days' where id = 'bbbbbbbb-0000-4000-8000-0000000000c3';
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000c3', false);
+set role authenticated;
+select test.esit('ad değiştirme (015): 7 gün sonra yeniden değiştirilebilir', test.satir($q$update public.profiles set kullanici_adi = 'fatma_3' where id = 'bbbbbbbb-0000-4000-8000-0000000000c3'$q$)::text, '1');
+reset role;
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.esit('ad değiştirme (015): yönetici (kural dışı ad için) hemen yeniden adlandırabilir', test.satir($q$update public.profiles set kullanici_adi = 'fatma_4' where id = 'bbbbbbbb-0000-4000-8000-0000000000c3'$q$)::text, '1');
+reset role;
+
+-- şikâyet: yeni hesaplar sayılmaz, yönetici yorumu gizlenmez (denetçi 2)
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000e1', false); set role authenticated;
+select test.esit('şikâyet (015): yeni hesap 1 şikâyet eder', test.satir($q$insert into public.yorum_sikayetleri (yorum_id) select id from public.yorumlar where metin = '015 yorum: yeni hesaplar şikâyet eder'$q$)::text, '1');
+reset role; select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000e2', false); set role authenticated;
+select test.esit('şikâyet (015): yeni hesap 2 şikâyet eder', test.satir($q$insert into public.yorum_sikayetleri (yorum_id) select id from public.yorumlar where metin = '015 yorum: yeni hesaplar şikâyet eder'$q$)::text, '1');
+reset role; select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000e3', false); set role authenticated;
+select test.esit('şikâyet (015): yeni hesap 3 şikâyet eder', test.satir($q$insert into public.yorum_sikayetleri (yorum_id) select id from public.yorumlar where metin = '015 yorum: yeni hesaplar şikâyet eder'$q$)::text, '1');
+reset role;
+select test.esit('şikâyet (015): 24 saatten yeni 3 hesabın şikâyeti yorumu kendiliğinden gizlemez', (select gizli::text from public.yorumlar where metin = '015 yorum: yeni hesaplar şikâyet eder'), 'false');
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000d1', false); set role authenticated;
+select test.esit('şikâyet (015): eski hesap da şikâyet eder (1 eski + 3 yeni)', test.satir($q$insert into public.yorum_sikayetleri (yorum_id) select id from public.yorumlar where metin = '015 yorum: yeni hesaplar şikâyet eder'$q$)::text, '1');
+reset role;
+select test.esit('şikâyet (015): 1 eski + 3 yeni hesap da gizlemez', (select gizli::text from public.yorumlar where metin = '015 yorum: yeni hesaplar şikâyet eder'), 'false');
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000d2', false); set role authenticated;
+select test.satir($q$insert into public.yorum_sikayetleri (yorum_id) select id from public.yorumlar where metin = '015 yorum: yeni hesaplar şikâyet eder'$q$);
+reset role; select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000d3', false); set role authenticated;
+select test.satir($q$insert into public.yorum_sikayetleri (yorum_id) select id from public.yorumlar where metin = '015 yorum: yeni hesaplar şikâyet eder'$q$);
+reset role;
+select test.esit('şikâyet (015): 3 eski (24 saatten eski) hesabın şikâyeti gizler', (select gizli::text || ':' || gizleme_nedeni from public.yorumlar where metin = '015 yorum: yeni hesaplar şikâyet eder'), 'true:sikayet');
+do $$
+declare u uuid;
+begin
+  foreach u in array array['bbbbbbbb-0000-4000-8000-0000000000d1', 'bbbbbbbb-0000-4000-8000-0000000000d2', 'bbbbbbbb-0000-4000-8000-0000000000d3']::uuid[] loop
+    perform set_config('request.jwt.claim.sub', u::text, true);
+    set local role authenticated;
+    insert into public.yorum_sikayetleri (yorum_id) select id from public.yorumlar where metin = '015 yorum: yönetici duyurusu';
+    reset role;
+  end loop;
+end $$;
+select test.esit('şikâyet (015): yönetici yorumu 3 eski hesabın şikâyetiyle de kendiliğinden gizlenmez',
+  (select gizli::text || ':' || (select count(*) from public.yorum_sikayetleri s where s.yorum_id = y.id)::text from public.yorumlar y where metin = '015 yorum: yönetici duyurusu'), 'false:3');
+
+-- şikâyet hızı: saatte 10, günde 30
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000f1', false); set role authenticated;
+select test.esit('şikâyet hızı (015): bir saatte 10 şikâyet', test.satir($q$insert into public.yorum_sikayetleri (yorum_id) select id from public.yorumlar where metin like '015 toplu yorum %' order by metin limit 10$q$)::text, '10');
+select test.hata_bekle('şikâyet hızı (015): 11. şikâyet reddedilir (saatte 10)',
+  $q$insert into public.yorum_sikayetleri (yorum_id) select y.id from public.yorumlar y where y.metin like '015 toplu yorum %' and not exists (select 1 from public.yorum_sikayetleri s where s.yorum_id = y.id) limit 1$q$, 'saatte en fazla 10');
+reset role;
+update public.yorum_sikayetleri set created_at = created_at - interval '2 hours' where sikayet_eden = 'bbbbbbbb-0000-4000-8000-0000000000f1';
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000f1', false); set role authenticated;
+select test.esit('şikâyet hızı (015): bir saat sonra 10 şikâyet daha', test.satir($q$insert into public.yorum_sikayetleri (yorum_id) select id from public.yorumlar where metin like '015 toplu yorum %' order by metin offset 10 limit 10$q$)::text, '10');
+reset role;
+update public.yorum_sikayetleri set created_at = created_at - interval '2 hours' where sikayet_eden = 'bbbbbbbb-0000-4000-8000-0000000000f1';
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000f1', false); set role authenticated;
+select test.esit('şikâyet hızı (015): 24 saatte 30 şikâyete kadar', test.satir($q$insert into public.yorum_sikayetleri (yorum_id) select id from public.yorumlar where metin like '015 toplu yorum %' order by metin offset 20 limit 10$q$)::text, '10');
+reset role;
+update public.yorum_sikayetleri set created_at = created_at - interval '2 hours' where sikayet_eden = 'bbbbbbbb-0000-4000-8000-0000000000f1';
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000f1', false); set role authenticated;
+select test.hata_bekle('şikâyet hızı (015): 31. şikâyet reddedilir (günde 30)',
+  $q$insert into public.yorum_sikayetleri (yorum_id) select id from public.yorumlar where metin like '015 toplu yorum %' order by metin offset 30 limit 1$q$, 'günde en fazla 30');
+reset role;
+select test.esit('şikâyet hızı (015): başka hesabın şikâyeti bu sınırı etkilemez',
+  (select count(*) from public.yorum_sikayetleri where sikayet_eden = 'bbbbbbbb-0000-4000-8000-0000000000f1')::text, '30');
+
+-- kelime listesi: harf dışı karakterleri atılmış kopya (denetçi 10)
+insert into public.yorum_kelimeleri (kelime) values ('salak');
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000d1', false); set role authenticated;
+select test.satir($q$insert into public.yorumlar (mac_id, metin) values ('11111111-0000-4000-8000-000000000001', 'Hakem s.a.l.a.k')$q$);
+select test.satir($q$insert into public.yorumlar (mac_id, metin) values ('11111111-0000-4000-8000-000000000001', 'kalasalak bir gün')$q$);
+select test.esit('kelime listesi (015): "s.a.l.a.k" de onay bekler', (select onay_bekliyor::text from public.yorumlar where metin = 'Hakem s.a.l.a.k'), 'true');
+select test.esit('kelime listesi (015): "kalasalak" gibi sözcük içi eşleşme yine yok', (select onay_bekliyor::text from public.yorumlar where metin = 'kalasalak bir gün'), 'false');
+reset role;
+delete from public.yorum_kelimeleri;
+
+-- yasaklı sektör: görsel yazısı ve düğme yazısı da (denetçi 4)
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.esit('sektör (015): onaylı reklam', test.satir($q$insert into public.reklamlar (id, firma_adi, gorsel_url, kisa_metin, alan, baslangic, bitis, durum, sektor_onayi) values ('77777777-0000-4000-8000-000000000002', 'Kale Oto', 'https://abcd.supabase.co/storage/v1/object/public/reklam-gorselleri/x.webp', 'Ekspertizli araçlar', 'ana_akis', now() - interval '1 day', now() + interval '1 day', 'yayinda', true)$q$)::text, '1');
+select test.hata_bekle('sektör (015): yayındaki reklamın görsel yazısı değişince yeniden onay istenir',
+  $q$update public.reklamlar set gorsel_metni = 'Bahis oyna kazan' where id = '77777777-0000-4000-8000-000000000002'$q$, 'yasaklı sektör');
+select test.hata_bekle('sektör (015): düğme yazısı değişince de',
+  $q$update public.reklamlar set dugme_metni = 'Bahis oyna' where id = '77777777-0000-4000-8000-000000000002'$q$, 'yasaklı sektör');
+select test.esit('sektör (015): duraklatarak değiştirilirse onay sıfırlanır', test.satir($q$update public.reklamlar set dugme_metni = 'Araçları gör', durum = 'duraklatildi' where id = '77777777-0000-4000-8000-000000000002'$q$)::text, '1');
+select test.esit('sektör (015): duraklatarak değiştirilirse onay sıfırlanır (sonuç)', (select sektor_onayi::text from public.reklamlar where id = '77777777-0000-4000-8000-000000000002'), 'false');
+delete from public.reklamlar where id = '77777777-0000-4000-8000-000000000002';
+
+-- haber: kadro / transfer / sakatlık / bilet haberinde kaynak zorunlu (başkan 2)
+select test.hata_bekle('haber (015): "kaynak gerekli" haberde kaynak boşsa kaydedilmez',
+  $q$insert into public.haberler (baslik, kaynak_gerekli, kaynak) values ('Transfer: yeni forvet', true, '  ')$q$, 'kaynak zorunlu');
+select test.esit('haber (015): kaynakla kaydedilir', test.satir($q$insert into public.haberler (id, baslik, kaynak_gerekli, kaynak) values ('33333333-0000-4000-8000-0000000000ab', 'Transfer: yeni forvet', true, 'Kulüp açıklaması')$q$)::text, '1');
+select test.hata_bekle('haber (015): sonradan kaynak silinemez', $q$update public.haberler set kaynak = null where id = '33333333-0000-4000-8000-0000000000ab'$q$, 'kaynak zorunlu');
+delete from public.haberler where id = '33333333-0000-4000-8000-0000000000ab';
+reset role;
+select test.esit('seed (015): bilet haberi "kaynak gerekli" ve kaynaklı', (select kaynak_gerekli::text || ':' || (kaynak is not null and kaynak_url is not null)::text from public.haberler where id = '33333333-0000-4000-8000-000000000003'), 'true:true');
+select test.dogru('yetki (015): yeni tablo RLS açık; ham satır alarmı ve şikâyet hakkı ziyaretçiye kapalı',
+  (select relrowsecurity from pg_class where oid = 'public.ayrilmis_adlar'::regclass)
+  and not has_function_privilege('anon', 'public.reklam_ham_satir_alarmi(integer)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.sikayet_hakki()', 'EXECUTE')
+  and not has_table_privilege('anon', 'public.ayrilmis_adlar', 'SELECT'));

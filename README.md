@@ -23,9 +23,9 @@ Yazı tipleri sitenin kendisinden yüklenir (Google'a istek gitmez).
 2. Proje adı: `corumspor`. Bölge: **Central EU (Frankfurt)** (Türkiye'ye yakın). Veritabanı şifresini bir yere not edin.
 3. Proje hazır olunca (1-2 dakika) devam edin.
 
-## 2. Veritabanını kurun (migration'lar) — SIRAYLA: 001 → 002 → 010 → 011 → 012 → 013 → 014
+## 2. Veritabanını kurun (migration'lar) — SIRAYLA: 001 → 002 → 010 → 011 → 012 → 013 → 014 → 015
 
-Yedi dosya var ve **bu sırayla, her biri bir kez** çalıştırılır:
+Sekiz dosya var ve **bu sırayla, her biri bir kez** çalıştırılır:
 
 | Sıra | Dosya | Ne kurar |
 |---|---|---|
@@ -36,6 +36,7 @@ Yedi dosya var ve **bu sırayla, her biri bir kez** çalıştırılır:
 | 5 | `supabase/migrations/012_denetim_2.sql` | Denetim 2. tur: reklam sayımına dakika sınırı + "sınıra takılan dakika" raporu; yorumda e-posta onayı, günde 50 yorum, aynı yorumu tekrar yazma ve düzenleme sınırı; kullanıcıların rolü herkese kapalı; "yonetici", "resmi", "kulüp" gibi yanıltıcı kullanıcı adları yasak; haber kapağı yalnız sitenin deposundan |
 | 6 | `supabase/migrations/013_tasarim.sql` | Mobil tasarım: kadro (`oyuncular`) ve kaynaklı sakatlık (`sakatliklar`) tabloları, haberde **manşet** ve kapak fotoğrafı kaynağı, gole kapak görseli ve süre, **gole yorum**, yorum **şikâyeti** (`yorum_sikayetleri`) ve **yorumdan men** (`profiles.engelli`), reklamda düğme yazısı / "Ara" telefonu / görseldeki yazı / küçük görsel / yasaklı sektör onayı, akışta farklı firmalar (`aktif_reklamlar`), **yöneticinin bakışları sayılmaz**, daha fazla ayrılmış kullanıcı adı (başkan, kaptan, Çorumspor…) |
 | 7 | `supabase/migrations/014_inceleme_2.sql` | 2. tur inceleme: reklam sayımı sıkı sınırlar (dakikada 30 gösterim / 6 tıklama, sekme başına saatlik sınır, yalnız gösterilen reklama olay), tıklama türü (web / WhatsApp / ara), sayfa açılışı ve görünürlük oranı, **günlük toplam + 90 gün saklama** (pg_cron varsa her gece), gün gün rapor; **yasaklı sektör onayı sunucuda**; ortak firma anahtarı; yorum **moderasyonu** (3 farklı şikâyette kendiliğinden gizleme, kelime listesi, maç başına ön onay), yasaklı hesap düzenleyemez/şikâyet edemez; rakamlı benzer ayrılmış adlar (Adm1n, Y0netici) ve "kirmizisimsek"; haberde kaynak / düzeltme notu / kapak alt metni; gol videosu kaynağı, .mp4 ve Türkçe altyazı (.vtt) yalnız sitenin deposundan (`gol-videolari`); maç notu; sakatlıkta kaynak bağlantısı ve tarihi, iç not yalnız yöneticiye |
+| 8 | `supabase/migrations/015_son_tur.sql` | Son tur: reklam sayımı dakikada 120 gösterim / 20 tıklama (maç günü zirvesi eksik sayılmaz; sekme sınırları aynı) ve **ham satır alarmı**; tıklama oranı %100'ü aşmaz (tıklanan farklı sayfa açılışı ÷ gösterim); rapor dönemi bugünü aşmaz ("devam ediyor"); elle yeniden toplama eski günleri silmez; **şikâyet sınırı** (saatte 10 / günde 30), kendiliğinden gizlemede yalnız 24 saatlik hesaplar, yönetici yorumu gizlenmez; kelime listesi "s.a.l.a.k" gibi yazımları da yakalar; görsel/düğme yazısı değişince sektör onayı sıfırlanır; daha fazla benzer ad (Adrnin, Moder8or, ÇFK, Sistem0) + **uygulama sahibinin adı ayrılmış** (`ayrilmis_adlar`), kullanıcı adı 7 günde bir değişir; haberde "kadro / transfer / sakatlık / bilet haberi" işaretliyse kaynak zorunlu |
 
 **En kolayı: SQL Editor**
 
@@ -69,8 +70,24 @@ Yedi dosya var ve **bu sırayla, her biri bir kez** çalıştırılır:
    -- Bağlantısız Sakat / Durumu belirsiz kayıtları (kulüp açıklamasının bağlantısını ekleyin):
    select id, durum, kaynak from public.sakatliklar where durum in ('sakat', 'belirsiz') and kaynak_url is null;
    ```
-   İsteğe bağlı: **Database → Extensions → pg_cron**'u açıp 014'ü yeniden çalıştırın: reklam olayları her gece günlük toplama katlanır
-   ve 90 günden eskisi silinir (açmazsanız tablo büyür; raporlar yine doğrudur). Elle: `select public.reklam_bakim();`.
+   **015:** canlı veritabanında 001-014 kuruluysa yalnız `015_son_tur.sql`'i **014'ten sonra** bir kez çalıştırın (yeniden çalıştırmak
+   zararsızdır). `010`-`014`'ten birini ileride yeniden çalıştırırsanız ardından `015`'i de yeniden çalıştırın (testler "sürüm 015"
+   işaretini denetler). 015'ten sonra uygulama sahibinin adını ayrılmış adlara ekleyin (4. bölüm, `SAHIP_ADI`):
+   ```sql
+   insert into public.ayrilmis_adlar (ad) values ('Mert') on conflict do nothing;  -- assets/ayar.js SAHIP_ADI ile aynı ad
+   ```
+   **Zorunlu: pg_cron (gece bakımı).** **Database → Extensions → pg_cron**'u açın, sonra `014_inceleme_2.sql`'i yeniden ve ardından
+   `015_son_tur.sql`'i çalıştırın (014 her gece 00:17 TSİ'de `reklam_bakim()` işini kurar). Bakım reklam olaylarını günlük toplama
+   katlar ve 90 günden eskisini siler; çalışmazsa reklam tabloları sürekli büyür ve ücretsiz plandaki veritabanı dolabilir.
+   Kurulduğunu denetleyin (bir satır dönmeli):
+   ```sql
+   select jobname, schedule, command, active from cron.job where jobname = 'reklam-bakim';
+   -- son çalışmalar (hata varsa status = 'failed'):
+   select status, return_message, start_time from cron.job_run_details
+     where jobid = (select jobid from cron.job where jobname = 'reklam-bakim') order by start_time desc limit 5;
+   ```
+   Panelde **Reklamlar** sekmesi "Son bakım: …" satırını gösterir; bakım 2 günden uzun süredir çalışmadıysa uyarır. Elle çalıştırmak
+   için: `select public.reklam_bakim();`.
 4. İsterseniz örnek veri için `supabase/seed.sql` dosyasını da çalıştırın (uydurma maçlar, goller, haberler, 8 oyuncu ve 3 sakatlık
    kaydı; sonra panelden silebilirsiniz). **Gerçek kadro ve sakatlık bilgisi yalnız kulübün resmî açıklamasından girilir.**
 
@@ -122,6 +139,10 @@ Bu anahtarın sitede görünmesi normaldir; veriyi veritabanındaki kurallar (RL
 **`service_role` (secret) anahtarını asla bu dosyaya ya da depoya koymayın.**
 
 Ayar yapılmadan site açılırsa sayfada "Site henüz yapılandırılmadı" uyarısı görünür.
+
+**015: `SAHIP_ADI` kullanıcı adı olarak alınamaz.** Sitede (kayıt formu) parantez içi atılarak denetlenir ("Mert (uygulama sahibi)" →
+"mert"); veritabanında da aynı adı `ayrilmis_adlar` tablosuna ekleyin (2. bölüm, 015 adımı). Başka korunacak ad varsa (ör. kulüp
+iletişim kişisi) aynı satırla ekleyin.
 
 ## 5. Siteyi yayınlayın: Cloudflare Pages (önerilen)
 
@@ -203,6 +224,10 @@ en fazla 50 yorum; aynı yorum 10 dakika içinde tekrar gönderilemez; yorum yal
 en fazla 10 kez düzenlenebilir (yöneticiler bu sınırlardan muaf). Kullanıcı adında "yönetici", "admin", "resmi", "kulüp", "Çorum FK",
 "Çorumspor", "başkan", "teknik direktör", "kaptan", "destek" gibi yanıltıcı adlar kullanılamaz. Ziyaretçiler kimin yönetici olduğunu
 göremez (rol herkese kapalı). Onaylı her üye başkasının yorumunu bir kez **şikâyet edebilir** (neden seçerek); men edilen hesap yorum yazamaz.
+015: bir hesap saatte en fazla 10, günde 30 şikâyet gönderebilir; farklı 3 hesaptan (her biri en az 24 saatlik) şikâyet alan yorum
+kendiliğinden gizlenir, yönetici yorumu gizlenmez. Şikâyetle gizlenen ve onay bekleyen yorumlar **Yorumlar** sekmesinin başında ve
+sekmenin üstündeki sayıda görünür ("Kuyruğu göster"). Kullanıcı adı en fazla 7 günde bir değiştirilebilir; "ÇFK", "Adrnin",
+"Moder8or" gibi benzerler ve uygulama sahibinin adı da ayrılmıştır.
 
 ## 8. Panelden ilk reklamı ekleme
 

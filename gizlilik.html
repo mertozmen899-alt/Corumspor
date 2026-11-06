@@ -22,10 +22,9 @@
 <link rel="apple-touch-icon" href="assets/logo/apple-touch-icon-180.png">
 <link rel="preload" href="assets/fonts/oswald-700-tr.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/source-sans-3-400-tr.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="assets/fonts/source-sans-3-700-tr.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/stil.css">
 <script src="assets/tema.js"></script>
-<script defer fetchpriority="high" src="assets/vendor/supabase-js-2.45.4/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o"></script>
+<script defer src="assets/vendor/supabase-js-2.45.4/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o"></script>
 <link rel="modulepreload" href="assets/sayfa/metin.js">
 <link rel="modulepreload" href="assets/ortak.js">
 <link rel="modulepreload" href="assets/istemci.js">
@@ -48,7 +47,7 @@
 <div class="kap metin-sayfa">
 <article id="gizlilik" class="gizlilik">
   <h1>Gizlilik ve KVKK aydınlatma metni</h1>
-  <p class="soluk kucuk-yazi" id="son-guncelleme">Son güncelleme: 5 Kasım 2026</p>
+  <p class="soluk kucuk-yazi" id="son-guncelleme">Son güncelleme: 6 Kasım 2026</p>
 
   <h2>1. Veri sorumlusu</h2>
   <p>Çorumspor Taraftar, taraftarlar tarafından hazırlanan bağımsız bir uygulamadır. <strong>Çorum FK'nın resmî uygulaması değildir</strong>; kulüple bir bağı yoktur. Veri sorumlusu: <strong data-ayar="SAHIP_ADI">uygulama sahibi</strong>, iletişim: <a data-ayar="ILETISIM_EPOSTA" href="kurallar.html#iletisim">iletişim adresi</a>.</p>
@@ -56,10 +55,10 @@
   <h2>2. Hesap açarsan sakladıklarımız</h2>
   <ul>
     <li><strong>E-posta adresin ve şifren:</strong> giriş için. Şifre düz metin olarak saklanmaz (Supabase Auth şifreyi geri döndürülemez biçimde saklar). E-posta adresin sitede kimseye gösterilmez. "Şifremi unuttum" dersen bu adrese bir sıfırlama bağlantısı gider.</li>
-    <li><strong>Kullanıcı adın:</strong> yorumlarının yanında herkese görünür.</li>
+    <li><strong>Kullanıcı adın:</strong> yorumlarının yanında herkese görünür. Adını son değiştirdiğin zaman da saklanır (kullanıcı adı en fazla 7 günde bir değiştirilebilir); kimseye gösterilmez.</li>
     <li><strong>Hesap bilgileri:</strong> kayıt ve son giriş zamanı; giriş güvenliği için Supabase'in kayıtlarında giriş yapılan IP adresi.</li>
-    <li><strong>Yorumların:</strong> metin, yazılma ve düzenlenme zamanı, hangi habere, maça ya da gole yazıldığı. Yorumlar herkese açıktır; kurallara (<a href="kurallar.html">topluluk kuralları</a>) uymayan yorumu yöneticiler gizleyebilir ya da silebilir. Kuralı tekrar tekrar çiğneyen hesabın yorum yazması kapatılabilir (bu bilgi yalnız yöneticilere ve sana görünür). Yorum yazmak için e-posta adresini onaylaman gerekir.</li>
-    <li><strong>Şikâyetlerin:</strong> bir yorumu şikâyet edersen hangi yorumu, hangi nedenle ve ne zaman şikâyet ettiğin saklanır; yalnız yöneticiler görür, yorumu yazana söylenmez.</li>
+    <li><strong>Yorumların:</strong> metin, yazılma ve düzenlenme zamanı, hangi habere, maça ya da gole yazıldığı. Yorumlar herkese açıktır; kurallara (<a href="kurallar.html">topluluk kuralları</a>) uymayan yorumu yöneticiler gizleyebilir ya da silebilir. Ayrıca bazı yorumlar kendiliğinden bekletilir ya da gizlenir: farklı 3 hesaptan (en az 24 saatlik hesaplar) şikâyet alan yorum yönetici bakana kadar gizlenir; yöneticinin kelime listesine takılan yorum ve ön onaya alınmış maçta (maçtan 2 saat önce → 24 saat sonra) o maça ya da gollerine yazılan yorum, yönetici onaylayana kadar yalnız sana ve yöneticilere görünür. Kuralı tekrar tekrar çiğneyen hesabın yorum yazması kapatılabilir (bu bilgi yalnız yöneticilere ve sana görünür). Yorum yazmak için e-posta adresini onaylaman gerekir.</li>
+    <li><strong>Şikâyetlerin:</strong> bir yorumu şikâyet edersen hangi yorumu, hangi nedenle ve ne zaman şikâyet ettiğin saklanır; yalnız yöneticiler görür, yorumu yazana söylenmez. Kötüye kullanıma karşı bir hesap saatte en fazla 10, günde en fazla 30 şikâyet gönderebilir; bunun için hesabının açılış zamanına ve şikâyet zamanlarına bakılır.</li>
     <li><strong>Yorum düzenleme zamanları:</strong> yalnız "dakikada en fazla 10 düzenleme" kuralı için hesabınla birlikte tutulur, 1 saat sonra silinir; kimseye gösterilmez.</li>
     <li><strong>Rolün</strong> (taraftar ya da yönetici) yalnız sana ve sitenin kurallarına açıktır; başka ziyaretçiler göremez.</li>
   </ul>
@@ -67,7 +66,7 @@
 
   <h2>3. Hesap açmasan da işlenenler</h2>
   <ul>
-    <li><strong>Reklam sayımı:</strong> bir reklam kartı ekranda göründüğünde ya da düğmesine dokunulduğunda sunucuya reklamın kimliği, yeri (ana sayfa, haber sonu, maç), maç ve zaman gönderilir. Bunun yanında her sayfa açılışında yeniden üretilen <strong>rastgele bir sayfa açılışı kimliği</strong> ve yalnız tıklamada <strong>rastgele bir sekme kimliği</strong> gider. Kullanıcı kimliği, IP adresi ya da tarayıcı bilgisi reklam sayımına yazılmaz. Yöneticilerin bakışları sayılmaz. Bir reklama dakikada çok fazla gösterim/tıklama gelirse fazlası sayılmaz ve yalnız "bu reklam bu dakikada sınıra takıldı" bilgisi (reklam, dakika, sayı) tutulur.</li>
+    <li><strong>Reklam sayımı:</strong> sunucuya üç olay gider: reklam kartı sayfaya konduğunda (<strong>yerleşim</strong>; görünmese de), kartın en az yarısı en az 1 saniye ekranda kaldığında (<strong>gösterim</strong>) ve düğmesine dokunulduğunda (<strong>tıklama</strong>; hangi düğme: web sitesi, WhatsApp ya da "Ara"). Her olayda reklamın kimliği, yeri (ana sayfa, haber sonu, maç), maç ve zaman gönderilir. Bunun yanında her sayfa açılışında yeniden üretilen <strong>rastgele bir sayfa açılışı kimliği</strong> ve gösterim ile tıklamada <strong>rastgele bir sekme kimliği</strong> gider. Sekme kimliği sunucuda yalnız "bir sekmeden saatte en fazla 20 gösterim / 10 tıklama" sınırı için en çok 2 saat tutulur; gösterim kaydına yazılmaz. Tıklamada aynı sekmeden tekrar tıklama sayılmasın diye tıklama kaydında da tutulur ve 1 günden eskiyse gece bakımında boşaltılır. Kullanıcı kimliği, IP adresi ya da tarayıcı bilgisi reklam sayımına yazılmaz. Yöneticilerin bakışları sayılmaz. Bir reklama dakikada çok fazla gösterim/tıklama gelirse (dakikada 120 gösterim / 20 tıklama) fazlası sayılmaz ve yalnız "bu reklam bu dakikada sınıra takıldı" bilgisi (reklam, dakika, sayı) tutulur. Tek tek olaylar 90 gün sonra silinir; yalnız günlük toplamlar kalır.</li>
     <li><strong>Sunucu kayıtları:</strong> sitenin barındırıldığı hizmet ve veritabanı hizmeti, her istekte teknik olarak IP adresini ve tarayıcı bilgisini görür ve kısa süre kayıt tutabilir (bkz. 5. bölüm).</li>
   </ul>
 
@@ -79,8 +78,8 @@
     <tbody>
       <tr><td data-baslik="Ad"><code>sb-[proje]-auth-token</code></td><td data-baslik="Nerede">localStorage</td><td data-baslik="Ne için">Giriş yaptıysan oturumun (giriş anahtarları, kullanıcı kimliğin ve e-posta adresin). Supabase Auth yazar.</td><td data-baslik="Ne kadar">Çıkış yapana kadar</td></tr>
       <tr><td data-baslik="Ad"><code>tema</code></td><td data-baslik="Nerede">localStorage</td><td data-baslik="Ne için">Açık/koyu tema seçimin (yalnız Profil › Görünüm'de seçtiysen).</td><td data-baslik="Ne kadar">Silinene kadar</td></tr>
-      <tr><td data-baslik="Ad"><code>son-veri-v1</code></td><td data-baslik="Nerede">localStorage</td><td data-baslik="Ne için">Son görülen haber başlıkları, sıradaki maç ve son goller (herkese açık bilgiler): internet yokken ya da yavaşken sayfa boş kalmasın diye. Kişisel bilgi içermez.</td><td data-baslik="Ne kadar">Her ziyarette yenilenir; en çok 30 KB</td></tr>
-      <tr><td data-baslik="Ad"><code>reklam-sekme-kimligi</code></td><td data-baslik="Nerede">sessionStorage</td><td data-baslik="Ne için">Rastgele sekme kimliği: aynı sekmede aynı reklama 30 dakika içindeki tekrar tıklama sayılmasın diye. Kimseyle eşleştirilemez.</td><td data-baslik="Ne kadar">Sekme kapanınca silinir</td></tr>
+      <tr><td data-baslik="Ad"><code>son-veri-v1</code></td><td data-baslik="Nerede">localStorage</td><td data-baslik="Ne için">Son görülen haber başlıkları, sıradaki maç ve son goller; ayrıca son açtığın 3 haber ve son açtığın 5 gol (yalnız herkese açık içerikleri): internet yokken ya da yavaşken sayfa boş kalmasın, stadyumda bağlantı kopunca da açılsın diye. Kişisel bilgi (hesap, yorum, e-posta) içermez; sunucuya gönderilmez.</td><td data-baslik="Ne kadar">Her ziyarette yenilenir; en çok 30 KB</td></tr>
+      <tr><td data-baslik="Ad"><code>reklam-sekme-kimligi</code></td><td data-baslik="Nerede">sessionStorage</td><td data-baslik="Ne için">Rastgele sekme kimliği: gösterim ve tıklamayla sunucuya gider; aynı sekmede aynı reklama 30 dakika içindeki tekrar tıklama sayılmasın ve bir sekmeden saatte en fazla 20 gösterim / 10 tıklama sayılsın diye (sunucudaki sayaçta en çok 2 saat, tıklama kaydında yaklaşık 1 gün). Kimseyle eşleştirilemez.</td><td data-baslik="Ne kadar">Sekme kapanınca silinir</td></tr>
       <tr><td data-baslik="Ad"><code>kabuk-…</code>, <code>veri-…</code></td><td data-baslik="Nerede">Cache Storage (service worker)</td><td data-baslik="Ne için">Sayfaların kendisi (HTML, stil, yazı tipi, simgeler) ve herkese açık son haber/maç/gol listeleri: stadyumda bağlantı kopunca da açılsın diye. Giriş, yorum, reklam sayımı ve videolar saklanmaz.</td><td data-baslik="Ne kadar">Yeni sürüm yayınlanınca eskisi silinir</td></tr>
     </tbody>
   </table>
@@ -91,7 +90,7 @@
     <li><strong>Supabase</strong> (veritabanı, giriş, görseller): hesap, yorum ve reklam sayımı burada durur. Sunucu bölgesi: <strong>Central EU (Frankfurt)</strong>. Giriş e-postaları (onay ve şifre sıfırlama bağlantısı) Supabase'in e-posta hizmeti üzerinden gider.</li>
     <li><strong>Cloudflare Pages</strong> (sitenin barındırılması): sayfaları sana gönderir, IP adresini görür.</li>
     <li><strong>YouTube</strong> (<code>youtube-nocookie.com</code>): gol videoları yalnız sen <strong>oynat düğmesine dokununca</strong> yüklenir. O ana kadar YouTube'a hiçbir istek gitmez (kapak görseli sitenin kendisinden gelir). Dokununca IP adresin Google'a gider ve YouTube kendi kurallarıyla veri saklayabilir.</li>
-    <li><strong>Gol videosu (.mp4)</strong> bağlantıları başka bir siteden geliyorsa video yine yalnız dokununca o siteden yüklenir.</li>
+    <li><strong>Gol videosu (.mp4)</strong> ve altyazısı (.vtt) yalnız sitenin kendi Supabase deposundan gelir (başka sitedeki video kabul edilmez); video yine yalnız oynat düğmesine dokununca yüklenir.</li>
     <li><strong>Reklam verenler</strong>: reklamın düğmesine dokunursan firmanın sitesi ya da WhatsApp yeni sekmede açılır ("Ara" düğmesi telefonunun arama ekranını açar); oradan sonrası o firmanın kurallarına tabidir. Reklam görselleri sitenin kendi deposundan gelir, reklam verene bilgi gitmez.</li>
     <li><strong>Paylaş</strong> düğmesi WhatsApp'ı açar; neyi kime göndereceğine sen karar verirsin.</li>
   </ul>
@@ -99,7 +98,7 @@
   <p>Bu hizmetlerin sunucuları yurt dışında olabilir; yurt dışına aktarım KVKK 9. maddeye tabidir.</p>
 
   <h2>6. Neden işliyoruz (hukuki sebep)</h2>
-  <p>Hesap ve yorumlar: üyelik ilişkisinin kurulması ve yürütülmesi. Güvenlik kayıtları, şikâyetler ve yorum kötüye kullanımını önleme (e-posta onayı, dakikada en fazla 5 ve günde en fazla 50 yorum, aynı yorumun 10 dakika içinde tekrarlanmaması, düzenleme sınırı, yorum yasağı): meşru menfaat. Reklam sayımı ve son görülen verinin tarayıcıda saklanması: kişisel veri içermeyen işlemler. Sakatlık bilgileri yalnız kulübün kamuya açıkladığı ölçüde, kaynağıyla yayımlanır.</p>
+  <p>Hesap ve yorumlar: üyelik ilişkisinin kurulması ve yürütülmesi. Güvenlik kayıtları, şikâyetler ve yorum kötüye kullanımını önleme (e-posta onayı, dakikada en fazla 5 ve günde en fazla 50 yorum, aynı yorumun 10 dakika içinde tekrarlanmaması, düzenleme sınırı, şikâyet sınırı, yorum yasağı, kelime listesi ve maç günü ön onayı): meşru menfaat. Reklam sayımı ve son görülen verinin tarayıcıda saklanması: kişisel veri içermeyen işlemler. Sakatlık bilgileri yalnız kulübün kamuya açıkladığı ölçüde, kaynağıyla yayımlanır.</p>
 
   <h2>7. Hakların</h2>
   <p>KVKK 11. madde uyarınca bilgilerinin işlenip işlenmediğini öğrenme, düzeltilmesini ya da silinmesini isteme, itiraz etme ve diğer haklarını <a data-ayar="ILETISIM_EPOSTA" href="kurallar.html#iletisim">iletişim adresi</a> adresine yazarak kullanabilirsin. Ayrıca Kişisel Verileri Koruma Kurulu'na şikâyette bulunabilirsin.</p>
@@ -118,7 +117,7 @@
 <footer class="alt">
   <div class="kap">
     <p><strong>Çorumspor Taraftar</strong> · bağımsız taraftar uygulaması. <strong>Çorum FK'nın resmî uygulaması değildir</strong>; kulüple bir bağı yoktur. Kulüp adı hak sahibine aittir.</p>
-    <p>Künye: <span data-ayar="SAHIP_ADI">uygulama sahibi</span> · İletişim ve kaldırma talepleri: <a data-ayar="ILETISIM_EPOSTA" href="kurallar.html#iletisim">iletişim adresi</a> (kaldırma taleplerine en kısa sürede dönülür).</p>
+    <p>Künye: <span data-ayar="SAHIP_ADI">uygulama sahibi</span> · İletişim ve kaldırma talepleri: <a data-ayar="ILETISIM_EPOSTA" href="kurallar.html#iletisim">iletişim adresi</a> (kaldırma taleplerine en geç 24 saat içinde dönülür).</p>
     <p class="baglantilar"><a href="gizlilik.html">Gizlilik ve KVKK</a><a href="kurallar.html">Topluluk kuralları</a><a href="kaynaklar.html">Fotoğraf kaynakları</a></p>
   </div>
 </footer>
