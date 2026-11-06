@@ -30,6 +30,23 @@ test('haber kapağı: yalnız proje deposu (haber-gorselleri) ya da assets/img/'
   for (const [url, beklenen] of ORN.kapak) assert.equal(K.kapakAdresiGecerli(url), beklenen, String(url));
 });
 
+test('profil fotoğrafı (017): yalnız profil-fotograflari kovasında kişinin kendi klasörü (SQL profil_foto_gecerli aynası)', () => {
+  const id = 'bbbbbbbb-0000-4000-8000-000000000001';
+  const kok = 'https://abcxyz.supabase.co/storage/v1/object/public/profil-fotograflari/';
+  for (const [url, kimlik, beklenen] of [
+    [null, id, true], [undefined, null, true],
+    [`${kok}${id}/a1b2-c3_d.webp`, id, true], [`${kok}${id}/foto.JPG`, id, true], [`${kok}${id}/foto.png`, id.toUpperCase(), true],
+    [`${kok}${id}/foto.webp`, null, false], // kimlik yoksa adres geçersiz
+    [`${kok}bbbbbbbb-0000-4000-8000-000000000002/foto.webp`, id, false], // başkasının klasörü
+    [`${kok}${id}/foto.gif`, id, false], [`${kok}${id}/alt/foto.webp`, id, false], [`${kok}${id}/../x/foto.webp`, id, false],
+    [`${kok}${id}/fo to.webp`, id, false], [`${kok}${id}/foto.webp?x=1`, id, false],
+    [`https://abcxyz.supabase.co/storage/v1/object/public/haber-gorselleri/${id}/foto.webp`, id, false],
+    [`http://abcxyz.supabase.co/storage/v1/object/public/profil-fotograflari/${id}/foto.webp`, id, false],
+    [`https://baska-site.com/storage/v1/object/public/profil-fotograflari/${id}/foto.webp`, id, false],
+    [`${kok}${id}/${'a'.repeat(500)}.webp`, id, false], ['', id, false],
+  ]) assert.equal(K.profilFotoGecerli(url, kimlik), beklenen, `${url} | ${kimlik}`);
+});
+
 test('yorum sınırları sabitleri (SQL 012 ile aynı; SQL karşılaştırması testler/reklam/sql.test.mjs)', () => {
   assert.deepEqual({ ...K.YORUM_SINIRLARI }, { enUzun: 1000, dakikada: 5, gunde: 50, tekrarDakika: 10, duzenlemeDakikada: 10, duzenlemeSuresiDakika: 30 });
   assert.equal(K.yorumMetniAyni('  Haydi   Çorum ', 'haydi çorum'), true);
@@ -350,4 +367,37 @@ test('varlıklar (2. tur): sahte-supabase.js\'teki her assets/ yolu ve fotoğraf
   }
   assert.deepEqual(eksik, []);
   assert.deepEqual(fazla, []);
+});
+
+test('018: oyuncu adı eşleştirme (Türkçe harf, aksan, boşluk), dakika hesabı ve sezon özeti', () => {
+  assert.equal(K.oyuncuAnahtari('  Ermin   Mahmić '), K.oyuncuAnahtari('ermin mahmic'));
+  assert.equal(K.oyuncuAnahtari('Jesús Ramírez'), K.oyuncuAnahtari('JESUS RAMIREZ'));
+  assert.equal(K.oyuncuAnahtari('Çağlar Söyüncü'), 'caglar soyuncu');
+  assert.notEqual(K.oyuncuAnahtari('Ali Örnek'), K.oyuncuAnahtari('Ali Ornekci'));
+  assert.equal(K.oynamaDakikasi({ ilk11: true }), 90);
+  assert.equal(K.oynamaDakikasi({ ilk11: true, cikis_dk: 72 }), 72);
+  assert.equal(K.oynamaDakikasi({ ilk11: false, giris_dk: 46 }), 44);
+  assert.equal(K.oynamaDakikasi({ ilk11: false, giris_dk: 60, cikis_dk: 80 }), 20);
+  assert.equal(K.oynamaDakikasi({ ilk11: false, giris_dk: null }), 0); // girmeyen yedek
+  assert.equal(K.oynamaDakikasi({ ilk11: false, giris_dk: 95 }), 0); // uzatmada girdi: 90 sayılır
+  const kadro = [
+    { mac_id: 'a', oyuncu: 'Cengiz Ünder', ilk11: true, cikis_dk: 72, sari: 1, kirmizi: false },
+    { mac_id: 'b', oyuncu: 'cengiz  ünder', ilk11: false, giris_dk: 46, sari: 0, kirmizi: false },
+    { mac_id: 'c', oyuncu: 'Cengiz Ünder', ilk11: false, giris_dk: null, sari: 0, kirmizi: false },
+    { mac_id: 'a', oyuncu: 'Başka Oyuncu', ilk11: true, sari: 2, kirmizi: true },
+  ];
+  const goller = [{ oyuncu: 'Cengiz Ünder', asist: 'Fredy' }, { oyuncu: 'Jesús Ramírez', asist: 'Cengiz Ünder' }, { oyuncu: 'CENGIZ UNDER', asist: null }];
+  assert.deepEqual(K.oyuncuOzeti('Cengiz Ünder', kadro, goller), { mac: 2, ilk11: 1, dakika: 116, gol: 2, asist: 1, katki: 3, sari: 1, kirmizi: 0 });
+  assert.deepEqual(K.oyuncuOzeti('Yok Böyle', kadro, goller), { mac: 0, ilk11: 0, dakika: 0, gol: 0, asist: 0, katki: 0, sari: 0, kirmizi: 0 });
+});
+
+test('018: gol anı (asist + YouTube aralığı) hataları SQL kısıtlarının aynası', () => {
+  const yt = 'https://www.youtube.com/watch?v=aqz-KE-bpKQ';
+  assert.deepEqual(K.golAniHatalari({ asist: 'Fredy', video_url: yt, video_baslangic_sn: 354, video_bitis_sn: 372 }), []);
+  assert.deepEqual(K.golAniHatalari({}), []);
+  assert.equal(K.golAniHatalari({ asist: 'F' }).length, 1);
+  assert.match(K.golAniHatalari({ video_url: yt, video_baslangic_sn: 5 })[0], /birlikte/);
+  assert.match(K.golAniHatalari({ video_url: yt, video_baslangic_sn: 30, video_bitis_sn: 30 })[0], /sonra/);
+  assert.match(K.golAniHatalari({ video_url: yt, video_baslangic_sn: 1, video_bitis_sn: 30000 })[0], /21600/);
+  assert.match(K.golAniHatalari({ video_url: 'https://abcd.supabase.co/storage/v1/object/public/gol-videolari/a.mp4', video_baslangic_sn: 1, video_bitis_sn: 9 })[0], /YouTube/);
 });

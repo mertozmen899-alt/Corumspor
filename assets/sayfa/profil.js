@@ -1,6 +1,9 @@
 // Profil: misafire giriş / kayıt; üyeye kullanıcı adı, e-posta, yorumlarım, (yöneticiye) yönetim paneli, onaylı çıkış.
 // Tema seçimi (Cihaz ayarı / Açık / Koyu) statik HTML'dedir, assets/tema.js bağlar (herkese açık).
-import { supabase, hazir, h, $, sayfaBaslat, tarihYaz, cikisYap, hataMetni, simge } from '../ortak.js';
+// 017: profil fotoğrafı (profiles.foto_url): yüklemeden önce 256 px'e küçültülür (WebP, EXIF silinir), profil-fotograflari
+// kovasında <kullanıcı id>/<rastgele uuid>.webp; eski dosya silinir. Onaysız e-posta / yasaklı hesapta düğme yerine açıklama.
+import { supabase, hazir, h, $, sayfaBaslat, tarihYaz, cikisYap, hataMetni, simge, mesaj, avatarOgesi } from '../ortak.js';
+import { PROFIL_FOTO_KOVASI } from '../kurallar.js';
 
 const kok = $('#profil');
 const oturumS = sayfaBaslat();
@@ -60,13 +63,103 @@ async function yorumlarim(kullaniciId) {
   return kart;
 }
 
+const PROFIL_FOTO_KURALI = 'Yalnız kendine ait ya da kullanma hakkın olan fotoğraf; başkasının fotoğrafı, kulüp arması, uygunsuz görsel yasak.';
+const PROFIL_FOTO_EN_BUYUK = 300 * 1024; // kova sınırı (017)
+const depoYolu = (url) => { const m = /\/profil-fotograflari\/([^?#]+)$/.exec(url || ''); return m ? decodeURIComponent(m[1]) : null; };
+
+/** Profil fotoğrafı: avatar kutusunu çizer, yükle / değiştir / kaldır bölümünü döndürür. */
+async function profilFotografi(o, ad, avatarKutu) {
+  const uid = o.kullanici.id;
+  const onayli = !!o.kullanici.email_confirmed_at;
+  let engelli = false;
+  if (onayli) { try { const r = await supabase.rpc('engelli_mi'); engelli = !!r && r.data === true; } catch (e) { engelli = false; } }
+  let foto = null;
+  try { const { data } = await supabase.from('profiles').select('foto_url').eq('id', uid).maybeSingle(); foto = (data && data.foto_url) || null; } catch (e) { foto = null; }
+
+  const kutu = h('div', { class: 'profil-foto', id: 'profil-foto' });
+  const durumP = h('p', { class: 'mesaj', id: 'profil-foto-mesaj', hidden: true });
+  const yukleyebilir = onayli && !engelli;
+  const dosya = h('input', { type: 'file', id: 'profil-foto-dosya', accept: 'image/*', hidden: true, tabindex: '-1' });
+  const yukle = h('button', { type: 'button', class: 'dugme ikincil kucuk', id: 'profil-foto-yukle', 'aria-describedby': 'profil-foto-kural' });
+  const kaldir = h('button', { type: 'button', class: 'dugme tehlike kucuk', id: 'profil-foto-kaldir' }, 'Fotoğrafı kaldır');
+  const ciz = () => {
+    avatarKutu.replaceChildren(avatarOgesi(ad, foto, uid, { boyut: 72, alt: 'Profil fotoğrafın' }));
+    yukle.textContent = foto ? 'Fotoğrafı değiştir' : 'Fotoğraf yükle';
+    kaldir.hidden = !foto;
+  };
+  const mesgul = (evet) => [yukle, kaldir].forEach((d) => (evet ? d.setAttribute('aria-disabled', 'true') : d.removeAttribute('aria-disabled')));
+  const eskiyiSil = async (url) => { const yol = depoYolu(url); if (!yol) return; try { await supabase.storage.from(PROFIL_FOTO_KOVASI).remove([yol]); } catch (e) { /* sessiz: dosya depoda kalır */ } };
+
+  yukle.addEventListener('click', () => { if (yukle.getAttribute('aria-disabled') !== 'true') dosya.click(); });
+  dosya.addEventListener('change', async () => {
+    const secilen = dosya.files && dosya.files[0];
+    dosya.value = ''; // aynı dosya yeniden seçilebilsin
+    if (!secilen) return;
+    const hata = (metin) => { mesaj(durumP, metin, 'hata'); mesgul(false); yukle.focus(); };
+    if (!/^image\/(jpeg|png|webp)$/.test(secilen.type)) return hata('Yalnız JPEG, PNG ya da WebP fotoğraf yükleyebilirsin.');
+    mesgul(true);
+    mesaj(durumP, 'Fotoğrafın hazırlanıyor…', 'bilgi');
+    let kucuk;
+    try {
+      const { gorselKucult, ENCOK_GIRDI_BAYT } = await import('../gorsel-kucult.js'); // yalnız yüklerken (açılışta istek yok)
+      if (secilen.size > ENCOK_GIRDI_BAYT) return hata('Fotoğraf çok büyük. Daha küçük bir fotoğraf seç.');
+      kucuk = await gorselKucult(secilen, { enGenis: 256, enYuksek: 256 });
+    } catch (e) { return hata('Fotoğraf hazırlanamadı. Başka bir fotoğraf dene.'); }
+    if (!/^image\/(jpeg|png|webp)$/.test(kucuk.type)) return hata('Bu dosya açılamadı. JPEG, PNG ya da WebP bir fotoğraf seç.');
+    if (kucuk.size > PROFIL_FOTO_EN_BUYUK) return hata('Fotoğraf küçültüldükten sonra da 300 KB\'tan büyük. Başka bir fotoğraf dene.');
+    const uzanti = kucuk.type === 'image/webp' ? 'webp' : kucuk.type === 'image/png' ? 'png' : 'jpg';
+    const yol = `${uid}/${crypto.randomUUID()}.${uzanti}`;
+    const depo = supabase.storage.from(PROFIL_FOTO_KOVASI);
+    const { error: ye } = await depo.upload(yol, kucuk, { contentType: kucuk.type, cacheControl: '31536000', upsert: false });
+    if (ye) return hata(hataMetni(ye, 'Fotoğraf yüklenemedi. Tekrar dene.'));
+    const yeni = depo.getPublicUrl(yol).data.publicUrl;
+    const { error: ue } = await supabase.from('profiles').update({ foto_url: yeni }).eq('id', uid);
+    if (ue) { await eskiyiSil(yeni); return hata(hataMetni(ue, 'Profil fotoğrafın kaydedilemedi.')); }
+    const eski = foto;
+    foto = yeni;
+    ciz();
+    mesgul(false);
+    mesaj(durumP, 'Profil fotoğrafın güncellendi. Yorumlarında da görünecek.', 'basari');
+    yukle.focus();
+    if (eski) await eskiyiSil(eski);
+  });
+  kaldir.addEventListener('click', async () => {
+    if (kaldir.getAttribute('aria-disabled') === 'true' || !foto) return;
+    if (!confirm('Profil fotoğrafın kaldırılsın mı?')) return;
+    mesgul(true);
+    const { error } = await supabase.from('profiles').update({ foto_url: null }).eq('id', uid);
+    mesgul(false);
+    if (error) { mesaj(durumP, hataMetni(error, 'Profil fotoğrafın kaldırılamadı.'), 'hata'); kaldir.focus(); return; }
+    const eski = foto;
+    foto = null;
+    ciz();
+    mesaj(durumP, 'Profil fotoğrafın kaldırıldı.', 'basari');
+    (yukleyebilir ? yukle : avatarKutu.closest('.profil-bas').querySelector('h2')).focus();
+    await eskiyiSil(eski);
+  });
+
+  ciz();
+  const not = !onayli
+    ? 'Profil fotoğrafı eklemek için e-posta adresini onayla: hesap açarken gelen e-postadaki bağlantıya tıkla, sonra çıkış yapıp yeniden gir.'
+    : engelli ? 'Hesabın topluluk kuralları nedeniyle kapatıldığı için profil fotoğrafı ekleyemezsin.' : null;
+  kutu.append(...[
+    h('div', { class: 'dugme-satir' }, yukleyebilir ? yukle : null, kaldir),
+    yukleyebilir ? dosya : null,
+    yukleyebilir ? h('p', { class: 'soluk kucuk-yazi', id: 'profil-foto-kural' }, PROFIL_FOTO_KURALI) : h('p', { class: 'mesaj bilgi', id: 'profil-foto-not' }, not),
+    durumP].filter(Boolean));
+  return kutu;
+}
+
 async function uye(o) {
   const ad = (o.profil && o.profil.kullanici_adi) || 'taraftar';
+  const avatarKutu = h('div', { class: 'profil-avatar' });
+  const fotoBolumu = await profilFotografi(o, ad, avatarKutu);
   // replaceChildren null'u "null" METNİNE çevirir (yönetici olmayanda "nullnull" yazıyordu): boşlar ayıklanır
   kok.replaceChildren(...[h('div', { class: 'profil-bas' },
-    h('span', { class: 'avatar', 'aria-hidden': 'true' }, ad.slice(0, 1).toLocaleUpperCase('tr-TR')),
-    h('h2', { id: 'profil-ad' }, ad),
-    h('dl', null, h('dt', { class: 'gorunmez' }, 'E-posta'), h('dd', null, o.kullanici.email || ''))),
+    avatarKutu,
+    h('h2', { id: 'profil-ad', tabindex: '-1' }, ad),
+    h('dl', null, h('dt', { class: 'gorunmez' }, 'E-posta'), h('dd', null, o.kullanici.email || '')),
+    fotoBolumu),
     h('h2', { class: 'grup-baslik-k' }, 'Yorumlarım'),
     await yorumlarim(o.kullanici.id),
     o.admin ? h('h2', { class: 'grup-baslik-k' }, 'Yönetim') : null,

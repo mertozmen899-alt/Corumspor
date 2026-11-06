@@ -221,9 +221,9 @@ async function tarayiciTestleri() {
     await p.waitForSelector('#arsiv[data-durum="tamam"] .arsiv-mac');
     const arsiv = await p.$$eval('#arsiv .arsiv-mac', (l) => l.map((x) => ({ id: x.dataset.macId, gol: x.querySelectorAll('.gol').length })));
     kontrol(c('goller: sadece golü olan maçlar, yeniden eskiye'), arsiv.length === 2 && arsiv[0].id.endsWith('2') && arsiv[1].id === M1 && arsiv[1].gol === 2, JSON.stringify(arsiv));
-    const kapaklar = await p.$$eval('#arsiv a.video-kart', (l) => l.map((a) => ({ href: a.getAttribute('href'), img: a.querySelector('img')?.getAttribute('src') })));
-    kontrol(c('goller (013): videolu gol kapak kartı (sitenin kendi kapağı) ve gol.html bağlantısı; arşivde oynatıcı yok'),
-      kapaklar.length === 2 && kapaklar.every((k) => /^gol\.html\?id=/.test(k.href) && /^assets\/img\//.test(k.img)) && (await p.$$('#arsiv iframe, #arsiv video')).length === 0, JSON.stringify(kapaklar));
+    const satirlar = await p.$$eval('#arsiv a.gol-ani', (l) => l.map((a) => ({ href: a.getAttribute('href'), img: a.querySelectorAll('img').length })));
+    kontrol(c('goller (018): her gol kompakt satır → gol.html; arşivde görsel, oynatıcı ve YouTube isteği yok'),
+      satirlar.length === 3 && satirlar.every((k) => /^gol\.html\?id=/.test(k.href) && !k.img) && (await p.$$('#arsiv iframe, #arsiv video, #arsiv img')).length === 0, JSON.stringify(satirlar));
     // gol sayfası: dokununca YouTube (nocookie) / mp4 yüklenir
     await git(p, 'gol.html?id=22222222-0000-4000-8000-000000000001');
     await p.waitForSelector('#gol[data-durum="tamam"] .video-baslat');
@@ -349,9 +349,39 @@ async function tarayiciTestleri() {
     kontrol(c('yönetim: geçersiz video adresi reddedildi'), /Video bağlantısı/.test(await metin(p, '#panel-mesaj')));
     await p.fill('#g-video', 'https://youtu.be/aqz-KE-bpKQ');
     await p.fill('#g-video-kaynak', 'Kulübün resmî YouTube kanalı'); // 014: videolu golde kaynak zorunlu
+    // 018: asist + gol anı aralığı (başlangıç ve bitiş birlikte, bitiş başlangıçtan sonra)
+    await p.fill('#g-asist', 'Panel Asistçi');
+    await p.fill('#g-bas', '30');
+    await p.click('#g-kaydet');
+    await p.waitForFunction(() => /birlikte/.test(document.querySelector('#panel-mesaj').textContent));
+    await p.fill('#g-bit', '20');
+    await p.click('#g-kaydet');
+    await p.waitForFunction(() => /başlangıçtan sonra/.test(document.querySelector('#panel-mesaj').textContent));
+    kontrol(c('yönetim (018): gol anı aralığı doğrulanır (birlikte; bitiş > başlangıç)'), true);
+    await p.fill('#g-bit', '48');
     await p.click('#g-kaydet');
     await p.waitForFunction(() => /Gol eklendi/.test(document.querySelector('#panel-mesaj').textContent));
     kontrol(c('yönetim: gol eklendi'), /Panel Golcü/.test(await metin(p, '#gol-listesi')));
+    kontrol(c('yönetim (018): gol listesinde asist ve gol anı aralığı'), /Panel Golcü · Asist: Panel Asistçi/.test(await metin(p, '#gol-listesi')) && /gol anı 30-48 sn/.test(await metin(p, '#gol-listesi')), await metin(p, '#gol-listesi'));
+    // 018: maç kadrosu (maç düzenlenirken görünür)
+    await p.click('#sekme-maclar');
+    await p.locator('#mac-listesi li', { hasText: 'Panel Rakibi' }).getByRole('button', { name: 'Düzenle' }).click();
+    await p.waitForSelector('#kadro-bolumu:not([hidden]) #kadro-listesi li');
+    await p.fill('#k-oyuncu', 'Panel Golcü');
+    await p.check('#k-ilk11');
+    await p.fill('#k-cikis', '75');
+    await p.selectOption('#k-sari', '1');
+    await p.click('#k-kaydet');
+    await p.waitForFunction(() => /kadroya eklendi/.test(document.querySelector('#panel-mesaj').textContent));
+    await p.fill('#k-oyuncu', 'Panel Yedek');
+    await p.fill('#k-giris', '75');
+    await p.click('#k-kaydet');
+    await p.waitForFunction(() => document.querySelectorAll('#kadro-listesi li[data-oyuncu]').length === 2);
+    const kadroMetin = await metin(p, '#kadro-listesi');
+    kontrol(c('yönetim (018): maç kadrosu: ilk 11 (75\' çıktı, 75 dk, 1 sarı) ve yedek (75\' girdi, 15 dk)'), /Panel Golcü\s*İlk 11 · 75' çıktı · 75 dk · 1 sarı/.test(kadroMetin) && /Panel Yedek\s*75' girdi · 15 dk/.test(kadroMetin), kadroMetin);
+    await p.click('#m-yeni');
+    kontrol(c('yönetim (018): yeni maçta kadro bölümü gizli'), await p.$eval('#kadro-bolumu', (e) => e.hidden));
+    await p.click('#sekme-goller');
 
     // yorum moderasyonu: Ayşe'nin yorumunu gizle
     await p.click('#sekme-yorumlar');
@@ -1158,21 +1188,83 @@ async function tarayiciTestleri() {
     kontrol('son tur (taraftar 1): fikstür satırlarında skor tek satırda', fs1.length >= 2 && fs1.every((x) => x.satir === 1), JSON.stringify(fs1));
     await git(p, 'goller.html?sahte=1');
     await p.waitForSelector('#arsiv[data-durum="tamam"] .arsiv-mac');
-    const gs = await tekSatir('#arsiv .grup-baslik h2 .skor-blok');
+    const gs = await tekSatir('#arsiv .mac-ac .skor-blok');
     kontrol('son tur (taraftar 1): gol arşivi grup başlıklarında skor tek parça, tek satırda', gs.length >= 2 && gs.every((x) => x.satir === 1), JSON.stringify(gs));
-    // ---- 016: hafta numarası ve "Özeti izle" (maçın özet videosu); özet maç sayfasında dokunmadan yüklenmez
-    const m1 = await p.$eval(`#arsiv .arsiv-mac[data-mac-id="${M1}"]`, (s) => ({ ust: s.querySelector('.grup-ust').textContent, link: s.querySelector('.grup-baslik a').getAttribute('href'), ad: s.querySelector('.grup-baslik a').textContent }));
-    kontrol('016: gol arşivinde "2. Hafta" ve "Özeti izle" maçın #ozet bölümüne gider', /^2\. Hafta · /.test(m1.ust) && m1.link === `mac.html?id=${M1}#ozet` && /Özeti izle/.test(m1.ad), JSON.stringify(m1));
+    // ---- 018: maç tek satır "2. Hafta · Çorum FK – Örnekköy Spor 2 – 1"; gol arşivinde "Özeti izle" YOK (özet maç sayfasında kalır)
+    const m1 = await p.$eval(`#arsiv .arsiv-mac[data-mac-id="${M1}"]`, (s) => ({ satir: s.querySelector('.mac-ac-satir').textContent.replace(/\s+/g, ' '), ozet: [...s.querySelectorAll('a')].filter((a) => /#ozet|Özeti izle/.test(a.getAttribute('href') + a.textContent)).length }));
+    kontrol('018: gol arşivinde maç satırı "2. Hafta · Çorum FK – Örnekköy Spor 2 – 1", "Özeti izle" bağlantısı yok', /^2\. Hafta · Çorum FK – Örnekköy Spor 2 – 1$/.test(m1.satir) && m1.ozet === 0 && !/Özeti izle/.test(await metin(p, '#arsiv')), JSON.stringify(m1));
     await git(p, `mac.html?sahte=1&id=${M1}#ozet`);
     await p.waitForSelector('#ozet:not([hidden]) #ozet-video .video');
     const oz = await p.evaluate(() => ({ iframe: document.querySelectorAll('#ozet iframe').length, kaynak: document.querySelector('#ozet-kaynak').textContent, ust: document.querySelector('#mac-basi .ust-satir').textContent }));
     kontrol('016: maç sayfasında özet video kapağı, "Video: …" kaynağı, "2. Hafta"; iframe dokunmadan yok', oz.iframe === 0 && /^Video: .+/.test(oz.kaynak) && /2\. Hafta/.test(oz.ust), JSON.stringify(oz));
     await git(p, 'goller.html?sahte=1');
     await p.waitForSelector('#arsiv[data-durum="tamam"] .arsiv-mac');
-    // ---- performans 2: gol arşivinin ilk kart kapağı (LCP) fetchpriority=high; başka high yok
-    const yuksek = await p.$$eval('img[fetchpriority="high"]', (l) => l.map((i) => i.closest('.video-kart')?.dataset.golId || i.id));
-    const ilkKart = await p.$eval('#arsiv .video-kart', (a) => a.dataset.golId);
-    kontrol('son tur (performans 2): gol arşivinde YALNIZ ilk kartın kapağı fetchpriority=high', yuksek.length === 1 && yuksek[0] === ilkKart, JSON.stringify({ yuksek, ilkKart }));
+    // ---- 018: gol arşivi metin satırları (kapak görseli yok): fetchpriority=high görsel de yok
+    kontrol('018: gol arşivinde fetchpriority=high görsel yok (LCP metin)', (await p.$$('#arsiv img')).length === 0 && (await p.$$('img[fetchpriority="high"]')).length === 0);
+    // ---- 018: açılır maç satırı: kapalı başlar, tıklayınca golleri gösterir, adrese ?ac= yazar, klavyeyle (Enter / Boşluk) kapanır/açılır
+    const acDugme = `#arsiv .arsiv-mac[data-mac-id="${M1}"] button.mac-ac`;
+    const acDurum = () => p.$eval(acDugme, (b) => ({ acik: b.getAttribute('aria-expanded'), panel: b.getAttribute('aria-controls'), gizli: document.getElementById(b.getAttribute('aria-controls')).hidden, boy: Math.round(b.getBoundingClientRect().height), url: location.search, golSatir: [...document.getElementById(b.getAttribute('aria-controls')).querySelectorAll('a.gol-ani')].map((a) => a.textContent.replace(/\s+/g, ' ').trim()) }));
+    const a0 = await acDurum();
+    kontrol('018: maç satırı başta kapalı (aria-expanded=false, panel gizli, aria-controls), ≥44 px', a0.acik === 'false' && a0.gizli && a0.panel === 'goller-' + M1 && a0.boy >= 44, JSON.stringify(a0));
+    await p.click(acDugme);
+    const a1 = await acDurum();
+    kontrol('018: dokununca açılır: goller dakika sırasıyla ("23\' Ali Örnek · Asist: Mehmet Deneme ▶"), adreste ?ac=', a1.acik === 'true' && !a1.gizli && a1.golSatir.length === 2 && a1.golSatir[0] === "23'Ali Örnek · Asist: Mehmet Deneme▶" && /^90\+2'Mehmet Deneme/.test(a1.golSatir[1]) && a1.url.includes('ac=' + M1), JSON.stringify(a1));
+    await p.focus(acDugme);
+    await p.keyboard.press('Enter');
+    const a2 = await acDurum();
+    await p.keyboard.press(' ');
+    const a3 = await acDurum();
+    kontrol('018: klavye: Enter kapatır (?ac= silinir), Boşluk yeniden açar', a2.acik === 'false' && a2.gizli && !a2.url.includes('ac=') && a3.acik === 'true' && !a3.gizli, JSON.stringify({ a2, a3 }));
+    await git(p, `goller.html?sahte=1&ac=${M1}`);
+    await p.waitForSelector('#arsiv[data-durum="tamam"] .arsiv-mac');
+    const a4 = await acDurum();
+    kontrol('018: ?ac=<maç> adresiyle açınca o maç açık gelir', a4.acik === 'true' && !a4.gizli, JSON.stringify(a4));
+    const golHref = await p.getAttribute(`#goller-${M1} a.gol-ani`, 'href');
+    kontrol('018: gol satırı bağlantısı gol.html?id=… (gol anı orada)', golHref === 'gol.html?id=22222222-0000-4000-8000-000000000001', golHref);
+    // ---- 018: gol sayfası: asist satırı; video dokununca yalnız gol anı (YouTube start/end)
+    await git(p, 'gol.html?sahte=1&id=22222222-0000-4000-8000-000000000001');
+    await p.waitForSelector('#gol[data-durum="tamam"] .video-baslat');
+    const ga = { asist: await metin(p, '#gol-asist'), iframe: (await p.$$('iframe')).length };
+    await p.click('.video-baslat');
+    await p.waitForSelector('.video iframe');
+    ga.src = await p.getAttribute('.video iframe', 'src');
+    kontrol('018: gol sayfasında "Asist: Mehmet Deneme"; dokunmadan iframe yok; dokununca embed adresinde start=5&end=47', ga.asist === 'Asist: Mehmet Deneme' && ga.iframe === 0 && /\/embed\/aqz-KE-bpKQ\?.*&start=5&end=47$/.test(ga.src || ''), JSON.stringify(ga));
+    // ---- 018: oyuncu sayfası (Ali Örnek: 2 maç, 1 ilk 11, 70 + 30 dk, 2 gol, 0 asist, 1 sarı) ve boş durum
+    await git(p, 'oyuncu.html?sahte=1&id=55555555-0000-4000-8000-000000000007');
+    await p.waitForSelector('#oyuncu[data-durum="tamam"] #istatistikler');
+    const oy = await p.evaluate(() => ({
+      ad: document.querySelector('#oyuncu-ad').textContent,
+      kutular: [...document.querySelectorAll('#istatistikler li')].map((li) => li.querySelector('.etiket').textContent + '=' + li.querySelector('.sayi').textContent).join(','),
+      tabular: getComputedStyle(document.querySelector('#istatistikler .sayi')).fontVariantNumeric,
+      goller: [...document.querySelectorAll('#oyuncu-goller a')].map((a) => a.getAttribute('href')),
+      asist: document.querySelectorAll('#oyuncu-asistler a').length,
+      nav: document.querySelector('#alt-nav a[aria-current]')?.textContent.trim() + ':' + document.querySelector('#alt-nav a[aria-current]')?.getAttribute('aria-current'),
+      yasak: /piyasa değeri|şut|isabetli pas/i.test(document.querySelector('main').textContent),
+      kaynak: document.querySelector('.istatistik-not')?.textContent || '',
+    }));
+    kontrol('018: oyuncu sayfası sayıları (Maç 2, İlk 11 1, Dakika 100, Gol 2, Asist 0, Gole katkı 2, Sarı 1, Kırmızı 0), tabular-nums',
+      oy.ad === 'Ali Örnek' && oy.kutular === 'Maç=2,İlk 11=1,Dakika=100,Gol=2,Asist=0,Gole katkı=2,Sarı kart=1,Kırmızı kart=0' && /tabular-nums/.test(oy.tabular), JSON.stringify(oy));
+    kontrol('018: oyuncu sayfasında goller gol.html bağlantısı; asist yok; alt menüde Takım aria-current="true"; pas/şut/piyasa değeri yok; kaynak notu',
+      oy.goller.length === 2 && oy.goller.every((x) => /^gol\.html\?id=/.test(x)) && oy.asist === 0 && oy.nav === 'Takım:true' && !oy.yasak && /uzatmalar sayılmaz/.test(oy.kaynak), JSON.stringify(oy));
+    await git(p, 'oyuncu.html?sahte=1&id=55555555-0000-4000-8000-000000000006');
+    await p.waitForSelector('#oyuncu[data-durum="tamam"] #istatistikler');
+    const md = await p.$$eval('#istatistikler li', (l) => l.map((li) => li.querySelector('.sayi').textContent).join(','));
+    kontrol('018: Mehmet Deneme: 1 maç / 90 dk, 1 gol (penaltı) + 1 asist = 2 katkı; asist listesinde Ali Örnek golü', md === '1,1,90,1,1,2,0,0' && /Ali Örnek golü/.test(await metin(p, '#oyuncu-asistler')), md);
+    await git(p, 'oyuncu.html?sahte=1&id=55555555-0000-4000-8000-000000000001');
+    await p.waitForSelector('#oyuncu[data-durum="tamam"]');
+    kontrol('018: verisi olmayan oyuncuda sıcak boş durum (sayı kutuları yok, "henüz")', !(await p.$('#istatistikler')) && /henüz maç verisi yok/.test(await metin(p, '#oyuncu-bos')) && /henüz gol katkısı yok/.test(await metin(p, '#katki-bos')));
+    await git(p, 'oyuncu.html?sahte=1&id=55555555-0000-4000-8000-0000000000ff');
+    await p.waitForSelector('#oyuncu[data-durum="tamam"]');
+    kontrol('018: olmayan oyuncu: "Oyuncu bulunamadı"', /Oyuncu bulunamadı/.test(await metin(p, '#oyuncu')));
+    // ---- 018: kadro kartı oyuncu sayfasına TEK bağlantı (erişilebilir ad)
+    await git(p, 'takim.html?sahte=1#kadro');
+    await p.waitForSelector('#kadro-icerik[data-durum="tamam"] .oyuncu-kart');
+    const kk = await p.$$eval('#kadro-icerik .oyuncu-kart', (l) => l.map((a) => ({ tag: a.tagName, href: a.getAttribute('href'), ad: a.getAttribute('aria-label'), ic: a.querySelectorAll('a').length })));
+    kontrol('018: kadro kartları a.oyuncu-kart → oyuncu.html?id=, adı "<ad>, forma numarası N…: oyuncu sayfası", iç içe bağlantı yok',
+      kk.length === 8 && kk.every((k) => k.tag === 'A' && /^oyuncu\.html\?id=55555555-/.test(k.href) && /: oyuncu sayfası$/.test(k.ad) && !k.ic) && kk.some((k) => k.ad === 'Ali Örnek, forma numarası 9: oyuncu sayfası'), JSON.stringify(kk.slice(0, 2)));
+    await Promise.all([p.waitForURL(/oyuncu\.html/), p.click('#kadro-icerik .oyuncu-kart[data-oyuncu-id="55555555-0000-4000-8000-000000000007"]')]);
+    await p.waitForSelector('#oyuncu[data-durum="tamam"]');
+    kontrol('018: kadro kartına dokununca oyuncu sayfası açılır', (await metin(p, '#oyuncu-ad')) === 'Ali Örnek');
 
     // ---- maç: oynanmamış maçta ortada başlama saati (dev VS yok), maç notu + resmî duyuru satırı; bitince not yok; maç satırı tekrar yok
     await git(p, 'mac.html?sahte=1&id=11111111-0000-4000-8000-000000000003');
@@ -1300,6 +1392,188 @@ async function tarayiciTestleri() {
     await p.waitForSelector('#sonraki-mac .stadyum');
     const k = await p.evaluate(() => ({ sinif: document.documentElement.classList.contains('buyuk-yazi'), kirpik: [...document.querySelectorAll('.haber-satir h3, .video-kart .baslik')].filter((e) => { const c = getComputedStyle(e); return c.overflow !== 'visible' || (c.webkitLineClamp && c.webkitLineClamp !== 'none'); }).map((e) => e.textContent), clamp: getComputedStyle(document.querySelector('.haber-satir h3')).webkitLineClamp, stadyum: getComputedStyle(document.querySelector('#sonraki-mac .stadyum')).whiteSpace }));
     kontrol('son tur (erişilebilirlik 5): büyük yazıda haber ve gol kartı başlıkları kırpılmaz (line-clamp yok), stadyum adı sarar', k.sinif && !k.kirpik.length && /none|unset/.test(k.clamp || 'none') && k.stadyum === 'normal', JSON.stringify(k));
+    await ctx.close();
+  });
+
+  // ------------------------------------------------ 017: yanıt (tek seviye), avatar (fotoğraf / baş harf), profil fotoğrafı yükleme
+  await guvenli('yanıt ve profil fotoğrafı', async () => {
+    const { ctx, p, hatalar } = await baglam({ width: 390, height: 844 });
+    const H3 = '33333333-0000-4000-8000-000000000003';
+    const Y4 = '44444444-0000-4000-8000-000000000004';
+    const BURAK = 'bbbbbbbb-0000-4000-8000-000000000002', AYSE = 'bbbbbbbb-0000-4000-8000-000000000001';
+    const depoAdresi = (yol) => 'https://sahte.supabase.co/storage/v1/object/public/profil-fotograflari/' + yol;
+    // Misafir: örnek yanıt ana yorumun içinde, kime yanıt verildiği okunur, sayaç yanıtı da sayar, avatar baş harf
+    await git(p, 'haber.html?sahte=1&id=' + H3);
+    await p.waitForSelector('#yorum-listesi .yorum');
+    const misafir = await p.evaluate(() => {
+      const ust = [...document.querySelectorAll('#yorum-listesi > li.yorum')];
+      const yanit = document.querySelector('#yorum-listesi > li.yorum > .yorum-govde > ol.yanitlar > li.yorum');
+      const av = ust[0] && ust[0].querySelector('.avatar');
+      return { ust: ust.length, yanit: yanit && yanit.querySelector('.yorum-metni').textContent, kime: yanit && yanit.querySelector('.yanit-kime').textContent.replace(/\s+/g, ' ').trim(),
+        baslik: document.getElementById('yorum-baslik').textContent, avatar: av && av.tagName + ':' + av.textContent, dugme: document.querySelectorAll('#yorum-listesi button').length };
+    });
+    kontrol('yanıt (017): örnek yanıt ana yorumun içinde (ol.yanitlar), "↳ yanıt: burak" okunur, sayaç yanıtı da sayar',
+      misafir.ust === 1 && /erken gidersen/.test(misafir.yanit || '') && /yanıt: burak/.test(misafir.kime || '') && misafir.baslik === 'Yorumlar (2)', JSON.stringify(misafir));
+    kontrol('yanıt (017): fotoğrafı olmayanın avatarı baş harf; misafirde "Yanıtla" yok', misafir.avatar === 'SPAN:B' && misafir.dugme === 0, JSON.stringify(misafir));
+
+    // burak (ana yorumun yazarı) kendi yorumuna yanıt yazar: form, odak, Vazgeç, boş / uzun yanıt hatası
+    await girisYap(p, 'burak@ornek.test', 'haber.html?id=' + H3);
+    await p.waitForSelector('#yorum-listesi .yorum');
+    const ana = p.locator('#yorum-listesi > li.yorum').first();
+    const anaYanitla = ana.locator('.yorum-eylem').first().getByRole('button', { name: 'Yanıtla' });
+    await anaYanitla.click();
+    const alan = ana.locator('textarea[id^="yanit-metni-"]');
+    kontrol('yanıt (017): "Yanıtla" yorumun altında görünür etiketli ("Yanıtın") form açar, odak yazma alanında',
+      (await alan.count()) === 1 && await p.evaluate(() => /^yanit-metni-/.test(document.activeElement.id) && document.activeElement.labels[0].textContent === 'Yanıtın'));
+    await ana.getByRole('button', { name: 'Vazgeç' }).click();
+    kontrol('yanıt (017): Vazgeç formu kapatır, odak "Yanıtla" düğmesine döner', (await alan.count()) === 0 && await p.evaluate(() => document.activeElement.textContent === 'Yanıtla'));
+    await anaYanitla.click();
+    await ana.getByRole('button', { name: 'Gönder' }).click();
+    const yanitHata = ana.locator('[id^="yanit-hata-"]');
+    kontrol('yanıt (017): boş yanıt Türkçe hata, alan aria-invalid', /Boş yanıt/.test(await yanitHata.textContent()) && (await alan.getAttribute('aria-invalid')) === 'true', await yanitHata.textContent());
+    await alan.fill('x'.repeat(1001));
+    await ana.getByRole('button', { name: 'Gönder' }).click();
+    kontrol('yanıt (017): 1000 karakter sınırı Türkçe hata', /en fazla 1000 karakter/.test(await yanitHata.textContent()), await yanitHata.textContent());
+    await alan.fill('Kuyruk yarım saat sürdü.');
+    await ana.getByRole('button', { name: 'Gönder' }).click();
+    await p.waitForFunction(() => /yarım saat/.test(document.querySelector('#yorum-listesi ol.yanitlar').textContent));
+    const sonra = await p.evaluate(() => ({
+      metinler: [...document.querySelectorAll('#yorum-listesi > li.yorum ol.yanitlar > li .yorum-metni')].map((x) => x.textContent),
+      baslik: document.getElementById('yorum-baslik').textContent, ust: document.querySelectorAll('#yorum-listesi > li.yorum').length, odak: document.activeElement.textContent }));
+    kontrol('yanıt (017): yeni yanıt ana yorumun altında en sonda (eskiden yeniye), sayaç 3, odak "Yanıtla"da',
+      sonra.ust === 1 && sonra.metinler.length === 2 && sonra.metinler[1] === 'Kuyruk yarım saat sürdü.' && sonra.baslik === 'Yorumlar (3)' && sonra.odak === 'Yanıtla', JSON.stringify(sonra));
+    // Yanıtın yanıtı: alan "@ad " ile başlar; sunucu (sahte) ana yoruma bağlar, hedefi ana yorumdan kopyalar
+    const ilkYanit = p.locator('#yorum-listesi ol.yanitlar > li.yorum').first();
+    await ilkYanit.getByRole('button', { name: 'Yanıtla' }).click();
+    const ic = ilkYanit.locator('textarea');
+    kontrol('yanıt (017): yanıtın yanıtında da "Yanıtla"; alan "@ayse_19 " ile başlar', (await ic.inputValue()) === '@ayse_19 ', await ic.inputValue());
+    await ic.fill('@ayse_19 Teşekkürler!');
+    await ilkYanit.getByRole('button', { name: 'Gönder' }).click();
+    await p.waitForFunction(() => /Teşekkürler/.test(document.querySelector('#yorum-listesi ol.yanitlar').textContent));
+    const kayit = await p.evaluate(() => { const d = JSON.parse(localStorage.getItem('sahte-db-v1')); const y = d.yorumlar.find((x) => /Teşekkürler/.test(x.metin)); return { ust: y.ust_yorum_id, haber: y.haber_id }; });
+    kontrol('yanıt (017): yanıtın yanıtı ana yoruma bağlandı (tek seviye), hedef ana yorumdan', kayit.ust === Y4 && kayit.haber === H3, JSON.stringify(kayit));
+    const tasima = await p.evaluate(async (id) => {
+      const { supabase } = await import('/assets/istemci.js');
+      const d = JSON.parse(localStorage.getItem('sahte-db-v1'));
+      const y = d.yorumlar.find((x) => /Teşekkürler/.test(x.metin));
+      const r = await supabase.from('yorumlar').update({ ust_yorum_id: null }).eq('id', y.id);
+      const g = await supabase.from('yorumlar').insert({ haber_id: id, metin: 'yok', ust_yorum_id: '44444444-0000-4000-8000-0000000000ff' });
+      return { tasima: r.error && r.error.message, yok: g.error && g.error.message };
+    }, H3);
+    kontrol('yanıt (017): yanıt başka yere taşınamaz; olmayan yoruma yanıt Türkçe "bulunamadı"', /değiştirilemez/.test(tasima.tasima || '') && /bulunamadı/.test(tasima.yok || ''), JSON.stringify(tasima));
+    // Sıralama yalnız ana yorumları çevirir (yanıtlar ana yorumun içinde eskiden yeniye kalır); yenileyince de aynı
+    await git(p, 'haber.html?id=' + H3);
+    await p.waitForSelector('#yorum-formu');
+    await yorumGonder(p, 'Ben de gidiyorum.');
+    await p.click('#yorum-siralama button[data-sira="eski"]');
+    const sira = await p.evaluate(() => ({ ust: [...document.querySelectorAll('#yorum-listesi > li.yorum')].map((li) => li.querySelector('.yorum-metni').textContent),
+      yanit: [...document.querySelectorAll('#yorum-listesi ol.yanitlar > li .yorum-metni')].map((x) => x.textContent) }));
+    kontrol('yanıt (017): "En eski" yalnız ana yorumları çevirir, yanıtlar içeride eskiden yeniye kalır',
+      sira.ust.join('|') === 'Bilet kuyruğu uzun mu, bilen var mı?|Ben de gidiyorum.' && sira.yanit.length === 3 && /erken gidersen/.test(sira.yanit[0]) && /Teşekkürler/.test(sira.yanit[2]), JSON.stringify(sira));
+    // Ana yorum silinince yanıtlarıyla gider (DOM ve sahte veritabanı)
+    await p.locator('#yorum-listesi > li.yorum', { hasText: 'Bilet kuyruğu' }).locator('.yorum-eylem').first().getByRole('button', { name: 'Sil' }).click();
+    await p.waitForFunction(() => !/Bilet kuyruğu/.test(document.querySelector('#yorum-listesi').textContent));
+    const silme = await p.evaluate((id) => ({ metin: document.querySelector('#yorum-listesi').textContent, baslik: document.getElementById('yorum-baslik').textContent,
+      db: JSON.parse(localStorage.getItem('sahte-db-v1')).yorumlar.filter((x) => x.haber_id === id).length }), H3);
+    kontrol('yanıt (017): ana yorum silinince yanıtları da DOM\'dan ve veritabanından gider', !/Teşekkürler|erken gidersen|yarım saat/.test(silme.metin) && silme.baslik === 'Yorumlar (1)' && silme.db === 1, JSON.stringify(silme));
+
+    // Profil fotoğrafı: yükle (256 px'e küçülür, WebP, <uid>/<uuid>.webp), değiştir (eski dosya silinir), yorumda img, kaldır
+    await git(p, 'profil.html');
+    await p.waitForSelector('#profil[data-durum="tamam"]');
+    kontrol('profil fotoğrafı (017): fotoğraf yokken baş harf, "Fotoğraf yükle" ve kural notu, "kaldır" yok',
+      (await metin(p, '#profil .profil-avatar')) === 'B' && (await metin(p, '#profil-foto-yukle')) === 'Fotoğraf yükle' && /kulüp arması/.test(await metin(p, '#profil-foto-kural')) && !(await p.isVisible('#profil-foto-kaldir')));
+    const fotoPng = Buffer.from(await p.evaluate(() => { const c = document.createElement('canvas'); c.width = 800; c.height = 600; const x = c.getContext('2d'); x.fillStyle = '#CC0000'; x.fillRect(0, 0, 800, 600); return c.toDataURL('image/png').split(',')[1]; }), 'base64');
+    await p.setInputFiles('#profil-foto-dosya', { name: 'ben.png', mimeType: 'image/png', buffer: fotoPng });
+    await p.waitForFunction(() => /güncellendi/.test(document.getElementById('profil-foto-mesaj').textContent), null, { timeout: 15000 });
+    const foto = await p.evaluate(async () => {
+      const d = JSON.parse(localStorage.getItem('sahte-db-v1'));
+      const pr = d.profiles.find((x) => x.kullanici_adi === 'burak');
+      const yol = (pr.foto_url || '').split('/storage/v1/object/public/')[1] || '';
+      const veri = localStorage.getItem('sahte-depo-v1:' + yol) || '';
+      const im = new Image(); im.src = veri; await im.decode().catch(() => {});
+      const ekran = document.querySelector('#profil .profil-avatar img');
+      if (ekran && !ekran.complete) await Promise.race([new Promise((r) => { ekran.addEventListener('load', r, { once: true }); ekran.addEventListener('error', r, { once: true }); }), new Promise((r) => setTimeout(r, 3000))]);
+      return { url: pr.foto_url, yol, tur: (/^data:([^;]+)/.exec(veri) || [])[1], w: im.naturalWidth, h: im.naturalHeight, alt: ekran && ekran.getAttribute('alt'), yuklendi: !!ekran && ekran.naturalWidth > 0,
+        dugme: document.getElementById('profil-foto-yukle').textContent, odak: document.activeElement.id };
+    });
+    kontrol('profil fotoğrafı (017): yüklemeden önce 256 px\'e küçültüldü, WebP, <kullanıcı id>/<uuid>.webp yolunda',
+      new RegExp(`/profil-fotograflari/${BURAK}/[0-9a-f-]{36}\\.webp$`).test(foto.url || '') && foto.tur === 'image/webp' && foto.w === 256 && foto.h === 192, JSON.stringify(foto));
+    kontrol('profil fotoğrafı (017): profilde img (alt "Profil fotoğrafın", açılıyor), düğme "Fotoğrafı değiştir", odak düğmede',
+      foto.alt === 'Profil fotoğrafın' && foto.yuklendi && foto.dugme === 'Fotoğrafı değiştir' && foto.odak === 'profil-foto-yukle' && await p.isVisible('#profil-foto-kaldir'), JSON.stringify(foto));
+    await p.setInputFiles('#profil-foto-dosya', { name: 'ben2.png', mimeType: 'image/png', buffer: PNG });
+    await p.waitForFunction((y) => { const pr = JSON.parse(localStorage.getItem('sahte-db-v1')).profiles.find((x) => x.kullanici_adi === 'burak'); return !!pr.foto_url && !pr.foto_url.endsWith(y); }, foto.yol);
+    await p.waitForFunction((y) => !localStorage.getItem('sahte-depo-v1:' + y), foto.yol, { timeout: 3000 }).catch(() => {});
+    kontrol('profil fotoğrafı (017): değiştirince eski dosya depodan silindi', await p.evaluate((y) => !localStorage.getItem('sahte-depo-v1:' + y), foto.yol));
+    const guv = await p.evaluate(async ([ben, baska, adres]) => {
+      const { supabase } = await import('/assets/istemci.js');
+      const blob = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/webp' });
+      const yukle = await supabase.storage.from('profil-fotograflari').upload(baska + '/x.webp', blob, { contentType: 'image/webp' });
+      const dis = await supabase.from('profiles').update({ foto_url: 'https://baska-site.com/x.webp' }).eq('id', ben);
+      const klasor = await supabase.from('profiles').update({ foto_url: adres }).eq('id', ben);
+      const okunur = await supabase.from('profiles').select('id, foto_url').eq('id', ben).maybeSingle();
+      return { yukle: !!yukle.error, dis: dis.error && dis.error.message, klasor: klasor.error && klasor.error.message, okunur: !!(okunur.data && okunur.data.foto_url) };
+    }, [BURAK, AYSE, depoAdresi(AYSE + '/x.webp')]);
+    kontrol('profil fotoğrafı (017): başkasının klasörüne yükleme ve başka adres / başkasının klasörü (profiles_foto) reddedilir; foto_url herkese okunur',
+      guv.yukle && /profiles_foto/.test(guv.dis || '') && /profiles_foto/.test(guv.klasor || '') && guv.okunur, JSON.stringify(guv));
+    // Yorumda: fotoğraflı yorumcuda img.avatar; açılmayan fotoğrafta baş harfe döner
+    await p.evaluate(([ayse, h3, adres]) => {
+      const d = JSON.parse(localStorage.getItem('sahte-db-v1'));
+      d.profiles.find((x) => x.id === ayse).foto_url = adres; // depoda yok: açılmaz
+      d.yorumlar.push({ id: '44444444-0000-4000-8000-0000000000aa', kullanici_id: ayse, haber_id: h3, mac_id: null, gol_id: null, ust_yorum_id: null, metin: 'Fotoğrafı açılmayan yorumcu', gizli: false, onay_bekliyor: false,
+        gizleme_nedeni: null, moderasyon_zamani: null, created_at: new Date(Date.now() - 3600e3).toISOString(), duzenlendi: null });
+      localStorage.setItem('sahte-db-v1', JSON.stringify(d));
+    }, [AYSE, H3, depoAdresi(AYSE + '/yok.webp')]);
+    await git(p, 'haber.html?id=' + H3);
+    await p.waitForSelector('#yorum-listesi .yorum img.avatar');
+    const av = await p.evaluate(() => { const i = document.querySelector('#yorum-listesi .yorum img.avatar'); return { alt: i.getAttribute('alt'), w: i.getAttribute('width'), lazy: i.getAttribute('loading'), co: i.getAttribute('crossorigin') }; });
+    kontrol('avatar (017): fotoğraflı yorumcuda img.avatar (alt="", 36×36, lazy, crossorigin)', av.alt === '' && av.w === '36' && av.lazy === 'lazy' && av.co === 'anonymous', JSON.stringify(av));
+    const kirik = p.locator('#yorum-listesi > li.yorum', { hasText: 'Fotoğrafı açılmayan' });
+    await kirik.scrollIntoViewIfNeeded();
+    await p.waitForFunction(() => { const li = [...document.querySelectorAll('#yorum-listesi > li.yorum')].find((x) => /Fotoğrafı açılmayan/.test(x.textContent)); return li && li.querySelector('span.avatar'); }, null, { timeout: 4000 }).catch(() => {});
+    kontrol('avatar (017): açılmayan fotoğraf baş harfe döner (satır içi işleyici yok)', (await kirik.locator('span.avatar').textContent().catch(() => '')) === 'A' && (await kirik.locator('img').count()) === 0);
+    // Kaldır (onaylı): veri null, dosya silinir, baş harf, odak "Fotoğraf yükle"de
+    await git(p, 'profil.html');
+    await p.waitForSelector('#profil[data-durum="tamam"] #profil-foto-kaldir');
+    const sonYol = await p.evaluate(() => JSON.parse(localStorage.getItem('sahte-db-v1')).profiles.find((x) => x.kullanici_adi === 'burak').foto_url.split('/storage/v1/object/public/')[1]);
+    await p.click('#profil-foto-kaldir');
+    await p.waitForFunction(() => /kaldırıldı/.test(document.getElementById('profil-foto-mesaj').textContent));
+    await p.waitForFunction((y) => !localStorage.getItem('sahte-depo-v1:' + y), sonYol, { timeout: 3000 }).catch(() => {});
+    const kaldir = await p.evaluate((y) => ({ url: JSON.parse(localStorage.getItem('sahte-db-v1')).profiles.find((x) => x.kullanici_adi === 'burak').foto_url, dosya: !!localStorage.getItem('sahte-depo-v1:' + y),
+      harf: document.querySelector('#profil .profil-avatar').textContent, odak: document.activeElement.id, kaldirGizli: document.getElementById('profil-foto-kaldir').hidden }), sonYol);
+    kontrol('profil fotoğrafı (017): kaldırınca veri boş, dosya silindi, baş harf, odak "Fotoğraf yükle"de', kaldir.url === null && !kaldir.dosya && kaldir.harf === 'B' && kaldir.odak === 'profil-foto-yukle' && kaldir.kaldirGizli, JSON.stringify(kaldir));
+
+    // Yönetici: Yorumlar sekmesinde fotoğraf önizlemesi ve "Profil fotoğrafını kaldır"
+    await p.evaluate(([ben, adres, yol, png]) => {
+      const d = JSON.parse(localStorage.getItem('sahte-db-v1'));
+      d.profiles.find((x) => x.id === ben).foto_url = adres;
+      localStorage.setItem('sahte-db-v1', JSON.stringify(d));
+      localStorage.setItem('sahte-depo-v1:profil-fotograflari/' + yol, 'data:image/png;base64,' + png);
+    }, [BURAK, depoAdresi(BURAK + '/uygunsuz.png'), BURAK + '/uygunsuz.png', PNG.toString('base64')]);
+    await cikis(p);
+    await girisYap(p, 'yonetici@ornek.test', 'yonetim.html');
+    await p.waitForSelector('#panel:not([hidden])');
+    await p.click('#sekme-yorumlar');
+    await p.waitForSelector('#yorum-moderasyon li');
+    const satir = p.locator('#yorum-moderasyon li', { hasText: 'Ben de gidiyorum.' });
+    kontrol('yönetim (017): yorum sahibinin fotoğrafı küçük önizleme (anlamlı alt) ve "Profil fotoğrafını kaldır"',
+      (await satir.locator('img.avatar').getAttribute('alt')) === 'burak kullanıcısının profil fotoğrafı' && (await satir.getByRole('button', { name: 'Profil fotoğrafını kaldır' }).count()) === 1);
+    await satir.getByRole('button', { name: 'Profil fotoğrafını kaldır' }).click();
+    await p.waitForFunction(() => /profil fotoğrafı kaldırıldı/.test(document.querySelector('#panel-mesaj').textContent));
+    await p.waitForFunction(() => !localStorage.getItem('sahte-depo-v1:profil-fotograflari/bbbbbbbb-0000-4000-8000-000000000002/uygunsuz.png'), null, { timeout: 3000 }).catch(() => {});
+    const yon = await p.evaluate(([ben, adres]) => ({ url: JSON.parse(localStorage.getItem('sahte-db-v1')).profiles.find((x) => x.id === ben).foto_url, dosya: !!localStorage.getItem('sahte-depo-v1:profil-fotograflari/' + ben + '/uygunsuz.png') }), [BURAK, '']);
+    const koyma = await p.evaluate(async ([ben, adres]) => {
+      const { supabase } = await import('/assets/istemci.js');
+      const r = await supabase.from('profiles').update({ foto_url: adres }).eq('id', ben);
+      return r.error && r.error.message;
+    }, [BURAK, depoAdresi(BURAK + '/baska.webp')]);
+    kontrol('yönetim (017): fotoğraf kaldırıldı (veri boş, dosya silindi); yönetici başkasına fotoğraf koyamaz', yon.url === null && !yon.dosya && /yalnız kaldırabilir/.test(koyma || ''), JSON.stringify({ yon, koyma }));
+
+    // Onaysız e-posta: düğme yerine açıklama
+    await cikis(p);
+    await girisYap(p, 'onaysiz@ornek.test', 'profil.html');
+    await p.waitForSelector('#profil[data-durum="tamam"]');
+    kontrol('profil fotoğrafı (017): onaysız hesapta düğme yok, "e-posta adresini onayla" açıklaması', !(await p.$('#profil-foto-yukle')) && /e-posta adresini onayla/.test(await metin(p, '#profil-foto-not')), await metin(p, '#profil-foto'));
+    kontrol('yanıt ve profil fotoğrafı sayfalarında JavaScript hatası yok', !hatalar.length, hatalar.join(' | '));
     await ctx.close();
   });
 

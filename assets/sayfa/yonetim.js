@@ -2,11 +2,12 @@
 // her yazma işlemini sunucudaki RLS politikaları (public.is_admin()) ayrıca denetler.
 import {
   supabase, h, $, mesaj, sayfaBaslat, hataMetni, tarihYaz, yerelGirdi, girdidenIso, guvenliGorsel,
-  girisAdresi, DURUM_ADI, durumRozeti, skorMetni, evSahibiDeplasman, dakikaMetni, youtubeKimlik, mp4Mu, sekmeKlavyesi,
+  girisAdresi, DURUM_ADI, durumRozeti, skorMetni, evSahibiDeplasman, dakikaMetni, youtubeKimlik, mp4Mu, sekmeKlavyesi, avatarOgesi,
 } from '../ortak.js';
 import { gorselKucult, ENCOK_GIRDI_BAYT } from '../gorsel-kucult.js';
 import {
   SAKATLIK_DURUMLARI, SAKATLIK_BAGLANTI_ZORUNLU, sakatlikHatalari, haberHatalari, golVideoGecerli, altyaziAdresiGecerli, GOL_VIDEO_KOVASI, kelimeBicimi, ON_ONAY,
+  PROFIL_FOTO_KOVASI, profilFotoGecerli, golAniHatalari, oynamaDakikasi, VIDEO_ARALIK_SINIRI,
 } from '../kurallar.js';
 
 const KOVA = 'haber-gorselleri';
@@ -26,6 +27,19 @@ function alan(id, etiket, girdi, not) {
 function onayla(soru) {
   return window.confirm(soru);
 }
+
+/** 018: kadrodaki oyuncu adları (gol formu "Golü atan" / "Asist" ve maç kadrosu için öneri listesi; serbest metin de olur). */
+function kadroAdlariListesi() {
+  let dl = document.getElementById('kadro-adlari');
+  if (dl) return dl;
+  dl = h('datalist', { id: 'kadro-adlari' });
+  document.body.append(dl);
+  supabase.from('oyuncular').select('ad').order('ad').limit(200).then(({ data }) => {
+    dl.replaceChildren(...(data || []).map((o) => h('option', { value: o.ad })));
+  });
+  return dl;
+}
+const tamSayiOku = (id) => { const v = $(id).value.trim(); return v === '' ? null : Number(v); };
 
 /**
  * Görseli tarayıcıda küçültüp 3 WebP kopya olarak yükler (<klasör>/<uuid>-1600.webp, -800, -480); döner: 1600'lük adres.
@@ -266,9 +280,94 @@ function maclarSekmesi(kok) {
       h('button', { type: 'submit', class: 'dugme', id: 'm-kaydet' }, 'Kaydet'),
       h('button', { type: 'button', class: 'dugme ikincil', id: 'm-yeni' }, 'Yeni maç')));
   const liste = h('ul', { class: 'yonetim-liste', id: 'mac-listesi' });
-  kok.replaceChildren(form, h('div', { class: 'bolum-baslik' }, h('h2', null, 'Bütün maçlar')), liste);
+  // 018: maç kadrosu (oyuncu sayfasındaki Maç / İlk 11 / Dakika / Sarı / Kırmızı bundan hesaplanır). Maç düzenlenirken görünür.
+  kadroAdlariListesi();
+  const kadroListe = h('ul', { class: 'yonetim-liste', id: 'kadro-listesi' });
+  const kadroForm = h('form', { class: 'kutu', id: 'kadro-formu', novalidate: true },
+    h('h3', { id: 'kadro-form-baslik' }, 'Oyuncu ekle'),
+    alan('k-oyuncu', 'Oyuncu (kadrodaki adıyla)', h('input', { type: 'text', id: 'k-oyuncu', maxlength: '80', list: 'kadro-adlari', required: true })),
+    h('div', { class: 'alan' }, h('label', { class: 'onay' }, h('input', { type: 'checkbox', id: 'k-ilk11' }), 'İlk 11')),
+    h('div', { class: 'iki-sutun' },
+      alan('k-giris', 'Oyuna giriş dakikası (yedekse)', h('input', { type: 'number', id: 'k-giris', min: '0', max: '130', inputmode: 'numeric' })),
+      alan('k-cikis', 'Oyundan çıkış dakikası (kırmızıda kart dakikası)', h('input', { type: 'number', id: 'k-cikis', min: '0', max: '130', inputmode: 'numeric' }))),
+    h('div', { class: 'iki-sutun' },
+      alan('k-sari', 'Sarı kart', h('select', { id: 'k-sari' }, h('option', { value: '0' }, 'Yok'), h('option', { value: '1' }, '1'), h('option', { value: '2' }, '2'))),
+      h('div', { class: 'alan' }, h('label', { class: 'onay' }, h('input', { type: 'checkbox', id: 'k-kirmizi' }), 'Kırmızı kart'))),
+    h('div', { class: 'dugme-satir' },
+      h('button', { type: 'submit', class: 'dugme', id: 'k-kaydet' }, 'Kadroya kaydet'),
+      h('button', { type: 'button', class: 'dugme ikincil', id: 'k-yeni' }, 'Yeni oyuncu')));
+  const kadroBolumu = h('section', { class: 'kutu', id: 'kadro-bolumu', 'aria-labelledby': 'kadro-baslik', hidden: true },
+    h('h2', { id: 'kadro-baslik' }, 'Maç kadrosu'),
+    h('p', { class: 'yonetim-not' }, 'Yalnız Çorum FK oyuncuları. Maça çıkmayan yedeği eklemeyin. Dakika: ilk 11 → çıkış (yoksa 90); yedek → çıkış (yoksa 90) − giriş; uzatmalar 90 sayılır. Oyuncu sayfasında adla eşlenir: kadrodaki adı aynen yazın.'),
+    kadroListe, kadroForm);
+  kok.replaceChildren(form, kadroBolumu, h('div', { class: 'bolum-baslik' }, h('h2', null, 'Bütün maçlar')), liste);
 
-  function temizle() { duzenlenen = null; form.reset(); $('#mac-form-baslik').textContent = 'Yeni maç'; }
+  let kadroDuzenlenen = null; // düzenlenen satırın oyuncu adı (birincil anahtar mac_id + oyuncu)
+  function kadroTemizle() { kadroDuzenlenen = null; kadroForm.reset(); $('#kadro-form-baslik').textContent = 'Oyuncu ekle'; }
+  $('#k-yeni').addEventListener('click', kadroTemizle);
+  function kadroDoldur(s) {
+    kadroDuzenlenen = s.oyuncu;
+    $('#kadro-form-baslik').textContent = 'Oyuncuyu düzenle';
+    $('#k-oyuncu').value = s.oyuncu;
+    $('#k-ilk11').checked = !!s.ilk11;
+    $('#k-giris').value = s.giris_dk ?? '';
+    $('#k-cikis').value = s.cikis_dk ?? '';
+    $('#k-sari').value = String(s.sari || 0);
+    $('#k-kirmizi').checked = !!s.kirmizi;
+    $('#k-oyuncu').focus();
+  }
+  async function kadroYukle() {
+    if (!duzenlenen) return;
+    const { data, error } = await supabase.from('mac_oyunculari').select('mac_id, oyuncu, ilk11, giris_dk, cikis_dk, sari, kirmizi').eq('mac_id', duzenlenen).limit(60);
+    if (error) { kadroListe.replaceChildren(h('li', null, hataMetni(error, 'Kadro yüklenemedi.'))); return; }
+    const l = [...data].sort((a, b) => Number(b.ilk11) - Number(a.ilk11) || (a.giris_dk ?? 0) - (b.giris_dk ?? 0) || a.oyuncu.localeCompare(b.oyuncu, 'tr'));
+    kadroListe.replaceChildren(...(l.length ? l.map((s) => h('li', { 'data-oyuncu': s.oyuncu },
+      h('span', { class: 'satir-baslik' }, s.oyuncu),
+      h('span', { class: 'kucuk-yazi soluk' }, [s.ilk11 ? 'İlk 11' : `${s.giris_dk}' girdi`, s.cikis_dk != null ? `${s.cikis_dk}' çıktı` : null, `${oynamaDakikasi(s)} dk`, s.sari ? `${s.sari} sarı` : null, s.kirmizi ? 'kırmızı' : null].filter(Boolean).join(' · ')),
+      h('span', { class: 'dugme-satir' },
+        h('button', { type: 'button', class: 'dugme ikincil kucuk', onclick: () => kadroDoldur(s) }, 'Düzenle'),
+        h('button', { type: 'button', class: 'dugme tehlike kucuk', onclick: () => kadroSil(s) }, 'Sil'))))
+      : [h('li', { class: 'bos' }, 'Bu maçın kadrosu girilmedi.')]));
+  }
+  async function kadroSil(s) {
+    if (!onayla(`${s.oyuncu} bu maçın kadrosundan çıkarılsın mı?`)) return;
+    const { error } = await supabase.from('mac_oyunculari').delete().eq('mac_id', duzenlenen).eq('oyuncu', s.oyuncu);
+    if (error) return bildir(hataMetni(error), 'hata');
+    bildir('Oyuncu kadrodan çıkarıldı.');
+    if (kadroDuzenlenen === s.oyuncu) kadroTemizle();
+    await kadroYukle();
+  }
+  kadroForm.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    if (!duzenlenen) return;
+    const kayit = {
+      oyuncu: $('#k-oyuncu').value.trim().replace(/\s+/g, ' '),
+      ilk11: $('#k-ilk11').checked,
+      giris_dk: tamSayiOku('#k-giris'),
+      cikis_dk: tamSayiOku('#k-cikis'),
+      sari: Number($('#k-sari').value),
+      kirmizi: $('#k-kirmizi').checked,
+    };
+    const dk = (x) => x == null || (Number.isInteger(x) && x >= 0 && x <= 130);
+    if (kayit.oyuncu.length < 2 || kayit.oyuncu.length > 80) return bildir('Oyuncunun adını yazın (2-80 karakter).', 'hata');
+    if (!dk(kayit.giris_dk) || !dk(kayit.cikis_dk)) return bildir('Dakikalar 0-130 arasında tam sayı olmalı.', 'hata');
+    if (kayit.ilk11 && kayit.giris_dk != null) return bildir("İlk 11'deki oyuncunun giriş dakikası olmaz.", 'hata');
+    if (!kayit.ilk11 && kayit.giris_dk == null) return bildir('Yedekten giren oyuncunun giriş dakikasını yazın (maça çıkmayan yedeği eklemeyin).', 'hata');
+    if (kayit.giris_dk != null && kayit.cikis_dk != null && kayit.cikis_dk < kayit.giris_dk) return bildir('Çıkış dakikası giriş dakikasından önce olamaz.', 'hata');
+    if (kayit.kirmizi && kayit.cikis_dk == null) return bildir('Kırmızı kartta çıkış dakikası olarak kartın dakikasını yazın.', 'hata');
+    const dugme = $('#k-kaydet');
+    dugme.disabled = true;
+    const sorgu = kadroDuzenlenen ? supabase.from('mac_oyunculari').update(kayit).eq('mac_id', duzenlenen).eq('oyuncu', kadroDuzenlenen)
+      : supabase.from('mac_oyunculari').insert({ ...kayit, mac_id: duzenlenen });
+    const { error } = await sorgu;
+    dugme.disabled = false;
+    if (error) return bildir(/duplicate|mac_oyunculari_pkey/.test(error.message || '') ? 'Bu oyuncu bu maçın kadrosunda zaten var: listeden "Düzenle"yi kullanın.' : hataMetni(error, 'Kadro kaydedilemedi.'), 'hata');
+    bildir(kadroDuzenlenen ? 'Kadro satırı güncellendi.' : 'Oyuncu kadroya eklendi.');
+    kadroTemizle();
+    await kadroYukle();
+  });
+
+  function temizle() { duzenlenen = null; form.reset(); $('#mac-form-baslik').textContent = 'Yeni maç'; kadroBolumu.hidden = true; kadroTemizle(); }
   $('#m-yeni').addEventListener('click', temizle);
 
   function doldur(mac) {
@@ -287,6 +386,10 @@ function maclarSekmesi(kok) {
     $('#m-hafta').value = mac.hafta ?? '';
     $('#m-ozet').value = mac.ozet_video_url || '';
     $('#m-ozet-kaynak').value = mac.ozet_video_kaynak || '';
+    kadroBolumu.hidden = false;
+    $('#kadro-baslik').textContent = `Maç kadrosu: ${mac.rakip}`;
+    kadroTemizle();
+    kadroYukle();
     form.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -370,7 +473,9 @@ function gollerSekmesi(kok) {
   const form = h('form', { class: 'kutu', id: 'gol-formu', novalidate: true },
     h('h2', { id: 'gol-form-baslik' }, 'Gol ekle'),
     alan('g-mac', 'Maç', macSecim),
-    alan('g-oyuncu', 'Golü atan', h('input', { type: 'text', id: 'g-oyuncu', maxlength: '80', required: true })),
+    alan('g-oyuncu', 'Golü atan', h('input', { type: 'text', id: 'g-oyuncu', maxlength: '80', list: 'kadro-adlari', required: true })),
+    // 018: asist (kadrodan seçilir ya da serbest yazılır; oyuncu sayfası adla eşler)
+    alan('g-asist', 'Asist (isteğe bağlı)', h('input', { type: 'text', id: 'g-asist', maxlength: '80', list: 'kadro-adlari' }), 'Kadrodaki adıyla yazın; asist yoksa boş bırakın. Frikik, penaltı gibi notlar "Golün anlatımı"na.'),
     h('div', { class: 'iki-sutun' },
       alan('g-dakika', 'Dakika', h('input', { type: 'number', id: 'g-dakika', min: '1', max: '130', inputmode: 'numeric', required: true })),
       alan('g-ek', 'Uzatma dakikası (isteğe bağlı)', h('input', { type: 'number', id: 'g-ek', min: '1', max: '20', inputmode: 'numeric' }), 'Örnek: 90+3 için dakika 90, uzatma 3.')),
@@ -388,6 +493,10 @@ function gollerSekmesi(kok) {
     h('div', { class: 'iki-sutun' },
       alan('g-kapak', 'Video kapağı (isteğe bağlı)', h('input', { type: 'file', id: 'g-kapak', accept: Object.keys(GORSEL_TURLERI).join(',') }), 'Kendi deponuza yüklenir; YouTube küçük resmi kullanılmaz (ziyaretçinin bilgisi YouTube\'a gitmesin). ' + HAK_NOTU),
       alan('g-sure', 'Video süresi (saniye, isteğe bağlı)', h('input', { type: 'number', id: 'g-sure', min: '1', max: '3600', inputmode: 'numeric' }))),
+    // 018: gol anı: uzun özet videosunun yalnız golü gösteren aralığı (YouTube start/end)
+    h('div', { class: 'iki-sutun' },
+      alan('g-bas', 'Video başlangıç (sn, yalnız YouTube)', h('input', { type: 'number', id: 'g-bas', min: '0', max: String(VIDEO_ARALIK_SINIRI), inputmode: 'numeric' }), 'Özet videoda golün başladığı saniye (ör. 5:54 → 354).'),
+      alan('g-bit', 'Bitiş (sn)', h('input', { type: 'number', id: 'g-bit', min: '1', max: String(VIDEO_ARALIK_SINIRI), inputmode: 'numeric' }), 'Boş bırakırsanız video baştan oynar. Ayrı gol klibinde gerekmez.')),
     h('div', { id: 'g-kapak-onizleme' }),
     alan('g-aciklama', 'Golün anlatımı (isteğe bağlı ama önerilir)', h('input', { type: 'text', id: 'g-aciklama', maxlength: '300' }), 'Videoyu izleyemeyenler için: kim, nasıl, hangi dakikada.'),
     // 015 (erişilebilirlik 4): altyazısız ve anlatımsız .mp4 kaydedilmeden önce uyarı (ikinci "Kaydet" ile yine de kaydedilir)
@@ -397,6 +506,7 @@ function gollerSekmesi(kok) {
       h('button', { type: 'button', class: 'dugme ikincil', id: 'g-yeni' }, 'Yeni gol')));
   const liste = h('ul', { class: 'yonetim-liste', id: 'gol-listesi' });
   kok.replaceChildren(form, h('div', { class: 'bolum-baslik' }, h('h2', null, 'Son goller')), liste);
+  kadroAdlariListesi();
 
   let kapak = null; // { url } düzenlenen golün mevcut kapağı
   let altyazi = null; // düzenlenen golün altyazı adresi
@@ -430,6 +540,9 @@ function gollerSekmesi(kok) {
     $('#gol-form-baslik').textContent = 'Golü düzenle';
     macSecim.value = gol.mac_id;
     $('#g-oyuncu').value = gol.oyuncu;
+    $('#g-asist').value = gol.asist || '';
+    $('#g-bas').value = gol.video_baslangic_sn ?? '';
+    $('#g-bit').value = gol.video_bitis_sn ?? '';
     $('#g-dakika').value = gol.dakika;
     $('#g-ek').value = gol.ek_dakika ?? '';
     $('#g-penalti').checked = gol.penalti;
@@ -461,6 +574,9 @@ function gollerSekmesi(kok) {
       video_kaynak: $('#g-video-kaynak').value.trim() || null,
       aciklama: $('#g-aciklama').value.trim() || null,
       sure_sn: $('#g-sure').value.trim() === '' ? null : Number($('#g-sure').value),
+      asist: $('#g-asist').value.trim().replace(/\s+/g, ' ') || null,
+      video_baslangic_sn: tamSayiOku('#g-bas'),
+      video_bitis_sn: tamSayiOku('#g-bit'),
     };
     if (!kayit.mac_id) return bildir('Maç seçin.', 'hata');
     if (kayit.oyuncu.length < 2) return bildir('Golü atan oyuncunun adını yazın.', 'hata');
@@ -475,6 +591,9 @@ function gollerSekmesi(kok) {
     if (vttDosya && !/\.vtt$/i.test(vttDosya.name)) return bildir('Altyazı WebVTT (.vtt) dosyası olmalı.', 'hata');
     if (vttDosya && !mp4Dosya && !(video && /\.mp4$/i.test(video))) return bildir('Altyazı yalnız siteye yüklenen .mp4 videoya eklenir.', 'hata');
     if (kayit.sure_sn != null && (!Number.isInteger(kayit.sure_sn) || kayit.sure_sn < 1 || kayit.sure_sn > 3600)) return bildir('Video süresi 1-3600 saniye arasında tam sayı olmalı.', 'hata');
+    // 018: asist ve gol anı aralığı (yüklenecek .mp4'te aralık olmaz: video yalnız YouTube sayılır)
+    const aniHata = golAniHatalari({ ...kayit, video_url: mp4Dosya ? null : video });
+    if (aniHata.length) { $(kayit.asist && /Asist/.test(aniHata[0]) ? '#g-asist' : '#g-bas').focus(); return bildir(aniHata[0], 'hata'); }
     // 015 (erişilebilirlik 4, WCAG 1.2.2): .mp4 + altyazı yok + anlatım boş → önce uyar; yönetici yine de kaydedebilir
     const mp4Var = !!mp4Dosya || (!!video && /\.mp4$/i.test(video));
     if (mp4Var && !vttDosya && !(altyazi && !mp4Dosya) && !kayit.aciklama && !altyaziUyarildi) {
@@ -525,12 +644,12 @@ function gollerSekmesi(kok) {
 
   async function yukle() {
     const { data, error } = await supabase.from('goller')
-      .select('id, mac_id, oyuncu, dakika, ek_dakika, penalti, video_url, video_kaynak, altyazi_url, aciklama, kapak_url, sure_sn, created_at, maclar(rakip, tarih)')
+      .select('id, mac_id, oyuncu, dakika, ek_dakika, penalti, video_url, video_kaynak, altyazi_url, aciklama, kapak_url, sure_sn, asist, video_baslangic_sn, video_bitis_sn, created_at, maclar(rakip, tarih)')
       .order('created_at', { ascending: false }).limit(100);
     if (error) { liste.replaceChildren(h('li', null, hataMetni(error))); return; }
     liste.replaceChildren(...(data.length ? data.map((gol) => h('li', { 'data-gol-id': gol.id },
-      h('span', { class: 'satir-baslik' }, `${dakikaMetni(gol)} ${gol.oyuncu}`, gol.penalti ? ' (P)' : ''),
-      h('span', { class: 'kucuk-yazi soluk' }, gol.maclar ? `${gol.maclar.rakip} · ${tarihYaz(gol.maclar.tarih, { saat: false, kisa: true })}` : '', gol.video_url ? ' · videolu' : '', gol.video_kaynak ? ` (${gol.video_kaynak})` : '', gol.altyazi_url ? ' · altyazılı' : '', gol.kapak_url ? ' · kapaklı' : ''),
+      h('span', { class: 'satir-baslik' }, `${dakikaMetni(gol)} ${gol.oyuncu}`, gol.penalti ? ' (P)' : '', gol.asist ? ` · Asist: ${gol.asist}` : ''),
+      h('span', { class: 'kucuk-yazi soluk' }, gol.maclar ? `${gol.maclar.rakip} · ${tarihYaz(gol.maclar.tarih, { saat: false, kisa: true })}` : '', gol.video_url ? ' · videolu' : '', gol.video_kaynak ? ` (${gol.video_kaynak})` : '', gol.altyazi_url ? ' · altyazılı' : '', gol.kapak_url ? ' · kapaklı' : '', gol.video_baslangic_sn != null ? ` · gol anı ${gol.video_baslangic_sn}-${gol.video_bitis_sn} sn` : ''),
       h('span', { class: 'dugme-satir' },
         h('button', { type: 'button', class: 'dugme ikincil kucuk', onclick: () => doldur(gol) }, 'Düzenle'),
         h('button', { type: 'button', class: 'dugme tehlike kucuk', onclick: () => sil(gol) }, 'Sil'))))
@@ -630,9 +749,21 @@ function yorumlarSekmesi(kok) {
     await yukle();
   }
 
+  // 017: uygunsuz profil fotoğrafı: yönetici başkasınınkini yalnız kaldırır (profiles.foto_url = null), sonra depodan silmeyi dener
+  async function fotoKaldir(y, ad) {
+    if (!onayla(`${ad} kullanıcısının profil fotoğrafı kaldırılsın mı? Kişi kurallara uygun yeni bir fotoğraf yükleyebilir.`)) return;
+    const url = y.profiles && y.profiles.foto_url;
+    const { error } = await supabase.from('profiles').update({ foto_url: null }).eq('id', y.kullanici_id);
+    if (error) return bildir(hataMetni(error), 'hata');
+    const m = /\/profil-fotograflari\/([^?#]+)$/.exec(url || '');
+    if (m) { try { await supabase.storage.from(PROFIL_FOTO_KOVASI).remove([decodeURIComponent(m[1])]); } catch (e) { /* sessiz: dosya depoda kalır */ } }
+    bildir(`${ad} kullanıcısının profil fotoğrafı kaldırıldı.`);
+    await yukle();
+  }
+
   async function yukle() {
     let q = supabase.from('yorumlar')
-      .select('id, metin, gizli, onay_bekliyor, gizleme_nedeni, created_at, haber_id, mac_id, gol_id, kullanici_id, profiles(kullanici_adi), haberler(baslik), maclar(rakip), goller(oyuncu)')
+      .select('id, metin, gizli, onay_bekliyor, gizleme_nedeni, created_at, haber_id, mac_id, gol_id, kullanici_id, ust_yorum_id, profiles(kullanici_adi, foto_url), haberler(baslik), maclar(rakip), goller(oyuncu)')
       .order('created_at', { ascending: false }).limit(150);
     if (filtre.value === 'gizli') q = q.eq('gizli', true);
     if (filtre.value === 'gorunur') q = q.eq('gizli', false).eq('onay_bekliyor', false);
@@ -660,9 +791,12 @@ function yorumlarSekmesi(kok) {
           : h('a', { href: 'mac.html?id=' + encodeURIComponent(y.mac_id) }, 'Maç: ' + ((y.maclar && y.maclar.rakip) || '—'));
       const s = sikayet.get(y.id) || [];
       const engelli = engelliler.has(y.kullanici_id);
+      const foto = y.profiles && y.profiles.foto_url && profilFotoGecerli(y.profiles.foto_url, y.kullanici_id) ? y.profiles.foto_url : null;
       return h('li', { 'data-yorum-id': y.id },
         h('span', { class: 'dugme-satir kucuk-yazi' },
+          foto ? avatarOgesi(ad, foto, y.kullanici_id, { boyut: 28, alt: `${ad} kullanıcısının profil fotoğrafı` }) : null,
           h('strong', null, ad),
+          y.ust_yorum_id ? h('span', { class: 'soluk' }, '↳ yanıt') : null,
           h('span', { class: 'soluk' }, tarihYaz(y.created_at)),
           y.gizli ? h('span', { class: 'rozet gizli' }, y.gizleme_nedeni === 'sikayet' ? 'Gizli (3 şikâyet)' : 'Gizli') : null,
           y.onay_bekliyor ? h('span', { class: 'rozet canli' }, 'Onay bekliyor') : null,
@@ -674,6 +808,7 @@ function yorumlarSekmesi(kok) {
           y.onay_bekliyor ? h('button', { type: 'button', class: 'dugme kucuk', onclick: () => yorumuOnayla(y) }, 'Onayla') : null,
           y.onay_bekliyor ? h('button', { type: 'button', class: 'dugme ikincil kucuk', onclick: () => kuyruktanGizle(y) }, 'Gizle') : h('button', { type: 'button', class: 'dugme ikincil kucuk', onclick: () => gizle(y) }, y.gizli ? 'Göster' : 'Gizle'),
           h('button', { type: 'button', class: 'dugme ikincil kucuk', onclick: () => engelle(y, ad, engelli) }, engelli ? 'Yasağı kaldır' : 'Yorumdan men et'),
+          foto ? h('button', { type: 'button', class: 'dugme ikincil kucuk', onclick: () => fotoKaldir(y, ad) }, 'Profil fotoğrafını kaldır') : null,
           h('button', { type: 'button', class: 'dugme tehlike kucuk', onclick: () => sil(y) }, 'Sil')));
     }) : [h('li', { class: 'bos' }, filtre.value === 'kuyruk' ? 'Onay bekleyen yorum yok.' : 'Yorum yok.')]));
   }

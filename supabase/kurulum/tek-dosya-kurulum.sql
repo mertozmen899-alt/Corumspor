@@ -3729,3 +3729,267 @@ $$;
 drop trigger if exists mac_ozet_kontrol on public.maclar;
 create trigger mac_ozet_kontrol before insert or update on public.maclar
   for each row execute function public.mac_ozet_kontrol();
+
+
+-- ===================== 017_yanit_profil_foto.sql =====================
+-- =====================================================================
+-- Çorum Taraftar: yorumlara yanıt ve profil fotoğrafı (017)
+-- Sıra: 001 → … → 016 → 017. Tekrar çalıştırılabilir (if not exists / create or replace / drop if exists).
+-- 014/015'in "sürüm" işaretli yorum ve profil fonksiyonlarına DOKUNMAZ: yeni kurallar ayrı tetikleyicilerde.
+--
+--  1) yorumlar.ust_yorum_id   tek seviyeli yanıt: yanıtın yanıtı ana yoruma bağlanır; hedef (haber/maç/gol) ana yorumdan
+--                             kopyalanır; yanıt verilen yorum yanıt verenin GÖREBİLDİĞİ bir yorum olmalı (RLS);
+--                             ana yorum silinince yanıtları da silinir. Sonradan başka yoruma taşınamaz.
+--  2) profiles.foto_url       profil fotoğrafı: YALNIZ projenin profil-fotograflari kovasında, kişinin kendi klasöründe
+--                             (<kullanıcı id>/…). Herkes okur (yorumlarda görünür). Kişi kendisi koyar/kaldırır (e-posta onaylı,
+--                             yasaklı değil); yönetici başkasının fotoğrafını yalnız KALDIRABİLİR (uygunsuz fotoğraf).
+--  3) profil-fotograflari     herkese açık kova (300 KB, webp/jpeg/png); yükleme/değiştirme/silme yalnız kendi klasörüne,
+--                             yönetici her dosyayı silebilir; listeleme yalnız kendi klasörü ve yönetici.
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 1) Yanıt
+-- ---------------------------------------------------------------------
+alter table public.yorumlar add column if not exists ust_yorum_id uuid references public.yorumlar (id) on delete cascade;
+create index if not exists yorumlar_ust on public.yorumlar (ust_yorum_id, created_at) where ust_yorum_id is not null;
+comment on column public.yorumlar.ust_yorum_id is 'Yanıt verilen ana yorum (tek seviye). Hedef (haber/maç/gol) ana yorumdan kopyalanır.';
+
+-- Çağıranın yetkisiyle çalışır: ana yorum yorumlar RLS'inden geçmeli (gizli / onay bekleyen başkasının yorumuna yanıt yok)
+create or replace function public.yorum_yanit_kontrol()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_ust uuid;
+  v_haber uuid;
+  v_mac uuid;
+  v_gol uuid;
+begin
+  if tg_op = 'UPDATE' then
+    if new.ust_yorum_id is distinct from old.ust_yorum_id and current_user in ('anon', 'authenticated') then
+      raise exception 'Yanıtın bağlı olduğu yorum değiştirilemez.' using errcode = '42501';
+    end if;
+    return new;
+  end if;
+  if new.ust_yorum_id is null then
+    return new;
+  end if;
+  select y.ust_yorum_id, y.haber_id, y.mac_id, y.gol_id into v_ust, v_haber, v_mac, v_gol
+    from public.yorumlar y where y.id = new.ust_yorum_id;
+  if not found then
+    raise exception 'Yanıt verdiğin yorum bulunamadı (silinmiş ya da gizlenmiş olabilir).' using errcode = '22023', hint = 'ust_yorum';
+  end if;
+  if v_ust is not null then
+    new.ust_yorum_id := v_ust; -- yanıtın yanıtı: ana yoruma bağlanır (tek seviye)
+  end if;
+  new.haber_id := v_haber;
+  new.mac_id := v_mac;
+  new.gol_id := v_gol;
+  return new;
+end;
+$$;
+drop trigger if exists yorum_yanit_kontrol on public.yorumlar;
+create trigger yorum_yanit_kontrol before insert or update on public.yorumlar
+  for each row execute function public.yorum_yanit_kontrol();
+
+-- ---------------------------------------------------------------------
+-- 2) Profil fotoğrafı
+-- ---------------------------------------------------------------------
+alter table public.profiles add column if not exists foto_url text;
+comment on column public.profiles.foto_url is 'Profil fotoğrafı: yalnız profil-fotograflari kovasında kişinin kendi klasörü. Herkes okur (yorumlarda).';
+
+-- assets/kurallar.js profilFotoGecerli ile AYNI kural
+create or replace function public.profil_foto_gecerli(p_url text, p_id uuid)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select p_url is null or (
+    p_id is not null and length(p_url) <= 500 and strpos(p_url, '..') = 0 and p_url !~ '[\x01-\x20\x7f-\x9f]'
+    and p_url ~* ('^https://[a-z0-9][a-z0-9-]{0,62}\.supabase\.co/storage/v1/object/public/profil-fotograflari/'
+                  || p_id::text || '/[A-Za-z0-9_-]+\.(webp|jpe?g|png)$'))
+$$;
+
+alter table public.profiles drop constraint if exists profiles_foto;
+alter table public.profiles add constraint profiles_foto check (public.profil_foto_gecerli(foto_url, id));
+
+-- Kişi kendi fotoğrafını koyar (onaylı e-posta, yasaklı değil); yönetici başkasınınkini yalnız kaldırır
+create or replace function public.profil_foto_kontrol()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if current_user in ('anon', 'authenticated') and new.foto_url is distinct from old.foto_url and new.foto_url is not null then
+    if new.id is distinct from auth.uid() then
+      raise exception 'Başkasının profil fotoğrafını değiştiremezsin (yönetici yalnız kaldırabilir).' using errcode = '42501';
+    end if;
+    if not public.eposta_onayli() then
+      raise exception 'Profil fotoğrafı için e-posta adresini onayla.' using errcode = '42501', hint = 'eposta_onayi';
+    end if;
+    if public.engelli_mi() then
+      raise exception 'Hesabın topluluk kuralları nedeniyle kapatıldı; profil fotoğrafı ekleyemezsin.' using errcode = '42501', hint = 'engelli';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists profil_foto_kontrol on public.profiles;
+create trigger profil_foto_kontrol before update on public.profiles
+  for each row execute function public.profil_foto_kontrol();
+
+-- Sütun yetkisi (012'den beri profiles sütun sütun açılır): foto_url herkese okunur
+grant select (foto_url) on public.profiles to anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- 3) Depo: profil-fotograflari
+-- ---------------------------------------------------------------------
+do $$
+begin
+  if to_regclass('storage.buckets') is null or to_regclass('storage.objects') is null then
+    raise notice 'storage şeması yok, profil-fotograflari deposu atlandı';
+    return;
+  end if;
+  insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+  values ('profil-fotograflari', 'profil-fotograflari', true, 307200, array['image/webp', 'image/jpeg', 'image/png'])
+  on conflict (id) do update set public = true, file_size_limit = excluded.file_size_limit,
+                                 allowed_mime_types = excluded.allowed_mime_types;
+  drop policy if exists "profil fotografi listeleme" on storage.objects;
+  drop policy if exists "profil fotografi yukleme" on storage.objects;
+  drop policy if exists "profil fotografi guncelleme" on storage.objects;
+  drop policy if exists "profil fotografi silme" on storage.objects;
+  create policy "profil fotografi listeleme" on storage.objects for select to authenticated
+    using (bucket_id = 'profil-fotograflari' and (split_part(name, '/', 1) = (select auth.uid())::text or (select public.is_admin())));
+  create policy "profil fotografi yukleme" on storage.objects for insert to authenticated
+    with check (bucket_id = 'profil-fotograflari' and split_part(name, '/', 1) = (select auth.uid())::text
+                and (select public.eposta_onayli()) and not (select public.engelli_mi()));
+  create policy "profil fotografi guncelleme" on storage.objects for update to authenticated
+    using (bucket_id = 'profil-fotograflari' and split_part(name, '/', 1) = (select auth.uid())::text)
+    with check (bucket_id = 'profil-fotograflari' and split_part(name, '/', 1) = (select auth.uid())::text
+                and (select public.eposta_onayli()) and not (select public.engelli_mi()));
+  create policy "profil fotografi silme" on storage.objects for delete to authenticated
+    using (bucket_id = 'profil-fotograflari' and (split_part(name, '/', 1) = (select auth.uid())::text or (select public.is_admin())));
+end $$;
+
+
+-- ===================== 018_gol_ani_asist.sql =====================
+-- =====================================================================
+-- Çorum Taraftar: gol anı, asist ve maç kadrosu (018)
+-- Sıra: 001 → … → 017 → 018. Tekrar çalıştırılabilir (if not exists / create or replace / drop if exists).
+-- 014/015/016/017'nin "sürüm" işaretli fonksiyonlarına DOKUNMAZ: yeni kurallar kısıt ve ayrı tetikleyicilerde.
+--
+--  1) goller.asist                 asist yapan oyuncunun adı (oyuncular.ad ile aynı yazılır; oyuncu sayfası adla eşler)
+--  2) goller.video_baslangic_sn    gol anı: YouTube videosunun yalnız bu aralığı oynatılır (embed start/end). İkisi birlikte,
+--     goller.video_bitis_sn        bitiş > başlangıç, 0-21600 sn; yalnız YouTube videoda (kendi .mp4'ümüz zaten yalnız golü içerir).
+--  3) mac_oyunculari               maç kadrosu ve olaylar: ilk 11, giriş/çıkış dakikası, sarı/kırmızı kart. Oyuncu sayfasındaki
+--                                  Maç / İlk 11 / Dakika / Sarı / Kırmızı bundan hesaplanır (kurallar.js oynamaDakikasi; uzatma = 90).
+--                                  Herkes okur, yalnız yönetici yazar.
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 1-2) Gol: asist ve video aralığı
+-- ---------------------------------------------------------------------
+alter table public.goller add column if not exists asist text;
+alter table public.goller add column if not exists video_baslangic_sn smallint;
+alter table public.goller add column if not exists video_bitis_sn smallint;
+
+alter table public.goller drop constraint if exists goller_asist;
+alter table public.goller add constraint goller_asist check (asist is null or char_length(btrim(asist)) between 2 and 80);
+alter table public.goller drop constraint if exists goller_video_aralik;
+alter table public.goller add constraint goller_video_aralik check (
+  (video_baslangic_sn is null) = (video_bitis_sn is null)
+  and (video_baslangic_sn is null or (
+    video_baslangic_sn between 0 and 21600 and video_bitis_sn between 0 and 21600 and video_bitis_sn > video_baslangic_sn
+    and video_url ~ '^https://(www\.|m\.)?(youtube\.com|youtube-nocookie\.com|youtu\.be)/')));
+
+comment on column public.goller.asist is 'Asist yapan oyuncu (oyuncular.ad ile aynı yazılır). Boş: asist yok / bilinmiyor.';
+comment on column public.goller.video_baslangic_sn is 'Gol anı başlangıcı (sn): YouTube gömmesinde start. Bitişle birlikte; yalnız YouTube.';
+comment on column public.goller.video_bitis_sn is 'Gol anı bitişi (sn): YouTube gömmesinde end. Başlangıçtan büyük.';
+
+-- Boş asist null olur; aralık hataları Türkçe mesajla (kısıt yine son savunma)
+create or replace function public.gol_ani_kontrol()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.asist := nullif(btrim(coalesce(new.asist, '')), '');
+  if (new.video_baslangic_sn is null) <> (new.video_bitis_sn is null) then
+    raise exception 'Video başlangıç ve bitiş saniyesini birlikte yazın (ya da ikisini de boş bırakın).' using errcode = '22023', hint = 'video_baslangic_sn';
+  end if;
+  if new.video_baslangic_sn is not null then
+    if new.video_bitis_sn <= new.video_baslangic_sn then
+      raise exception 'Video bitişi başlangıçtan sonra olmalı.' using errcode = '22023', hint = 'video_bitis_sn';
+    end if;
+    if new.video_url is null or new.video_url !~ '^https://(www\.|m\.)?(youtube\.com|youtube-nocookie\.com|youtu\.be)/' then
+      raise exception 'Video aralığı yalnız YouTube videosunda kullanılır.' using errcode = '22023', hint = 'video_baslangic_sn';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists gol_ani_kontrol on public.goller;
+create trigger gol_ani_kontrol before insert or update on public.goller
+  for each row execute function public.gol_ani_kontrol();
+
+-- ---------------------------------------------------------------------
+-- 3) Maç kadrosu
+-- ---------------------------------------------------------------------
+create table if not exists public.mac_oyunculari (
+  mac_id uuid not null references public.maclar (id) on delete cascade,
+  oyuncu text not null,
+  ilk11 boolean not null default false,
+  giris_dk smallint,
+  cikis_dk smallint,
+  sari smallint not null default 0,
+  kirmizi boolean not null default false,
+  primary key (mac_id, oyuncu)
+);
+alter table public.mac_oyunculari drop constraint if exists mac_oyunculari_oyuncu;
+alter table public.mac_oyunculari add constraint mac_oyunculari_oyuncu check (char_length(btrim(oyuncu)) between 2 and 80);
+alter table public.mac_oyunculari drop constraint if exists mac_oyunculari_dakika;
+alter table public.mac_oyunculari add constraint mac_oyunculari_dakika check (
+  (giris_dk is null or giris_dk between 0 and 130) and (cikis_dk is null or cikis_dk between 0 and 130)
+  and (not ilk11 or giris_dk is null)
+  and (giris_dk is null or cikis_dk is null or cikis_dk >= giris_dk));
+alter table public.mac_oyunculari drop constraint if exists mac_oyunculari_kart;
+alter table public.mac_oyunculari add constraint mac_oyunculari_kart check (sari between 0 and 2);
+create index if not exists mac_oyunculari_oyuncu_idx on public.mac_oyunculari (oyuncu);
+comment on table public.mac_oyunculari is 'Maç kadrosu (yalnız Çorum FK oyuncuları): ilk 11, giriş/çıkış dakikası, kartlar. Kırmızıda çıkış = kırmızı dakikası; uzatma 90 sayılır.';
+
+create or replace function public.mac_oyuncusu_kontrol()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.oyuncu := regexp_replace(btrim(new.oyuncu), '\s+', ' ', 'g');
+  if new.ilk11 and new.giris_dk is not null then
+    raise exception 'İlk 11''deki oyuncunun giriş dakikası olmaz.' using errcode = '22023', hint = 'giris_dk';
+  end if;
+  if new.giris_dk is not null and new.cikis_dk is not null and new.cikis_dk < new.giris_dk then
+    raise exception 'Çıkış dakikası giriş dakikasından önce olamaz.' using errcode = '22023', hint = 'cikis_dk';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists mac_oyuncusu_kontrol on public.mac_oyunculari;
+create trigger mac_oyuncusu_kontrol before insert or update on public.mac_oyunculari
+  for each row execute function public.mac_oyuncusu_kontrol();
+
+alter table public.mac_oyunculari enable row level security;
+drop policy if exists mac_oyuncusu_okuma on public.mac_oyunculari;
+create policy mac_oyuncusu_okuma on public.mac_oyunculari for select using (true);
+drop policy if exists mac_oyuncusu_ekleme on public.mac_oyunculari;
+create policy mac_oyuncusu_ekleme on public.mac_oyunculari for insert to authenticated with check ((select public.is_admin()));
+drop policy if exists mac_oyuncusu_guncelleme on public.mac_oyunculari;
+create policy mac_oyuncusu_guncelleme on public.mac_oyunculari for update to authenticated
+  using ((select public.is_admin())) with check ((select public.is_admin()));
+drop policy if exists mac_oyuncusu_silme on public.mac_oyunculari;
+create policy mac_oyuncusu_silme on public.mac_oyunculari for delete to authenticated using ((select public.is_admin()));
+
+grant select on public.mac_oyunculari to anon, authenticated;
+grant insert, update, delete on public.mac_oyunculari to authenticated;
+revoke truncate on public.mac_oyunculari from anon, authenticated;

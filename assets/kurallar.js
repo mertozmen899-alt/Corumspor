@@ -104,6 +104,19 @@ export function kapakAdresiGecerli(url) {
 }
 
 // ---------------------------------------------------------------------------
+// Profil fotoğrafı (SQL: profil_foto_gecerli, 017). YALNIZ projenin profil-fotograflari kovasında kişinin kendi klasörü
+// (<kullanıcı id>/<ad>.webp|jpg|jpeg|png). null (fotoğraf yok) geçerlidir; id yoksa adres geçersizdir.
+// ---------------------------------------------------------------------------
+export const PROFIL_FOTO_KOVASI = 'profil-fotograflari';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function profilFotoGecerli(url, id) {
+  if (url === null || url === undefined) return true;
+  if (typeof url !== 'string' || typeof id !== 'string' || !UUID.test(id)) return false;
+  if (url.length > 500 || url.includes('..') || KONTROL_KARAKTERI.test(url)) return false;
+  return new RegExp(`^https://[a-z0-9][a-z0-9-]{0,62}\\.supabase\\.co/storage/v1/object/public/${PROFIL_FOTO_KOVASI}/${id.toLowerCase()}/[A-Za-z0-9_-]+\\.(webp|jpe?g|png)$`, 'i').test(url);
+}
+
+// ---------------------------------------------------------------------------
 // Gol arşivi sezonu (013): futbol sezonu Temmuz-Haziran. Maç tarihi Türkiye saatine göre: Temmuz 2026 – Haziran 2027 = "2026-27".
 // ---------------------------------------------------------------------------
 export function sezonAdi(iso) {
@@ -191,4 +204,47 @@ export const ON_ONAY = Object.freeze({ onceSaat: 2, sonraSaat: 24 });
 export function onOnayPenceresinde(macTarihi, simdi = Date.now()) {
   const t = Date.parse(macTarihi);
   return !Number.isNaN(t) && simdi >= t - ON_ONAY.onceSaat * 3600e3 && simdi < t + ON_ONAY.sonraSaat * 3600e3;
+}
+
+// ---------------------------------------------------------------------------
+// 018: gol anı, asist ve oyuncu istatistikleri (SQL: goller_asist, goller_video_aralik, mac_oyunculari)
+// ---------------------------------------------------------------------------
+export const VIDEO_ARALIK_SINIRI = 21600; // sn (6 saat)
+/** Panel gol formu: asist ve video aralığı hataları (Türkçe). bas/bit: sayı ya da null. */
+export function golAniHatalari({ asist = null, video_url = null, video_baslangic_sn: bas = null, video_bitis_sn: bit = null } = {}) {
+  const h = [];
+  const a = typeof asist === 'string' ? asist.trim() : '';
+  if (a && (a.length < 2 || a.length > 80)) h.push('Asist yapan oyuncunun adı 2-80 karakter olmalı.');
+  if ((bas == null) !== (bit == null)) h.push('Video başlangıç ve bitiş saniyesini birlikte yaz (ya da ikisini de boş bırak).');
+  else if (bas != null) {
+    const gecerli = (x) => Number.isInteger(x) && x >= 0 && x <= VIDEO_ARALIK_SINIRI;
+    if (!gecerli(bas) || !gecerli(bit)) h.push(`Video saniyeleri 0-${VIDEO_ARALIK_SINIRI} arasında tam sayı olmalı.`);
+    else if (bit <= bas) h.push('Video bitişi başlangıçtan sonra olmalı.');
+    if (!video_url || !YOUTUBE.test(video_url)) h.push('Video aralığı yalnız YouTube videosunda kullanılır.');
+  }
+  return h;
+}
+/** Oyuncu adı eşleştirme anahtarı: Türkçe harf (metinKatla), aksan (ć, é, ú…), büyük/küçük harf ve boşluk farkı yok sayılır. */
+export function oyuncuAnahtari(ad) {
+  return metinKatla(String(ad ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').normalize('NFC')).toLowerCase().replace(/\s+/g, ' ').trim();
+}
+export const MAC_SURESI = 90; // uzatmalar sayılmaz
+/** Maç kadrosu satırından oynanan dakika: ilk 11 → çıkış (yoksa 90); yedek → çıkış (yoksa 90) − giriş; girmeyen yedek → 0. */
+export function oynamaDakikasi({ ilk11 = false, giris_dk = null, cikis_dk = null } = {}) {
+  const bas = ilk11 ? 0 : giris_dk;
+  if (bas == null) return 0;
+  return Math.max(0, Math.min(cikis_dk ?? MAC_SURESI, MAC_SURESI) - Math.min(bas, MAC_SURESI));
+}
+/** Satır maça çıkmış mı (ilk 11 ya da oyuna girmiş). */
+export const macaCikti = (s) => !!(s && (s.ilk11 || s.giris_dk != null));
+/** Oyuncunun sezon özeti. kadro: mac_oyunculari satırları, goller: { oyuncu, asist } satırları (hepsi aynı sezondan). */
+export function oyuncuOzeti(ad, kadro = [], goller = []) {
+  const k = oyuncuAnahtari(ad);
+  const benim = kadro.filter((s) => oyuncuAnahtari(s.oyuncu) === k && macaCikti(s));
+  const gol = goller.filter((g) => oyuncuAnahtari(g.oyuncu) === k).length;
+  const asist = goller.filter((g) => g.asist && oyuncuAnahtari(g.asist) === k).length;
+  return {
+    mac: benim.length, ilk11: benim.filter((s) => s.ilk11).length, dakika: benim.reduce((t, s) => t + oynamaDakikasi(s), 0),
+    gol, asist, katki: gol + asist, sari: benim.reduce((t, s) => t + (s.sari || 0), 0), kirmizi: benim.filter((s) => s.kirmizi).length,
+  };
 }

@@ -303,7 +303,7 @@ async function yukle() {
       .in('durum', ['planlandi', 'canli']).gte('tarih', new Date(Date.now() - 6 * 3600e3).toISOString()).order('tarih', { ascending: true }).limit(2),
     supabase.from('maclar').select(MAC_SUTUNLARI)
       .eq('durum', 'bitti').gte('tarih', new Date(Date.now() - MAC_SURESI - MAC_SONU_SURESI).toISOString()).order('tarih', { ascending: false }).limit(1),
-    supabase.from('goller').select('id, oyuncu, dakika, ek_dakika, penalti, video_url, aciklama, kapak_url, sure_sn, created_at, maclar(id, rakip, tarih, ic_saha, corum_skor, rakip_skor, durum)')
+    supabase.from('goller').select('id, oyuncu, dakika, ek_dakika, penalti, video_url, aciklama, kapak_url, sure_sn, asist, video_baslangic_sn, video_bitis_sn, created_at, maclar(id, rakip, tarih, ic_saha, corum_skor, rakip_skor, durum)')
       .order('created_at', { ascending: false }).limit(6),
     supabase.from('sakatliklar').select('id, durum, guncellendi, oyuncular(ad)').eq('yayinda', true).order('guncellendi', { ascending: false }).limit(6),
   ]);

@@ -27,10 +27,10 @@ const GORSEL_EN_COK = 60;
 const META = 'surum-meta';   // { guncel, onceki, oncekiIstemciler: [...] } (yalnız sürüm adları ve istemci kimlikleri; kişisel veri yok)
 const META_ANAHTAR = new URL('surum-meta.json', self.location.href).href;
 const SAYFALAR = ['./', 'index.html', 'goller.html', 'takim.html', 'profil.html', 'haber.html', 'mac.html', 'gol.html', 'giris.html', 'sifre.html',
-  'kurallar.html', 'gizlilik.html', 'kaynaklar.html', 'maclar.html', 'cevrimdisi.html'];
+  'kurallar.html', 'gizlilik.html', 'kaynaklar.html', 'maclar.html', 'cevrimdisi.html', 'oyuncu.html'];
 const DOSYALAR = ['assets/stil.css', 'assets/tema.js', 'assets/ortak.js', 'assets/istemci.js', 'assets/ayar.js', 'assets/kurallar.js', 'assets/foto-kaynaklari.js',
   'assets/onbellek.js', 'assets/gol-kart.js', 'assets/reklam-yukle.js', 'assets/yorumlar.js', 'assets/sayfa/ana.js', 'assets/sayfa/goller.js', 'assets/sayfa/gol.js',
-  'assets/sayfa/takim.js', 'assets/sayfa/profil.js', 'assets/sayfa/haber.js', 'assets/sayfa/mac.js', 'assets/sayfa/metin.js', 'assets/sayfa/giris.js', 'assets/sayfa/sifre.js',
+  'assets/sayfa/takim.js', 'assets/sayfa/profil.js', 'assets/sayfa/haber.js', 'assets/sayfa/mac.js', 'assets/sayfa/metin.js', 'assets/sayfa/giris.js', 'assets/sayfa/sifre.js', 'assets/sayfa/oyuncu.js',
   'assets/reklam/reklam.js', 'assets/reklam/reklam-mantik.js',
   'assets/vendor/supabase-js-2.45.4/supabase.js', 'assets/fonts/oswald-700-tr.woff2', 'assets/fonts/source-sans-3-400-tr.woff2',
   'assets/fonts/source-sans-3-700-tr.woff2', 'assets/logo/amblem-yedek.svg', 'manifest.webmanifest', 'assets/logo/simge-192.png'];

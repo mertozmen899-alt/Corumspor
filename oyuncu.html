@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://*.supabase.co data: blob:; media-src 'self' https: blob:; frame-src https://www.youtube-nocookie.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Oyuncu · Çorumspor Taraftar</title>
+<meta name="description" content="Çorum FK oyuncusunun bu sezonki maç, dakika, gol, asist ve kart sayıları.">
+<meta property="og:site_name" content="Çorumspor Taraftar">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="tr_TR">
+<meta property="og:title" content="Oyuncu · Çorumspor Taraftar">
+<meta property="og:description" content="Çorum FK oyuncusunun bu sezonki maç, dakika, gol, asist ve kart sayıları. Çorum FK'nın resmî uygulaması değildir.">
+<meta property="og:image" content="assets/img/og-1200x630.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Çorumspor Taraftar: bağımsız taraftar uygulaması (kırmızı-siyah, özgün ÇT işareti)">
+<meta name="theme-color" content="#0B0B0B">
+<link rel="icon" href="assets/logo/amblem-yedek.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/logo/apple-touch-icon-180.png">
+<link rel="preload" href="assets/fonts/oswald-700-tr.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/source-sans-3-400-tr.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/stil.css">
+<script src="assets/tema.js"></script>
+<script defer src="assets/vendor/supabase-js-2.45.4/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o"></script>
+<link rel="modulepreload" href="assets/sayfa/oyuncu.js">
+<link rel="modulepreload" href="assets/ortak.js">
+<link rel="modulepreload" href="assets/istemci.js">
+<link rel="modulepreload" href="assets/ayar.js">
+<link rel="modulepreload" href="assets/kurallar.js">
+<link rel="modulepreload" href="assets/foto-kaynaklari.js">
+<script type="module" src="assets/sayfa/oyuncu.js"></script>
+</head>
+<body>
+<a class="atla" href="#icerik">İçeriğe geç</a>
+<header class="ust">
+  <div class="ust-bar">
+    <div class="ust-sol"><a class="ikon-dugme geri" href="takim.html#kadro" data-geri aria-label="Geri"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 18 9 12l6-6"/></svg></a></div>
+    <a class="logo" href="index.html" aria-label="Çorumspor Taraftar ana sayfa"><span class="amblem"><img data-amblem src="assets/logo/amblem-yedek.svg" alt="" width="34" height="34"></span><span class="logo-ad">Çorumspor Taraftar</span></a>
+    <div class="ust-sag" id="oturum-alani"><a class="ikon-dugme" href="profil.html" id="profil-baglanti"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg><span class="gorunmez">Profil</span></a></div>
+  </div>
+</header>
+<main id="icerik" tabindex="-1">
+<p class="resmi-degil"><svg viewBox="0 0 12 12" width="12" height="12" fill="currentColor" aria-hidden="true" focusable="false"><path d="M7 0 1 7h4l-1 5 6-7H6z"/></svg>Bağımsız taraftar uygulaması</p>
+<div class="kap">
+  <div id="oyuncu" data-durum="bekliyor">
+    <div class="oyuncu-bas" aria-hidden="true"><span class="iskelet no"></span><span class="iskelet iskelet-satir uzun"></span></div>
+    <ul class="istatistik-izgara" aria-hidden="true"><li class="iskelet iskelet-istatistik"></li><li class="iskelet iskelet-istatistik"></li><li class="iskelet iskelet-istatistik"></li><li class="iskelet iskelet-istatistik"></li><li class="iskelet iskelet-istatistik"></li><li class="iskelet iskelet-istatistik"></li><li class="iskelet iskelet-istatistik"></li><li class="iskelet iskelet-istatistik"></li></ul>
+  </div>
+</div>
+<noscript><p class="kap uyari">Bu site JavaScript ile çalışır. Tarayıcında JavaScript'i aç.</p></noscript>
+</main>
+<nav class="alt-nav" id="alt-nav" aria-label="Ana gezinme">
+  <ul>
+    <li><a href="index.html"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" class="cizgi"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><svg class="dolu" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 2.2 2.4 10.2a1 1 0 0 0-.4.8V20a2 2 0 0 0 2 2h5.5v-6.5h5V22H20a2 2 0 0 0 2-2v-9a1 1 0 0 0-.4-.8z"/></svg><span>Ana Sayfa</span></a></li>
+    <li><a href="goller.html"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" class="cizgi"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z"/></svg><svg class="dolu" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M6 4h12a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4zm3.5 4.2v7.6L16 12z"/></svg><span>Gol Arşivi</span></a></li>
+    <li><a href="takim.html" aria-current="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" class="cizgi"><path d="M8 3 3 6l2 5 2-1v11h10V10l2 1 2-5-5-3c-.5 1.7-2.1 3-4 3S8.5 4.7 8 3z"/></svg><svg class="dolu" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8.2 2.2 2 5.9l2.6 6.4L7 11.2V22h10V11.2l2.4 1.1L22 5.9l-6.2-3.7-.7.2C14.8 4 13.5 5 12 5s-2.8-1-3.1-2.6z"/></svg><span>Takım</span></a></li>
+    <li><a href="profil.html"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" class="cizgi"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg><svg class="dolu" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="12" cy="7.5" r="4.5"/><path d="M3 22c0-5.2 4-8.5 9-8.5s9 3.3 9 8.5z"/></svg><span>Profil</span></a></li>
+  </ul>
+</nav>
+<footer class="alt">
+  <div class="kap">
+    <p><strong>Çorumspor Taraftar</strong> · bağımsız taraftar uygulaması. <strong>Çorum FK'nın resmî uygulaması değildir</strong>; kulüple bir bağı yoktur. Kulüp adı hak sahibine aittir.</p>
+    <p>Künye: <span data-ayar="SAHIP_ADI">uygulama sahibi</span> · İletişim ve kaldırma talepleri: <a data-ayar="ILETISIM_EPOSTA" href="kurallar.html#iletisim">iletişim adresi</a> (kaldırma taleplerine en geç 24 saat içinde dönülür).</p>
+    <p class="baglantilar"><a href="gizlilik.html">Gizlilik ve KVKK</a><a href="kurallar.html">Topluluk kuralları</a><a href="kaynaklar.html">Fotoğraf kaynakları</a></p>
+  </div>
+</footer>
+<div id="durum" class="gorunmez" role="status" aria-live="polite" aria-atomic="true"></div>
+<div id="uyari" class="gorunmez" role="alert"></div>
+</body>
+</html>

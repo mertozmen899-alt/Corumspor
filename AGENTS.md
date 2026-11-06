@@ -9,7 +9,7 @@ Bu dosya bu depoda çalışan yapay zekâ ajanları ve geliştiriciler içindir.
 - `supabase-js` **sitenin kendisinden** (KVKK: CDN'e istek yok), sabit sürüm + SRI: `assets/vendor/supabase-js-2.45.4/supabase.js` (npm `@supabase/supabase-js@2.45.4` paketindeki `dist/umd/supabase.js` ile bayt bayt aynı; yanında `591.supabase.js` parçası ve `LICENSE.txt`). Her HTML'de `<script defer src="assets/vendor/supabase-js-2.45.4/supabase.js" integrity="sha384-…">`. Sürüm değişirse: npm tarball'ından al, integrity'yi yenile (`openssl dgst -sha384 -binary dosya | openssl base64 -A`), klasör adını ve testteki SRI'yi güncelle.
 - Tek ayar dosyası: `assets/ayar.js` (SUPABASE_URL, SUPABASE_ANON_KEY, SITE_ADI, TAKIM_ADI, AMBLEM_DOSYASI, SAHIP_ADI, ILETISIM_EPOSTA; son ikisi künye ve gizlilik sayfasında `data-ayar` ile yazılır).
 - Tek supabase istemcisi: `assets/istemci.js` (`import { supabase } from './istemci.js'`). Reklam modülü de bunu kullanır.
-- Migration'lar: `supabase/migrations/NNN_ad.sql`, sırayla: `001_temel_sema` → `002_depolama` → `010_reklamlar` → `011_denetim_duzeltmeleri` → `012_denetim_2` → `013_tasarim` → `014_inceleme_2` → `015_son_tur` → `016_mac_ozeti`. Örnek veri: `supabase/seed.sql`. Uygulanmış dosyalar (001/002/010/011/012/013/014/015/016) yeniden yazılmaz: değişiklik = yeni migration. 013 yeniden çalıştırılabilir; testler 010/012'yi yeniden uygular, bu yüzden 013 onların fonksiyonlarının dönüş tipini değiştirmez (yalnız `aktif_reklam`'ı drop/create eder ve 012'den sonra uygulanır). 014 de yeniden çalıştırılabilir; yeniden tanımladığı fonksiyonların gövdesinde `sürüm 014` işareti var ve test (20_rls_testleri.sql, reklam/sql.test.mjs) en son sürümün kurulu olduğunu denetler.
+- Migration'lar: `supabase/migrations/NNN_ad.sql`, sırayla: `001_temel_sema` → `002_depolama` → `010_reklamlar` → `011_denetim_duzeltmeleri` → `012_denetim_2` → `013_tasarim` → `014_inceleme_2` → `015_son_tur` → `016_mac_ozeti` → `017_yanit_profil_foto` → `018_gol_ani_asist`. Örnek veri: `supabase/seed.sql`. Uygulanmış dosyalar (001/002/010/011/012/013/014/015/016/017) yeniden yazılmaz: değişiklik = yeni migration. 013 yeniden çalıştırılabilir; testler 010/012'yi yeniden uygular, bu yüzden 013 onların fonksiyonlarının dönüş tipini değiştirmez (yalnız `aktif_reklam`'ı drop/create eder ve 012'den sonra uygulanır). 014 de yeniden çalıştırılabilir; yeniden tanımladığı fonksiyonların gövdesinde `sürüm 014` işareti var ve test (20_rls_testleri.sql, reklam/sql.test.mjs) en son sürümün kurulu olduğunu denetler.
 - Saf kurallar (JS = SQL aynası): `assets/kurallar.js` (kullanıcı adı ayrılmış mı, haber kapağı adresi, yorum sınırları, `sezonAdi` Temmuz–Haziran, `SAKATLIK_DURUMLARI`, `sakatlikHatalari`) ↔ `012_denetim_2.sql` + `013_tasarim.sql`; ortak örnekler `testler/kurallar-ornekleri.json`. Reklam kuralları: `assets/reklam/reklam-mantik.js` ↔ `010`/`012`.
 - Görsel yükleme: `assets/gorsel-kucult.js` (yüklemeden önce canvas ile küçült + WebP). Haber/gol kapağı ve oyuncu fotoğrafı: `<uuid>-1600/-800/-480.webp` üç kopya (`kapakKaynagi()` `-1600.webp`'den srcset kurar; sitenin kendi `assets/img/` fotoğraflarında kopya genişlikleri `foto-kaynaklari.js` `genislikler`'den: olmayan dosya istenmez). `kapakKaynagi(url, { kutu })` `sizes`'ı etkin DPR ≤ 2 ile hesaplar; depodaki kapaklar `crossorigin="anonymous"`; `<img>`'i `kapakGorseli()` kurar (kırık görselde yer tutucu). Reklam: 1200 kutu + `-k.webp` küçük kopya (480 / kare 192).
 - Yayın: `node araclar/yayin-hazirla.js` → `yayin/` (yalnız HTML + `assets/` + `_headers` + `robots.txt` + `.nojekyll` + `sw.js` + `manifest.webmanifest`; geliştirici klasörü girerse durur; `ayar.js`'te yer tutucu kaldıysa **çıkış 1** (bilerek taslak: `YAYIN_TASLAK=1`; testler bunu kullanır); gerçek SUPABASE_URL varsa sayfalara `preconnect` ekler: kaynak HTML'de yok, tek ayar kuralı). Yalnız `yayin/` kopyasında: meta CSP `_headers`'a taşınır ve `*.supabase.co` proje adresine daraltılır, iç bağlantılar uzantısız olur (`goller.html` → `goller`, `index.html` → `./`; Cloudflare 308'i yok), `sw.js`'te `SURUM` içerik özeti ve `DOSYALAR` bütün kabuk. Paylaşım görseli: `node araclar/og-olustur.js` → `assets/img/og-1200x630.png`. Ana ekran simgeleri: `node araclar/simge-olustur.js` → `assets/logo/simge-*.png`, `apple-touch-icon-180.png`.
@@ -23,10 +23,15 @@ Bu dosya bu depoda çalışan yapay zekâ ajanları ve geliştiriciler içindir.
 ```
 index.html        ana sayfa: hero (MAÇ GÜNÜ / maçtan sonraki 36 saat MAÇ SONU skoru / manşet / en yeni haber) → "Sıradaki:" şeridi → Son dakika akışı (sayfalı, sponsor kartları) →
                   "Gol arşivinden" şeridi → Sıradaki maç kartı → "Kim yok?" kutusu
-goller.html       gol arşivi: Sezon (Temmuz–Haziran, "2026-27") ve Rakip filtreleri (fieldset/legend + radyo, ?sezon=&rakip=); maç grupları
-                  "N. Hafta · tarih" (016 maclar.hafta), özetli maçta "Özeti izle ▶" → mac.html?id=…#ozet (golsüz özetli maç da listelenir)
-gol.html?id=      gol: video facade (dokununca youtube-nocookie / mp4 preload=none), bilgi, WhatsApp paylaş, yorumlar (gol_id)
-takim.html        Takım: sekmeler #kadro | #sakatlik | #fikstur (paneller id="panel-<ad>": adres parçası öğeye denk gelmez)
+goller.html       gol arşivi: Sezon (Temmuz–Haziran, "2026-27") ve Rakip filtreleri (fieldset/legend + radyo, ?sezon=&rakip=&ac=); 018: her maç
+                  TEK satır, açılır düğme (h2 > button.mac-ac aria-expanded + aria-controls="goller-<id>"): "N. Hafta · Ev – Dep skor" + küçük
+                  tarih; açılınca goller dakika sırasıyla a.gol-satir.gol-ani "59' Ad · Asist: X ▶" → gol.html?id=; golsüz maç yok, "Özeti izle" yok
+gol.html?id=      gol: video facade (dokununca youtube-nocookie / mp4 preload=none; 018: YouTube'da yalnız gol anı start/end), "Asist: X",
+                  bilgi, WhatsApp paylaş, yorumlar (gol_id)
+takim.html        Takım: sekmeler #kadro | #sakatlik | #fikstur (paneller id="panel-<ad>": adres parçası öğeye denk gelmez); kadro kartı
+                  a.oyuncu-kart → oyuncu.html?id=
+oyuncu.html?id=   018: oyuncu sayfası (oyuncular.id): ad, forma no, mevki; bu sezon Maç, İlk 11, Dakika, Gol, Asist, Gole katkı, Sarı, Kırmızı
+                  ve golleri/asistleri (→ gol.html); alt menüde Takım aria-current="true"; pas/şut/piyasa değeri YOK
 profil.html       misafir: giriş/kayıt; üye: yorumlarım, (yönetici) Yönetim paneli bağlantısı, onaylı çıkış (dialog); tema radyoları
 haber.html?id=    haber ayrıntısı (geri düğmesi) + haber_sonu reklamı + yorumlar
 mac.html?id=      maç ayrıntısı (geri düğmesi) + mac_sponsoru + #ozet maç özeti (016 maclar.ozet_video_url, videoFasad: dokununca) ("Maçın sponsoru" + "Uygulama sponsoru · Çorum FK'nın sponsoru değildir") + goller + yorumlar
@@ -48,11 +53,11 @@ assets/
                     fotoAtfi(), cevrimdisiKutusu(), hata metinleri ("sen" dili)
   tema.js           tema: head'de defer'siz; Profil'deki input[name=tema] radyolarını bağlar (data-theme + localStorage 'tema')
   onbellek.js       son görülen herkese açık veri (localStorage son-veri-v1)
-  gol-kart.js       golKarti() (16:9 kapak a.video-kart ya da a.gol-satir → gol.html?id=), macEtiketi()
+  gol-kart.js       golKarti() (16:9 kapak a.video-kart ya da a.gol-satir → gol.html?id=), golAniSatiri() (018 arşiv satırı), golSuresi(), macEtiketi()
   foto-kaynaklari.js paketli fotoğrafların yazar/lisans/kaynak listesi (atıf yazısı ve kaynaklar.html bundan)
   yorumlar.js       yorum bileşeni (haber_id | mac_id | gol_id; şikâyet; men notu); sayfalar tembel import eder
   reklam-yukle.js   reklam yuvası yükleyici: reklamOnYukle(alan), reklamYuvalariniDoldur(kok)
-  sayfa/*.js        her sayfanın modülü (ana, goller, gol, takim, profil, haber, mac, giris, sifre, metin, yonetim)
+  sayfa/*.js        her sayfanın modülü (ana, goller, gol, takim, oyuncu, profil, haber, mac, giris, sifre, metin, yonetim)
   reklam/           REKLAM MODÜLÜ: reklam.js (ziyaretçi kartı), reklam-mantik.js (saf mantık, SQL'in aynası),
                     reklam.css (boş; kart stilleri stil.css 17. bölümde), yonetim-reklamlar.js (panel), yonetim-reklamlar.css
   stil.css          TÜM tasarım belirteçleri (açık + koyu), @font-face ve bileşen stilleri (reklam kartı dahil)
@@ -248,3 +253,35 @@ Yuvalar boştur; kendi dolgusu, kenarlığı, min-height'ı yoktur. Reklam yoksa
 - Ana sayfa varsayılan hero: `assets/img/tribun-kirmizi-siyah.svg` (özgün çizim, `node araclar/hero-olustur.js`; atıf yok, `#hero-atif`
   gizli). Saat Kulesi fotoğrafı haber kapağı olsa da hero'ya geçmez (`ana.js HERO_VARSAYILAN`). Kulüp arması (çift başlı kartal) kullanılmaz.
 - Yayın: Türk Telekom `*.pages.dev`'i engelliyor; test yayını Netlify (`netlify.toml`, aynı yapı komutu, `_headers` aynı biçim).
+
+## 017 — yanıt ve profil fotoğrafı
+- Migration `supabase/migrations/017_yanit_profil_foto.sql` (yeniden çalıştırılabilir; 014/015 `sürüm` işaretli fonksiyonlara dokunmaz).
+- **Yanıt:** `yorumlar.ust_yorum_id` (tek seviye). İstemci `{ <hedef_alan>: hedefId, metin, ust_yorum_id }` gönderir; tetikleyici
+  `yorum_yanit_kontrol` yanıtın yanıtını ana yoruma bağlar, hedefi ana yorumdan kopyalar, sonradan değiştirmeyi reddeder; görünmeyen
+  yoruma yanıt "bulunamadı"; ana yorum silinince yanıtlar da (on delete cascade). `yorumlar.js`: "Yanıtla" (giriş yapmış, onaylı,
+  yasaklı olmayan herkes; yalnız herkese açık yoruma) yorumun altında form açar (etiket "Yanıtın", hata `#yanit-hata-<id>`, yanıtın
+  yanıtında alan "@ad " ile başlar); yanıtlar ana yorumun içinde `ol.yanitlar`'da eskiden yeniye, sıralama yalnız ana yorumları
+  çevirir, ana yorumu listede olmayan yanıt gösterilmez, sayaç yanıtları da sayar; yanıt kartında "↳ ad" (+ gizli "yanıt: ").
+- **Profil fotoğrafı:** `profiles.foto_url` (herkes okur; sahte istemcide `PROFIL_SUTUNLARI`'nda). Kural JS `kurallar.js
+  profilFotoGecerli(url, id)` = SQL `profil_foto_gecerli` (yalnız `.../profil-fotograflari/<kendi id>/<ad>.(webp|jpg|jpeg|png)`).
+  Kişi kendisi koyar (onaylı, yasaklı değil); yönetici başkasınınkini yalnız null yapar. Kova `profil-fotograflari` (300 KB,
+  webp/jpeg/png; yazma yalnız `<uid>/`). `ortak.js avatarOgesi(ad, url, id, { boyut, alt })`: geçerli fotoğrafsa `img.avatar`
+  (lazy, crossorigin, açılmazsa baş harfe döner), değilse baş harf. Profil: yükle/değiştir/kaldır (`gorsel-kucult.js` yalnız yüklerken
+  dinamik import: modulepreload değişmedi; 256 px WebP, `<uid>/<uuid>.webp`, eski dosya silinir). Panel Yorumlar: önizleme +
+  "Profil fotoğrafını kaldır". Örnek yanıt sahte veride Haber 3'te.
+
+## 018 — gol anı, asist, maç kadrosu, oyuncu sayfası
+- Migration `supabase/migrations/018_gol_ani_asist.sql` (yeniden çalıştırılabilir; 014-017 `sürüm` işaretli fonksiyonlara dokunmaz).
+  `goller.asist` (null ya da 2-80, tetikleyici `gol_ani_kontrol` boşu null yapar), `goller.video_baslangic_sn` / `video_bitis_sn`
+  (smallint, ikisi birlikte, 0-21600, bitiş > başlangıç, yalnız YouTube; kısıt `goller_video_aralik` + Türkçe mesaj). JS aynası
+  `kurallar.js golAniHatalari`. `mac_oyunculari(mac_id → maclar cascade, oyuncu 2-80, ilk11, giris_dk, cikis_dk, sari 0-2, kirmizi;
+  PK (mac_id, oyuncu))`: herkes okur, yalnız `is_admin()` yazar, TRUNCATE yok. Yalnız maça çıkan Çorum FK oyuncuları; kırmızıda
+  çıkış = kart dakikası.
+- Dakika: `kurallar.js oynamaDakikasi` (ilk 11 → çıkış ?? 90; yedek → (çıkış ?? 90) − giriş; uzatma 90). Ad eşleştirme
+  `oyuncuAnahtari` (metinKatla + aksan + boşluk; goller.oyuncu / goller.asist / mac_oyunculari.oyuncu = oyuncular.ad), özet `oyuncuOzeti`.
+- `videoFasad(url, { baslangic, bitis })` YouTube gömmesine `&start=&end=` ekler (yalnız verilirse); süre rozeti aralığın süresi (`golSuresi`).
+- Panel: gol formunda "Asist" (`#g-asist`, `datalist#kadro-adlari`), "Video başlangıç / Bitiş (sn)" (`#g-bas`, `#g-bit`); maç düzenlenirken
+  `section#kadro-bolumu` (oyuncu, İlk 11, giriş/çıkış dk, sarı, kırmızı; ekle/düzenle/sil).
+- Canlı veri: 21 golün gol anı/asisti ve 10 maçın kadrosu ayrı veri SQL'iyle yazılır (depoda değil; kaynak: beIN SPORTS Türkiye YouTube
+  kanalı ve kulübün maç sayfalarındaki maç olayları; oyuncu sayfasında "Kaynak: maç olayları (kulübün maç sayfaları)").
+- Bu sütunları okuyan sayfalar (ana, goller, gol, mac, oyuncu) canlıda 018 çalışmadan yayınlanmamalı (PostgREST "column does not exist").

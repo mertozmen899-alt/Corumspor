@@ -129,6 +129,7 @@ async function performansTestleri() {
     ['takim.html', '#kadro-icerik[data-durum="tamam"]'],
     [`haber.html?id=${H1}`, '#haber[data-durum="tamam"]'],
     ['profil.html', '#profil[data-durum="tamam"]'],
+    ['oyuncu.html?id=55555555-0000-4000-8000-000000000007', '#oyuncu[data-durum="tamam"]'], // 018
   ];
 
   // ------------------------------------------------------------------ LCP ve CLS (kısmalı)

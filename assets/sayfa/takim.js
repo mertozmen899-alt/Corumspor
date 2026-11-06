@@ -1,5 +1,5 @@
 // Takım: sekmeler (WAI-ARIA tablist; seçili sekme adreste #kadro | #sakatlik | #fikstur, geri tuşu çalışır)
-//  Kadro: mevkiye göre gruplu oyuncu kartları (fotoğraf yalnız hakkı varsa; yoksa forma numarası)
+//  Kadro: mevkiye göre gruplu oyuncu kartları (fotoğraf yalnız hakkı varsa; yoksa forma numarası); 018: kart → oyuncu.html?id=
 //  Sakatlık: yalnız durum (Sakat / Cezalı / Durumu belirsiz / Döndü), kaynağı (bağlantılı) ve kaynak tarihiyle. Tanı / açıklama
 //  metni (aciklama) ziyaretçiye HİÇ gösterilmez ve istenmez (KVKK m.6 sağlık verisi; 014'ten beri yalnız yönetici okur).
 //  Fikstür: sıradaki maçlar (yakından uzağa) ve sonuçlar (yeniden eskiye), ay başlıklarıyla; sonuç harfle (G/B/M)
@@ -38,7 +38,9 @@ function oyuncuKarti(o, sakatlik) {
   const k = kapakKaynagi(o.foto_url, { varsayilan: 480, kutu: 180 });
   const durum = sakatlik && sakatlik.durum !== 'dondu' ? sakatlik.durum : null;
   // Mevki başlığı (DEFANS…) zaten grubun adı; fotoğraf yoksa forma no kartın büyük rakamı: meta satırı tekrar etmez (tasarımcı 5)
-  return h('li', null, h('div', { class: 'oyuncu-kart', 'data-oyuncu-id': o.id },
+  // 018: kart oyuncu sayfasına giden TEK bağlantı (bu sezonun maç, dakika, gol, asist ve kart sayıları)
+  const ad = [o.ad, o.forma_no != null ? `forma numarası ${o.forma_no}` : null, durum ? SAKATLIK_ETIKETI[durum] || durum : null].filter(Boolean).join(', ');
+  return h('li', null, h('a', { class: 'oyuncu-kart', href: 'oyuncu.html?id=' + encodeURIComponent(o.id), 'data-oyuncu-id': o.id, 'aria-label': `${ad}: oyuncu sayfası` },
     durum ? h('span', { class: 'oyuncu-isaret durum-cip ' + durum }, SAKATLIK_ETIKETI[durum] || durum) : null,
     h('div', { class: 'oyuncu-gorsel gunes-motif', 'aria-hidden': k ? null : 'true' },
       k ? kapakGorseli(k, { width: '320', height: '240', loading: 'lazy' }) : h('span', { class: 'no' }, o.forma_no ?? '–')),

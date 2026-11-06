@@ -942,3 +942,112 @@ select test.esit('maç özeti (016): ziyaretçi özeti değiştiremez (0 satır)
   test.satir($q$update public.maclar set ozet_video_url = null, ozet_video_kaynak = null where id = '11111111-0000-4000-8000-000000000001'$q$)::text, '0');
 reset role;
 update public.maclar set hafta = null, ozet_video_url = null, ozet_video_kaynak = null where id = '11111111-0000-4000-8000-000000000001';
+
+-- ================================================================ 017: yorumlara yanıt ve profil fotoğrafı
+insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at) values
+  ('bbbbbbbb-0000-4000-8000-000000017a01', 'yanit1@ornek.test', '{"kullanici_adi":"yanitci_bir"}', now()),
+  ('bbbbbbbb-0000-4000-8000-000000017a02', 'yanit2@ornek.test', '{"kullanici_adi":"yanitci_iki"}', now());
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000017a01', false);
+set role authenticated;
+select test.esit('yanıt (017): ana yorum', test.satir($q$insert into public.yorumlar (id, mac_id, metin) values ('44444444-0000-4000-8000-0000000000a1', '11111111-0000-4000-8000-000000000003', '017 ana yorum')$q$)::text, '1');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000017a02', false);
+set role authenticated;
+select test.esit('yanıt (017): başka taraftar yanıt verir (hedef istemciden gelmese de ana yorumdan kopyalanır)',
+  test.satir($q$insert into public.yorumlar (id, mac_id, ust_yorum_id, metin) values ('44444444-0000-4000-8000-0000000000a2', '11111111-0000-4000-8000-000000000001', '44444444-0000-4000-8000-0000000000a1', '017 yanıt')$q$)::text, '1');
+select test.esit('yanıt (017): yanıtın hedefi ana yorumunki', (select mac_id::text from public.yorumlar where id = '44444444-0000-4000-8000-0000000000a2'), '11111111-0000-4000-8000-000000000003');
+select test.esit('yanıt (017): yanıtın yanıtı ana yoruma bağlanır (tek seviye)',
+  test.satir($q$insert into public.yorumlar (id, mac_id, ust_yorum_id, metin) values ('44444444-0000-4000-8000-0000000000a3', '11111111-0000-4000-8000-000000000003', '44444444-0000-4000-8000-0000000000a2', '017 yanıta yanıt')$q$)::text, '1');
+select test.esit('yanıt (017): tek seviye (sonuç)', (select ust_yorum_id::text from public.yorumlar where id = '44444444-0000-4000-8000-0000000000a3'), '44444444-0000-4000-8000-0000000000a1');
+select test.hata_bekle('yanıt (017): olmayan yoruma yanıt verilemez',
+  $q$insert into public.yorumlar (mac_id, ust_yorum_id, metin) values ('11111111-0000-4000-8000-000000000003', '44444444-0000-4000-8000-0000000000ff', '017 boşa yanıt')$q$, 'bulunamadı');
+select test.hata_bekle('yanıt (017): yanıt başka yoruma taşınamaz',
+  $q$update public.yorumlar set ust_yorum_id = null where id = '44444444-0000-4000-8000-0000000000a2'$q$, 'değiştirilemez');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000017a01', false);
+set role authenticated;
+select test.esit('yanıt (017): ana yorum silinince yanıtları da gider', test.satir($q$delete from public.yorumlar where id = '44444444-0000-4000-8000-0000000000a1'$q$)::text, '1');
+reset role;
+select test.esit('yanıt (017): yanıtlar silindi (sonuç)', (select count(*) from public.yorumlar where id in ('44444444-0000-4000-8000-0000000000a2', '44444444-0000-4000-8000-0000000000a3'))::text, '0');
+
+-- profil fotoğrafı
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000017a01', false);
+set role authenticated;
+select test.esit('foto (017): kendi klasörüne yükler', test.satir($q$insert into storage.objects (bucket_id, name) values ('profil-fotograflari', 'bbbbbbbb-0000-4000-8000-000000017a01/a1.webp')$q$)::text, '1');
+select test.hata_bekle('foto (017): başkasının klasörüne yükleyemez',
+  $q$insert into storage.objects (bucket_id, name) values ('profil-fotograflari', 'bbbbbbbb-0000-4000-8000-000000017a02/a1.webp')$q$, 'row-level security');
+select test.esit('foto (017): kendi profiline kendi klasöründeki fotoğrafı koyar',
+  test.satir($q$update public.profiles set foto_url = 'https://abcd.supabase.co/storage/v1/object/public/profil-fotograflari/bbbbbbbb-0000-4000-8000-000000017a01/a1.webp' where id = 'bbbbbbbb-0000-4000-8000-000000017a01'$q$)::text, '1');
+select test.hata_bekle('foto (017): başkasının klasöründeki dosyayı kendi fotoğrafı yapamaz',
+  $q$update public.profiles set foto_url = 'https://abcd.supabase.co/storage/v1/object/public/profil-fotograflari/bbbbbbbb-0000-4000-8000-000000017a02/a1.webp' where id = 'bbbbbbbb-0000-4000-8000-000000017a01'$q$, 'profiles_foto');
+select test.hata_bekle('foto (017): başka siteden fotoğraf olmaz',
+  $q$update public.profiles set foto_url = 'https://ornek.test/ben.jpg' where id = 'bbbbbbbb-0000-4000-8000-000000017a01'$q$, 'profiles_foto');
+reset role;
+set role anon;
+select test.esit('foto (017): ziyaretçi fotoğraf adresini okur (yorumlarda görünür)',
+  (select (foto_url like '%/profil-fotograflari/bbbbbbbb-0000-4000-8000-000000017a01/a1.webp')::text from public.profiles where id = 'bbbbbbbb-0000-4000-8000-000000017a01'), 'true');
+reset role;
+update public.profiles set engelli = true where id = 'bbbbbbbb-0000-4000-8000-000000017a02';
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000017a02', false);
+set role authenticated;
+select test.hata_bekle('foto (017): yasaklı hesap fotoğraf yükleyemez',
+  $q$insert into storage.objects (bucket_id, name) values ('profil-fotograflari', 'bbbbbbbb-0000-4000-8000-000000017a02/b.webp')$q$, 'row-level security');
+reset role;
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.esit('foto (017): yönetici uygunsuz fotoğrafı kaldırır',
+  test.satir($q$update public.profiles set foto_url = null where id = 'bbbbbbbb-0000-4000-8000-000000017a01'$q$)::text, '1');
+select test.hata_bekle('foto (017): yönetici başkasına fotoğraf koyamaz',
+  $q$update public.profiles set foto_url = 'https://abcd.supabase.co/storage/v1/object/public/profil-fotograflari/bbbbbbbb-0000-4000-8000-000000017a01/a1.webp' where id = 'bbbbbbbb-0000-4000-8000-000000017a01'$q$, 'yalnız kaldırabilir');
+select test.esit('foto (017): yönetici dosyayı da siler', test.satir($q$delete from storage.objects where bucket_id = 'profil-fotograflari' and name = 'bbbbbbbb-0000-4000-8000-000000017a01/a1.webp'$q$)::text, '1');
+reset role;
+
+-- ================================================================ 018: gol anı, asist ve maç kadrosu
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.esit('gol anı (018): yönetici asist ve YouTube aralığı yazar (boşluklar temizlenir)',
+  test.satir($q$update public.goller set asist = ' Veli Örnek ', video_baslangic_sn = 12, video_bitis_sn = 30 where id = '22222222-0000-4000-8000-000000000001'$q$)::text, '1');
+select test.hata_bekle('gol anı (018): bitiş başlangıçtan sonra olmalı',
+  $q$update public.goller set video_baslangic_sn = 30, video_bitis_sn = 30 where id = '22222222-0000-4000-8000-000000000001'$q$, 'başlangıçtan sonra');
+select test.hata_bekle('gol anı (018): başlangıç ve bitiş birlikte',
+  $q$update public.goller set video_baslangic_sn = 5, video_bitis_sn = null where id = '22222222-0000-4000-8000-000000000001'$q$, 'birlikte');
+select test.hata_bekle('gol anı (018): 21600 sn sınırı',
+  $q$update public.goller set video_baslangic_sn = 10, video_bitis_sn = 30000 where id = '22222222-0000-4000-8000-000000000001'$q$, 'goller_video_aralik');
+select test.hata_bekle('gol anı (018): videosuz golde aralık olmaz (yalnız YouTube)',
+  $q$update public.goller set video_baslangic_sn = 1, video_bitis_sn = 9 where id = '22222222-0000-4000-8000-000000000002'$q$, 'yalnız YouTube');
+select test.hata_bekle('gol anı (018): asist 2-80 karakter',
+  $q$update public.goller set asist = 'A' where id = '22222222-0000-4000-8000-000000000002'$q$, 'goller_asist');
+select test.esit('kadro (018): yönetici maç kadrosu yazar',
+  test.satir($q$insert into public.mac_oyunculari (mac_id, oyuncu, ilk11, cikis_dk, sari) values ('11111111-0000-4000-8000-000000000001', '  Ali   Örnek ', true, 70, 1), ('11111111-0000-4000-8000-000000000001', 'Veli Örnek', false, null, 0)$q$)::text, '2');
+select test.esit('kadro (018): yedek girişi güncellenir',
+  test.satir($q$update public.mac_oyunculari set giris_dk = 70 where mac_id = '11111111-0000-4000-8000-000000000001' and oyuncu = 'Veli Örnek'$q$)::text, '1');
+select test.hata_bekle('kadro (018): ilk 11''de giriş dakikası olmaz',
+  $q$insert into public.mac_oyunculari (mac_id, oyuncu, ilk11, giris_dk) values ('11111111-0000-4000-8000-000000000001', 'Can Örnek', true, 10)$q$, 'giriş dakikası olmaz');
+select test.hata_bekle('kadro (018): çıkış girişten önce olamaz',
+  $q$insert into public.mac_oyunculari (mac_id, oyuncu, giris_dk, cikis_dk) values ('11111111-0000-4000-8000-000000000001', 'Can Örnek', 60, 50)$q$, 'önce olamaz');
+select test.hata_bekle('kadro (018): en çok 2 sarı',
+  $q$insert into public.mac_oyunculari (mac_id, oyuncu, ilk11, sari) values ('11111111-0000-4000-8000-000000000001', 'Can Örnek', true, 3)$q$, 'mac_oyunculari_kart');
+select test.hata_bekle('kadro (018): aynı maçta aynı oyuncu iki kez olmaz',
+  $q$insert into public.mac_oyunculari (mac_id, oyuncu, ilk11) values ('11111111-0000-4000-8000-000000000001', 'Ali Örnek', true)$q$, 'duplicate');
+reset role;
+set role anon;
+select test.esit('gol anı (018): ziyaretçi asist ve aralığı okur',
+  (select asist || '|' || video_baslangic_sn || '-' || video_bitis_sn from public.goller where id = '22222222-0000-4000-8000-000000000001'), 'Veli Örnek|12-30');
+select test.esit('kadro (018): ziyaretçi maç kadrosunu okur (ad boşlukları temizlenmiş)',
+  (select string_agg(oyuncu || ':' || coalesce(giris_dk::text, '-') || ':' || coalesce(cikis_dk::text, '-'), ',' order by oyuncu) from public.mac_oyunculari where mac_id = '11111111-0000-4000-8000-000000000001'), 'Ali Örnek:-:70,Veli Örnek:70:-');
+select test.hata_bekle('kadro (018): ziyaretçi kadro yazamaz',
+  $q$insert into public.mac_oyunculari (mac_id, oyuncu, ilk11) values ('11111111-0000-4000-8000-000000000001', 'Sahte Oyuncu', true)$q$, 'permission denied|row-level security');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000017a01', false);
+set role authenticated;
+select test.hata_bekle('kadro (018): taraftar kadro yazamaz (RLS)',
+  $q$insert into public.mac_oyunculari (mac_id, oyuncu, ilk11) values ('11111111-0000-4000-8000-000000000001', 'Sahte Oyuncu', true)$q$, 'row-level security');
+select test.esit('kadro (018): taraftar kartı değiştiremez (0 satır)',
+  test.satir($q$update public.mac_oyunculari set sari = 0 where mac_id = '11111111-0000-4000-8000-000000000001'$q$)::text, '0');
+select test.esit('gol anı (018): taraftar asisti değiştiremez (0 satır)',
+  test.satir($q$update public.goller set asist = null where id = '22222222-0000-4000-8000-000000000001'$q$)::text, '0');
+reset role;
+select test.esit('kadro (018): TRUNCATE yetkisi yok',
+  (not has_table_privilege('anon', 'public.mac_oyunculari', 'TRUNCATE') and not has_table_privilege('authenticated', 'public.mac_oyunculari', 'TRUNCATE'))::text, 'true');
+update public.goller set asist = null, video_baslangic_sn = null, video_bitis_sn = null where id = '22222222-0000-4000-8000-000000000001';
+delete from public.mac_oyunculari;

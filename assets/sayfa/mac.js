@@ -26,7 +26,7 @@ async function yukle() {
   if (!kimlikGecerli(id)) return bulunamadi();
   const [macS, golS] = await Promise.all([
     supabase.from('maclar').select('*').eq('id', id).maybeSingle(),
-    supabase.from('goller').select('id, oyuncu, dakika, ek_dakika, penalti, video_url, aciklama, kapak_url, sure_sn').eq('mac_id', id).order('dakika', { ascending: true }),
+    supabase.from('goller').select('id, oyuncu, dakika, ek_dakika, penalti, video_url, aciklama, kapak_url, sure_sn, asist, video_baslangic_sn, video_bitis_sn').eq('mac_id', id).order('dakika', { ascending: true }),
   ]);
   const { data: mac, error } = macS;
   if (error) return yuklenemedi();

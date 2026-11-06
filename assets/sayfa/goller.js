@@ -1,19 +1,20 @@
 // Gol arşivi: Sezon (Temmuz–Haziran, "2026-27") ve Rakip filtreleri (fieldset/legend + yerel radyo düğmeleri; rakip çoksa
-// <select>), sonuç sayısı #durum'a duyurulur, seçim adrese yazılır (?sezon=&rakip=). Goller maç maç gruplanır; her gol
-// gol.html?id= sayfasına giden TEK bağlantı. Video bu sayfada yüklenmez (YouTube'a istek yok). 016: grup başlığında
-// "N. Hafta"; maçın özet videosu varsa "Özeti izle ▶" (mac.html?id=…#ozet), golsüz ama özetli maç da listelenir.
-import { supabase, hazir, h, $, sayfaBaslat, hataMetni, duyur, cevrimdisiKutusu, eslesmeOgeleri } from '../ortak.js';
+// <select>), sonuç sayısı #durum'a duyurulur, seçim adrese yazılır (?sezon=&rakip=&ac=). 018: her maç TEK satır (açılır düğme,
+// aria-expanded + aria-controls): "1. Hafta · Galatasaray – Çorum FK 2 – 2"; dokununca altında o maçın golleri dakika sırasıyla
+// kompakt satırlar ("59' Alexandros Kyziridis · Asist: Fredy ▶") → gol.html?id= (video orada, dokununca, yalnız gol anı).
+// Golsüz maç listelenmez, maç özeti bu sayfada yok (maç sayfasında). Video bu sayfada yüklenmez (YouTube'a istek yok).
+import { supabase, hazir, h, $, sayfaBaslat, hataMetni, duyur, cevrimdisiKutusu, evSahibiDeplasman, skorOgesi, skorMetni } from '../ortak.js';
 import { sezonAdi } from '../kurallar.js';
-import { golKarti, macEtiketi, kartTarihi } from '../gol-kart.js';
+import { golAniSatiri, macEtiketi, kartTarihi } from '../gol-kart.js';
 import { sonVeri, sonVeriYaz } from '../onbellek.js';
 
-const MAC_SAYFA = 8;        // "Daha fazla gol" her basışta 8 maç daha
+const MAC_SAYFA = 20;       // "Daha fazla maç" her basışta 20 maç daha (satırlar kompakt)
 const RAKIP_SECIM_SINIRI = 10; // daha çok rakip varsa radyo yerine <select>
 const arsiv = $('#arsiv');
 const dugme = $('#daha-fazla');
 let maclar = [];
 let gosterilenMac = 0;
-const secim = { sezon: null, rakip: '' };
+const secim = { sezon: null, rakip: '', ac: '' };
 const oturumS = sayfaBaslat();
 
 const golSirasi = (a, b) => a.dakika - b.dakika || (a.ek_dakika || 0) - (b.ek_dakika || 0);
@@ -26,6 +27,7 @@ function adresYaz() {
   const u = new URL(location.href);
   if (secim.sezon) u.searchParams.set('sezon', secim.sezon); else u.searchParams.delete('sezon');
   if (secim.rakip) u.searchParams.set('rakip', secim.rakip); else u.searchParams.delete('rakip');
+  if (secim.ac) u.searchParams.set('ac', secim.ac); else u.searchParams.delete('ac');
   history.replaceState(null, '', u.pathname.split('/').pop() + u.search);
 }
 
@@ -67,19 +69,32 @@ function ozetYaz(liste, duyurulsun) {
 
 function macGrubu(mac) {
   const goller = [...mac.goller].sort(golSirasi);
-  const adres = 'mac.html?id=' + encodeURIComponent(mac.id);
-  // 016: maçın özet videosu varsa grup bağlantısı doğrudan özete gider (maç sayfasında dokununca yüklenir)
-  const ozet = !!mac.ozet_video_url;
-  return h('section', { class: 'arsiv-mac', 'data-mac-id': mac.id, 'aria-labelledby': 'mac-' + mac.id },
-    h('div', { class: 'grup-baslik' },
-      h('span', { class: 'grup-ust' }, mac.hafta ? `${mac.hafta}. Hafta · ` : '', kartTarihi(mac.tarih), ' · ', mac.ic_saha ? 'İç saha' : 'Deplasman'),
-      h('h2', { id: 'mac-' + mac.id }, eslesmeOgeleri(mac)),
-      ozet ? h('a', { href: adres + '#ozet', 'aria-label': `Maç özetini izle: ${macEtiketi(mac)}` }, 'Özeti izle ▶')
-        : h('a', { href: adres, 'aria-label': `Maç ayrıntısı: ${macEtiketi(mac)}` }, 'Maç →')),
-    // Grup başlığı maçı zaten söylüyor: kartta maç satırı tekrar edilmez (tasarımcı 5)
-    goller.length ? h('ul', { class: 'gol-listesi' }, goller.map((g, i) => h('li', { class: 'gol' }, golKarti(g, mac, { ilk: gosterilenMac === 0 && i === 0, macSatiri: false, kutu: Math.min(innerWidth, 720) - 32 }))))
-      : h('p', { class: 'soluk' }, 'Bu maçta golümüz yok; özeti izleyebilirsin.'));
+  const [ev, dep] = evSahibiDeplasman(mac);
+  const acik = secim.ac === mac.id;
+  const panel = 'goller-' + mac.id;
+  return h('section', { class: 'arsiv-mac', 'data-mac-id': mac.id },
+    h('h2', { class: 'mac-ac-baslik' },
+      h('button', { type: 'button', class: 'mac-ac', id: 'mac-' + mac.id, 'aria-expanded': String(acik), 'aria-controls': panel },
+        h('span', { class: 'mac-ac-metin' },
+          h('span', { class: 'mac-ac-satir' }, mac.hafta ? h('span', { class: 'hafta' }, `${mac.hafta}. Hafta · `) : null, ev, ' – ', dep, ' ', skorOgesi(skorMetni(mac) || '–')),
+          h('small', { class: 'mac-ac-alt' }, kartTarihi(mac.tarih), ' · ', mac.ic_saha ? 'İç saha' : 'Deplasman', ' · ', `${goller.length} gol`)),
+        h('span', { class: 'mac-ac-ok', 'aria-hidden': 'true' }))),
+    h('div', { class: 'mac-goller', id: panel, hidden: !acik },
+      h('ul', { class: 'gol-ani-listesi', 'aria-label': `${macEtiketi(mac)} golleri` }, goller.map((g) => h('li', { class: 'gol' }, golAniSatiri(g, mac)))),
+      h('a', { class: 'mac-baglanti-kucuk', href: 'mac.html?id=' + encodeURIComponent(mac.id) }, 'Maç sayfası', h('span', { 'aria-hidden': 'true' }, ' →'))));
 }
+
+function macAc(dugmeEl, acik) {
+  dugmeEl.setAttribute('aria-expanded', String(acik));
+  document.getElementById(dugmeEl.getAttribute('aria-controls')).hidden = !acik;
+  const id = dugmeEl.closest('.arsiv-mac').dataset.macId;
+  if (acik) secim.ac = id; else if (secim.ac === id) secim.ac = '';
+  adresYaz();
+}
+arsiv.addEventListener('click', (e) => {
+  const b = e.target.closest('button.mac-ac');
+  if (b) macAc(b, b.getAttribute('aria-expanded') !== 'true');
+});
 
 function listeyiCiz({ duyurulsun = false } = {}) {
   const liste = suzulmus();
@@ -91,6 +106,9 @@ function listeyiCiz({ duyurulsun = false } = {}) {
     arsiv.append(h('div', { class: 'filtre-bos' }, h('p', { class: 'bos' }, maclar.length ? 'Bu filtrede gol yok.' : 'Gol arşivi yakında dolacak.'), maclar.length ? temizle : null));
   }
   dahaCiz(liste);
+  // Adresteki açık maç (?ac=) ilk sayfada değilse onu da içerene kadar çiz
+  if (secim.ac && !liste.some((m) => m.id === secim.ac)) secim.ac = '';
+  while (secim.ac && !arsiv.querySelector(`.arsiv-mac[data-mac-id="${CSS.escape(secim.ac)}"]`) && !dugme.hidden) dahaCiz(liste);
   ozetYaz(liste, duyurulsun);
 }
 
@@ -118,20 +136,20 @@ for (const f of [$('#sezon-formu'), $('#filtreler')]) { f.addEventListener('chan
 
 dugme.addEventListener('click', () => {
   const ilk = dahaCiz();
-  duyur(dugme.hidden ? 'Bütün goller gösteriliyor.' : 'Daha fazla gol yüklendi.');
-  const odak = ilk && ilk.querySelector('a.video-kart, a.gol-satir');
+  duyur(dugme.hidden ? 'Bütün maçlar gösteriliyor.' : 'Daha fazla maç yüklendi.');
+  const odak = ilk && ilk.querySelector('button.mac-ac');
   if (odak) odak.focus(); else dugme.focus();
 });
 
 async function yukle() {
   const { data, error } = await supabase.from('maclar')
-    .select('id, rakip, tarih, ic_saha, corum_skor, rakip_skor, durum, hafta, ozet_video_url, goller(id, oyuncu, dakika, ek_dakika, penalti, video_url, aciklama, kapak_url, sure_sn)')
+    .select('id, rakip, tarih, ic_saha, corum_skor, rakip_skor, durum, hafta, goller(id, oyuncu, dakika, ek_dakika, penalti, video_url, aciklama, kapak_url, sure_sn, asist, video_baslangic_sn, video_bitis_sn)')
     .order('tarih', { ascending: false }).limit(300);
-  // Golü ya da özet videosu olan maçlar (golsüz maçın özeti de izlenebilsin; oynanmamış maç listelenmez)
-  const dolu = (data || []).filter((m) => (m.goller || []).length || m.ozet_video_url);
+  // Yalnız golü olan maçlar (en yeni üstte)
+  const dolu = (data || []).filter((m) => (m.goller || []).length);
   if (error) {
     const eski = sonVeri('goller');
-    if (eski) { maclar = eski.veri; filtreleriCiz(); listeyiCiz(); arsiv.prepend(cevrimdisiKutusu('Bağlantı yok; son görülen goller gösteriliyor.', () => location.reload(), { sonGuncelleme: eski.zaman })); arsiv.dataset.durum = 'onbellek'; return; }
+    if (eski) { maclar = eski.veri.filter((m) => (m.goller || []).length); filtreleriCiz(); listeyiCiz(); arsiv.prepend(cevrimdisiKutusu('Bağlantı yok; son görülen goller gösteriliyor.', () => location.reload(), { sonGuncelleme: eski.zaman })); arsiv.dataset.durum = 'onbellek'; return; }
     arsiv.replaceChildren(cevrimdisiKutusu(hataMetni(error, 'Goller yüklenemedi.'), () => { arsiv.replaceChildren(); yukle(); }));
     // Filtre iskeletleri sonsuza kadar kalmaz: veri yokken filtre de yok (tasarımcı 4)
     $('#sezon-formu').hidden = true; $('#filtreler').hidden = true;
@@ -144,6 +162,7 @@ async function yukle() {
   const p = new URLSearchParams(location.search);
   secim.sezon = p.get('sezon');
   secim.rakip = p.get('rakip') || '';
+  secim.ac = p.get('ac') || '';
   filtreleriCiz();
   listeyiCiz();
   arsiv.dataset.durum = 'tamam';

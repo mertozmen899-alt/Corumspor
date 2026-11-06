@@ -690,6 +690,15 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
 .yorum-eylem { display: flex; gap: 8px; margin: 4px 0 0 -10px; flex-wrap: wrap; }
 .yorum-eylem .tehlike { margin-left: 8px; }
 .yorum-duzenle textarea { min-height: 80px; }
+/* 017: profil fotoğrafı (img.avatar) ve tek seviye yanıtlar (ana yorumun içinde, girintili, eskiden yeniye) */
+img.avatar { display: block; object-fit: cover; background: var(--yuzey-2); }
+.yanitlar { list-style: none; margin: 8px 0 0; padding: 0 0 0 12px; border-left: 2px solid var(--kenar); }
+.yanitlar .yorum { grid-template-columns: 28px minmax(0, 1fr); gap: 8px; padding: 8px 0; }
+.yanitlar .yorum .avatar { width: 28px; height: 28px; font-size: .75rem; }
+.yanit-kime { color: var(--metin-soluk); }
+.yanit-formu { margin: 8px 0 0; }
+.yanit-formu textarea { min-height: 64px; }
+.yanit-formu .sayac { margin: 4px 0 8px; }
 .giris-cagri { display: grid; gap: 8px; justify-items: start; padding: 12px 16px; border: 1px solid var(--kenar); border-radius: var(--r-kart); background: var(--yuzey); }
 .giris-cagri p { margin: 0; }
 
@@ -737,6 +746,10 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
 /* ---------- 21. Profil ---------- */
 .profil-bas { text-align: center; padding: 24px 0 8px; }
 .profil-bas .avatar { width: 72px; height: 72px; font-size: 1.75rem; margin-bottom: 8px; }
+.profil-bas img.avatar { display: inline-block; vertical-align: top; } /* 017: profil fotoğrafı ortada */
+.profil-foto { margin: 12px 0 0; }
+.profil-foto .dugme-satir { justify-content: center; }
+.profil-bas .profil-foto p { margin: 8px 0 0; }
 /* İskelet misafir görünümüyle aynı boyda (çoğu ziyaretçi misafir): oturum bilgisi gelince alttaki Görünüm kaymaz */
 .profil-iskelet { min-height: 316px; display: flex; flex-direction: column; align-items: center; }
 .profil-iskelet .iskelet-satir { width: 70%; margin: 10px auto 0; }
@@ -833,3 +846,46 @@ dialog.sayfa-alt h2 { font-size: 1.375rem; }
 .yorum-siralama { align-items: center; }
 .yorum-siralama-etiket { font-size: .875rem; font-weight: 700; color: var(--metin-soluk); }
 .yorum-siralama .hayalet[aria-pressed="true"] { color: var(--metin); background: var(--yuzey-2); box-shadow: inset 0 -3px 0 var(--vurgu); }
+
+/* 018: gol arşivi açılır maç satırları, gol anı satırı, oyuncu sayfası */
+.arsiv-iskelet { display: grid; gap: var(--b-2); margin-top: var(--b-4); }
+.iskelet-mac { display: block; height: 64px; border-radius: var(--r-kart); }
+#arsiv .arsiv-mac { margin-top: var(--b-2); }
+#arsiv .arsiv-mac:first-child { margin-top: var(--b-4); }
+.mac-ac-baslik { margin: 0; font-size: 1rem; }
+.mac-ac { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 10px 14px; text-align: left; font: inherit; color: var(--metin); background: var(--yuzey); border: 1px solid var(--kenar); border-radius: var(--r-kart); cursor: pointer; }
+.mac-ac:hover { border-color: var(--kenar-guclu); }
+.mac-ac[aria-expanded="true"] { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-color: var(--kenar-guclu); }
+.mac-ac-metin { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.mac-ac-satir { font-weight: 700; line-height: var(--lh-kart); overflow-wrap: anywhere; }
+.mac-ac-satir .hafta { color: var(--vurgu-guclu); white-space: nowrap; }
+.mac-ac-satir .skor-blok { font-variant-numeric: tabular-nums; }
+.mac-ac-alt { color: var(--metin-soluk); font-size: var(--fs-meta); font-weight: 400; line-height: var(--lh-meta); }
+.mac-ac-ok { flex: none; width: 10px; height: 10px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: translateY(-3px) rotate(45deg); }
+.mac-ac[aria-expanded="true"] .mac-ac-ok { transform: translateY(2px) rotate(-135deg); }
+.mac-goller { border: 1px solid var(--kenar-guclu); border-top: 0; border-radius: 0 0 var(--r-kart) var(--r-kart); padding: 4px 8px 8px; background: var(--yuzey); }
+.gol-ani-listesi { list-style: none; margin: 0; padding: 0; }
+.gol-ani-listesi li + li { border-top: 1px solid var(--kenar); }
+.gol-satir.gol-ani { min-height: var(--dokunma); padding: 8px 6px; border: 0; border-radius: var(--r-saat); background: none; flex-wrap: nowrap; }
+.gol-satir .asist { color: var(--metin-soluk); font-size: var(--fs-meta); }
+.gol-ani .oyuncu { text-transform: none; letter-spacing: 0; font-family: var(--font-govde); }
+.gol-ani .oynat-isaret { color: var(--vurgu-guclu); }
+.mac-baglanti-kucuk { display: inline-flex; align-items: center; gap: 4px; min-height: var(--dokunma); padding: 0 6px; font-size: var(--fs-meta); font-weight: 700; }
+.video-kart .asist-satir { display: block; color: var(--metin-soluk); font-size: var(--fs-meta); }
+.gol-asist { margin: 0 0 6px; font-weight: 700; }
+
+.oyuncu-kart { color: inherit; text-decoration: none; }
+a.oyuncu-kart:hover { border-color: var(--kenar-guclu); color: inherit; }
+.oyuncu-bas { display: flex; align-items: center; gap: 16px; margin: 16px 0 8px; }
+.oyuncu-bas .no { flex: none; display: grid; place-items: center; width: 64px; height: 64px; border-radius: var(--r-kart); background: var(--yuzey-2); font-family: var(--font-baslik); font-weight: 700; font-size: 1.75rem; color: var(--vurgu); font-variant-numeric: tabular-nums; }
+.oyuncu-bas h1 { margin: 0; }
+.oyuncu-bas .mevki { margin: 2px 0 0; color: var(--metin-soluk); font-size: var(--fs-meta); }
+.istatistik-izgara { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 359px) { .istatistik-izgara { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.istatistik-izgara li { display: grid; align-content: center; justify-items: center; gap: 2px; min-height: 76px; padding: 8px 4px; border: 1px solid var(--kenar); border-radius: var(--r-kart); background: var(--yuzey); text-align: center; }
+.istatistik-izgara .sayi { font-family: var(--font-govde); font-weight: 700; font-size: 1.75rem; line-height: 1.1; }
+.istatistik-izgara .etiket { color: var(--metin-soluk); font-size: var(--fs-etiket); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; line-height: 1.2; }
+.istatistik-izgara .vurgu .sayi { color: var(--vurgu-guclu); }
+.iskelet-istatistik { display: block; min-height: 76px; border-radius: var(--r-kart); }
+.istatistik-not { margin: 8px 0 0; color: var(--metin-soluk); font-size: var(--fs-meta); }
+.oyuncu-bolum h2 { margin: var(--b-6) 0 var(--b-2); font-size: 1.125rem; }

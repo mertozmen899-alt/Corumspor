@@ -143,7 +143,7 @@ after(() => {
 });
 
 test('gerçek 001 şeması: profiles/is_admin/maclar uygulamanınki, taklit değil; migration sırası 001 → 002 → 010 → 011 → 012 → 013 → 014 → 015', () => {
-  assert.deepEqual(MIGRATIONLAR.map((d) => path.basename(d)), ['001_temel_sema.sql', '002_depolama.sql', '010_reklamlar.sql', '011_denetim_duzeltmeleri.sql', '012_denetim_2.sql', '013_tasarim.sql', '014_inceleme_2.sql', '015_son_tur.sql', '016_mac_ozeti.sql']);
+  assert.deepEqual(MIGRATIONLAR.map((d) => path.basename(d)), ['001_temel_sema.sql', '002_depolama.sql', '010_reklamlar.sql', '011_denetim_duzeltmeleri.sql', '012_denetim_2.sql', '013_tasarim.sql', '014_inceleme_2.sql', '015_son_tur.sql', '016_mac_ozeti.sql', '017_yanit_profil_foto.sql', '018_gol_ani_asist.sql']);
   assert.equal(q("select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name in ('kullanici_adi', 'role')"), '2');
   assert.equal(q("select data_type from information_schema.columns where table_schema = 'public' and table_name = 'maclar' and column_name = 'id'"), 'uuid');
   assert.equal(q(`select role from public.profiles where id = ${lit(UYE)}`), 'taraftar', 'kayıtta metadata rolü yok sayılır');

@@ -29,6 +29,9 @@
 // sayfa açılışı ÷ gösterim (tiklayan_ziyaret), dönem bugünü aşmaz + devam_ediyor (RM.raporDonemi), reklam_ham_satir_alarmi,
 // reklam_gunluk_toplanan (boş: sahte modda gece bakımı yok), şikâyet: saatte 10 / günde 30, yalnız 24 saatlik hesaplar sayılır,
 // yönetici yorumu gizlenmez; görsel/düğme yazısı değişince sektör onayı sıfırlanır; haberler.kaynak_gerekli; ad değiştirme 7 günde bir.
+// 017 (017_yanit_profil_foto.sql): yorumlar.ust_yorum_id (tek seviye yanıt, hedef ana yorumdan, taşınmaz, ana silinince yanıtlar da),
+// profiles.foto_url (herkes okur; K.profilFotoGecerli; kişi kendisi koyar, yönetici başkasınınkini yalnız kaldırır), profil-fotograflari kovası
+// (300 KB webp/jpeg/png, yalnız <uid>/ klasörü; yönetici her dosyayı silebilir). Örnek yanıt: Haber 3'te ayse_19 → burak.
 
 import * as RM from '../assets/reklam/reklam-mantik.js';
 import * as K from '../assets/kurallar.js';
@@ -125,7 +128,7 @@ function baslangicVerisi() {
       { id: U.ayse, kullanici_adi: 'ayse_19', role: 'taraftar', created_at: gunOnce(20) },
       { id: U.burak, kullanici_adi: 'burak', role: 'taraftar', created_at: gunOnce(10) },
       { id: U.dilek, kullanici_adi: 'dilek', role: 'taraftar', created_at: gunOnce(2) },
-    ].map((p) => ({ engelli: false, ...p })),
+    ].map((p) => ({ engelli: false, foto_url: null, ...p })),
     haberler: [
       haber(1, 'Test haberi 1: Sahada üç puan', 'Örnekköy Spor karşısında 2-1 galibiyet.', 1, 'corum-ulu-camii'),
       // 013: manşet (ana sayfanın açılış görseli). Kapağı Saat Kulesi: 016'dan beri hero'ya geçmez (tribün çizimi kalır), haber sayfasında görünür
@@ -148,15 +151,26 @@ function baslangicVerisi() {
       { id: M(5), rakip: 'Eski Rakip', tarih: gunOnce(21, 16), stadyum: 'Eski Stat', ic_saha: false, organizasyon: 'Lig (örnek)', corum_skor: 0, rakip_skor: 2, durum: 'bitti' },
     ].map((m) => ({ mac_notu: null, on_onay: false, hafta: null, ozet_video_url: null, ozet_video_kaynak: null, ...m, created_at: gunOnce(40), updated_at: gunOnce(40) })),
     goller: [
-      { id: G(1), mac_id: M(1), oyuncu: 'Ali Örnek', dakika: 23, ek_dakika: null, penalti: false, video_url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ', video_kaynak: 'Blender Foundation, CC BY 3.0 (örnek video)', altyazi_url: null, aciklama: 'Ceza sahası dışından sert vuruş.', kapak_url: IMG('siklik-kapilari-tabiat-parki'), sure_sn: 42, created_at: gunOnce(14) },
+      { id: G(1), mac_id: M(1), oyuncu: 'Ali Örnek', dakika: 23, ek_dakika: null, penalti: false, video_url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ', video_kaynak: 'Blender Foundation, CC BY 3.0 (örnek video)', altyazi_url: null, aciklama: 'Ceza sahası dışından sert vuruş.', kapak_url: IMG('siklik-kapilari-tabiat-parki'), sure_sn: 42, asist: 'Mehmet Deneme', video_baslangic_sn: 5, video_bitis_sn: 47, created_at: gunOnce(14) }, // 018: asist + gol anı aralığı (42 sn)
       { id: G(2), mac_id: M(1), oyuncu: 'Mehmet Deneme', dakika: 90, ek_dakika: 2, penalti: true, video_url: null, video_kaynak: null, altyazi_url: null, aciklama: null, kapak_url: null, sure_sn: null, created_at: gunOnce(14) },
-      { id: G(3), mac_id: M(2), oyuncu: 'Ali Örnek', dakika: 67, ek_dakika: null, penalti: false, video_url: 'https://ornek.test/videolar/gol-3.mp4', video_kaynak: 'Örnek video (test)', altyazi_url: null, aciklama: 'Kafa golü.', kapak_url: IMG('corum-sehir-ici-gun-batimi'), sure_sn: 38, created_at: gunOnce(7) },
-    ],
+      { id: G(3), mac_id: M(2), asist: 'Orhan Ortasaha', oyuncu: 'Ali Örnek', dakika: 67, ek_dakika: null, penalti: false, video_url: 'https://ornek.test/videolar/gol-3.mp4', video_kaynak: 'Örnek video (test)', altyazi_url: null, aciklama: 'Kafa golü.', kapak_url: IMG('corum-sehir-ici-gun-batimi'), sure_sn: 38, created_at: gunOnce(7) },
+    ].map((g) => ({ asist: null, video_baslangic_sn: null, video_bitis_sn: null, ...g })),
+    // 018: maç kadrosu (yalnız Çorum oyuncuları; uydurma). Ali Örnek: 2 maç (1 ilk 11), 70 + 30 dk, 1 sarı
+    mac_oyunculari: [
+      { mac_id: M(1), oyuncu: 'Ali Örnek', ilk11: true, giris_dk: null, cikis_dk: 70, sari: 1, kirmizi: false },
+      { mac_id: M(1), oyuncu: 'Mehmet Deneme', ilk11: true, giris_dk: null, cikis_dk: null, sari: 0, kirmizi: false },
+      { mac_id: M(1), oyuncu: 'Fikret Forvet', ilk11: false, giris_dk: 70, cikis_dk: null, sari: 0, kirmizi: false },
+      { mac_id: M(2), oyuncu: 'Ali Örnek', ilk11: false, giris_dk: 60, cikis_dk: null, sari: 0, kirmizi: false },
+      { mac_id: M(2), oyuncu: 'Orhan Ortasaha', ilk11: true, giris_dk: null, cikis_dk: 85, sari: 1, kirmizi: true },
+    ].map((x, i) => ({ id: 'mo-' + (i + 1), ...x })), // id yalnız sahte istemcinin silme işi için (gerçek tabloda birincil anahtar mac_id + oyuncu)
     yorumlar: [
       { id: Y(1), kullanici_id: U.ayse, haber_id: H(1), mac_id: null, metin: 'Harika maçtı! <b>kalın değil</b>', gizli: false, onay_bekliyor: false, gizleme_nedeni: null, moderasyon_zamani: null, created_at: gunOnce(1, 10), duzenlendi: null },
       { id: Y(2), kullanici_id: U.burak, haber_id: H(1), mac_id: null, metin: 'Bu yorum gizlendi (kural dışı).', gizli: true, onay_bekliyor: false, gizleme_nedeni: 'yonetici', moderasyon_zamani: null, created_at: gunOnce(1, 11), duzenlendi: null },
       { id: Y(3), kullanici_id: U.burak, haber_id: null, mac_id: M(1), metin: 'Tribünler muhteşemdi.', gizli: false, onay_bekliyor: false, gizleme_nedeni: null, moderasyon_zamani: null, created_at: gunOnce(13, 20), duzenlendi: null },
-    ],
+      // 017: yanıt (tek seviye; hedef ana yorumdan kopyalanır). Haber 3'te: başka testlerin yorum sayılarına dokunmaz
+      { id: Y(4), kullanici_id: U.burak, haber_id: H(3), mac_id: null, metin: 'Bilet kuyruğu uzun mu, bilen var mı?', gizli: false, onay_bekliyor: false, gizleme_nedeni: null, moderasyon_zamani: null, created_at: gunOnce(2, 10), duzenlendi: null },
+      { id: Y(5), kullanici_id: U.ayse, haber_id: H(3), mac_id: null, ust_yorum_id: Y(4), metin: 'Dün akşam kısaydı, erken gidersen sorun yok.', gizli: false, onay_bekliyor: false, gizleme_nedeni: null, moderasyon_zamani: null, created_at: gunOnce(2, 12), duzenlendi: null },
+    ].map((y) => ({ gol_id: null, ust_yorum_id: null, ...y })),
     // 013: kadro ve sakatlıklar (uydurma; sakatlık bilgisi yalnız kulüp açıklamasından, kaynaklı)
     oyuncular: [
       ['Kemal Kaleci', 1, 'kaleci', 1], ['Yedek Eldiven', 12, 'kaleci', 2], ['Deniz Defans', 4, 'defans', 1], ['Barış Bek', 2, 'defans', 2],
@@ -186,7 +200,7 @@ function dbOku() {
     const s = localStorage.getItem(DB_ANAHTAR);
     if (s) {
       const db = JSON.parse(s);
-      for (const k of ['reklamlar', 'reklam_olaylari', 'reklam_sinir_dakikalari', 'yorum_duzenlemeleri', 'oyuncular', 'sakatliklar', 'yorum_sikayetleri', 'yorum_kelimeleri', 'reklam_yerlesimleri', 'reklam_sekme_sayaclari', 'reklam_gunluk_toplanan']) db[k] = db[k] || [];
+      for (const k of ['reklamlar', 'reklam_olaylari', 'reklam_sinir_dakikalari', 'yorum_duzenlemeleri', 'oyuncular', 'sakatliklar', 'yorum_sikayetleri', 'yorum_kelimeleri', 'reklam_yerlesimleri', 'reklam_sekme_sayaclari', 'reklam_gunluk_toplanan', 'mac_oyunculari']) db[k] = db[k] || [];
       return db;
     }
   } catch (e) {}
@@ -209,6 +223,7 @@ const ILISKI = {
   yorumlar: { profiles: ['kullanici_id', 'tek'], haberler: ['haber_id', 'tek'], maclar: ['mac_id', 'tek'], goller: ['gol_id', 'tek'] },
   goller: { maclar: ['mac_id', 'tek'], yorumlar: ['gol_id', 'cok'] },
   sakatliklar: { oyuncular: ['oyuncu_id', 'tek'] },
+  mac_oyunculari: { maclar: ['mac_id', 'tek'] }, // 018
   yorum_sikayetleri: { yorumlar: ['yorum_id', 'tek'] },
   maclar: { goller: ['mac_id', 'cok'], yorumlar: ['mac_id', 'cok'] },
   haberler: { profiles: ['yazar_id', 'tek'], yorumlar: ['haber_id', 'cok'] },
@@ -230,8 +245,8 @@ function secimAyristir(secim) {
   return gommeler;
 }
 
-// 012: profiles'ta sütun yetkisi (GRANT select (id, kullanici_adi, created_at)): role ya da * istenirse "permission denied"
-const PROFIL_SUTUNLARI = ['id', 'kullanici_adi', 'created_at'];
+// 012: profiles'ta sütun yetkisi (GRANT select (id, kullanici_adi, created_at); 017: + foto_url): role ya da * istenirse "permission denied"
+const PROFIL_SUTUNLARI = ['id', 'kullanici_adi', 'created_at', 'foto_url']; // 017: foto_url herkese okunur
 function profilSutunlari(secim) {
   const ust = []; let d = 0; let cur = '';
   for (const ch of String(secim || '*')) {
@@ -364,8 +379,14 @@ class Sorgu {
     const eklenen = [];
     for (const ham of this.veri) {
       const r = { id: uuid(), created_at: simdi(), ...ham };
-      if (['haberler', 'maclar', 'goller', 'oyuncular', 'sakatliklar', 'yorum_kelimeleri'].includes(this.t)) {
+      if (['haberler', 'maclar', 'goller', 'oyuncular', 'sakatliklar', 'yorum_kelimeleri', 'mac_oyunculari'].includes(this.t)) {
         if (!ctx.admin) throw rlsHatasi(this.t);
+        if (this.t === 'mac_oyunculari') { // 018: birincil anahtar (mac_id, oyuncu)
+          Object.assign(r, { ilk11: !!r.ilk11, giris_dk: r.giris_dk ?? null, cikis_dk: r.cikis_dk ?? null, sari: r.sari ?? 0, kirmizi: !!r.kirmizi });
+          macOyuncusuDogrula(r);
+          if (db.mac_oyunculari.some((x) => x.mac_id === r.mac_id && x.oyuncu === r.oyuncu)) throw { code: '23505', message: 'duplicate key value violates unique constraint "mac_oyunculari_pkey"' };
+          delete r.created_at;
+        }
         if (this.t === 'yorum_kelimeleri') { // 014: katlanmış biçimde, 3-40 harf
           const k = K.kelimeBicimi(r.kelime);
           if (!k) throw { code: '23514', message: 'new row for relation "yorum_kelimeleri" violates check constraint "yorum_kelimeleri_kelime_check"' };
@@ -380,7 +401,7 @@ class Sorgu {
           if (!K.kapakAdresiGecerli(r.kapak_url)) throw kapakHatasi();
         }
         if (this.t === 'maclar') { Object.assign(r, { durum: r.durum || 'planlandi', ic_saha: r.ic_saha !== false, mac_notu: r.mac_notu ?? null, on_onay: !!r.on_onay, updated_at: simdi() }); macDogrula(r); }
-        if (this.t === 'goller') { Object.assign(r, { penalti: !!r.penalti, kapak_url: r.kapak_url ?? null, sure_sn: r.sure_sn ?? null, video_url: r.video_url ?? null, video_kaynak: r.video_kaynak ?? null, altyazi_url: r.altyazi_url ?? null }); if (!K.kapakAdresiGecerli(r.kapak_url)) throw { code: '23514', message: 'new row for relation "goller" violates check constraint "goller_kapak_kaynagi"' }; golDogrula(r, null); }
+        if (this.t === 'goller') { Object.assign(r, { penalti: !!r.penalti, kapak_url: r.kapak_url ?? null, sure_sn: r.sure_sn ?? null, video_url: r.video_url ?? null, video_kaynak: r.video_kaynak ?? null, altyazi_url: r.altyazi_url ?? null, asist: r.asist ?? null, video_baslangic_sn: r.video_baslangic_sn ?? null, video_bitis_sn: r.video_bitis_sn ?? null }); if (!K.kapakAdresiGecerli(r.kapak_url)) throw { code: '23514', message: 'new row for relation "goller" violates check constraint "goller_kapak_kaynagi"' }; golDogrula(r, null); }
         if (this.t === 'haberler') { Object.assign(r, { manset: !!r.manset, kapak_kaynak: r.kapak_kaynak ?? null }); haberDogrula(r, null); }
       } else if (this.t === 'yorumlar') {
         if (!ctx.uid) throw { code: '42501', message: 'Yorum yazmak için giriş yapın.' };
@@ -396,6 +417,15 @@ class Sorgu {
           if (son(K.YORUM_SINIRLARI.tekrarDakika * 60000).some((x) => K.yorumMetniAyni(x.metin, metin))) throw { code: 'P0001', message: 'Bu yorumu az önce gönderdiniz. Aynı metni 10 dakika içinde tekrar gönderemezsiniz.', hint: 'ayni_yorum' };
         }
         if (!metin.trim() || metin.length > 1000) throw { code: '23514', message: 'new row for relation "yorumlar" violates check constraint "yorumlar_metin_check"' };
+        // 017 (yorum_yanit_kontrol): yanıt verilen yorum yanıt verenin GÖREBİLDİĞİ bir yorum; yanıtın yanıtı ana yoruma bağlanır,
+        // hedef (haber/maç/gol) ana yorumdan kopyalanır
+        r.ust_yorum_id = r.ust_yorum_id ?? null;
+        if (r.ust_yorum_id) {
+          const ust = db.yorumlar.find((x) => x.id === r.ust_yorum_id && this.gorunur(db, ctx, 'yorumlar', x));
+          if (!ust) throw { code: '22023', message: 'Yanıt verdiğin yorum bulunamadı (silinmiş ya da gizlenmiş olabilir).', hint: 'ust_yorum' };
+          if (ust.ust_yorum_id) r.ust_yorum_id = ust.ust_yorum_id;
+          Object.assign(r, { haber_id: ust.haber_id ?? null, mac_id: ust.mac_id ?? null, gol_id: ust.gol_id ?? null });
+        }
         if (r.haber_id && !(db.haberler.find((x) => x.id === r.haber_id) || {}).yayinda) throw rlsHatasi('yorumlar');
         r.kullanici_id = ctx.uid; r.created_at = simdi(); r.duzenlendi = null;
         if (!ctx.admin) r.gizli = false;
@@ -445,6 +475,17 @@ class Sorgu {
     const hedefler = this.sec(db, ctx).filter((r) => this.yazabilir(ctx, r));
     for (const r of hedefler) {
       const v = { ...this.veri };
+      // 017: yanıtın bağlı olduğu yorum sonradan değişmez (yönetici dahil)
+      if (this.t === 'yorumlar' && 'ust_yorum_id' in v && (v.ust_yorum_id ?? null) !== (r.ust_yorum_id ?? null)) throw { code: '42501', message: 'Yanıtın bağlı olduğu yorum değiştirilemez.' };
+      // 017 (profil_foto_kontrol + profiles_foto): kişi kendi fotoğrafını koyar (onaylı, yasaklı değil); yönetici başkasınınkini yalnız kaldırır
+      if (this.t === 'profiles' && 'foto_url' in v && (v.foto_url ?? null) !== (r.foto_url ?? null)) {
+        if (v.foto_url != null) {
+          if (r.id !== ctx.uid) throw { code: '42501', message: 'Başkasının profil fotoğrafını değiştiremezsin (yönetici yalnız kaldırabilir).' };
+          if (!ctx.onayli) throw { code: '42501', message: 'Profil fotoğrafı için e-posta adresini onayla.', hint: 'eposta_onayi' };
+          if (ctx.engelli) throw { code: '42501', message: 'Hesabın topluluk kuralları nedeniyle kapatıldı; profil fotoğrafı ekleyemezsin.', hint: 'engelli' };
+        }
+        if (!K.profilFotoGecerli(v.foto_url ?? null, r.id)) throw { code: '23514', message: 'new row for relation "profiles" violates check constraint "profiles_foto"' };
+      }
       if (this.t === 'yorumlar' && !ctx.admin) {
         for (const k of ['kullanici_id', 'haber_id', 'mac_id', 'gol_id', 'gizli', 'onay_bekliyor', 'gizleme_nedeni', 'moderasyon_zamani', 'created_at']) {
           if (k in v && v[k] !== r[k]) throw { code: '42501', message: 'Yorumda sadece metni değiştirebilirsiniz.' };
@@ -473,7 +514,8 @@ class Sorgu {
       if (this.t === 'profiles' && 'engelli' in v && v.engelli !== r.engelli && (r.id === ctx.uid || !ctx.admin)) throw { code: '42501', message: 'Yorum yasağını yalnız yönetici değiştirebilir.' };
       if (this.t === 'sakatliklar') { sakatlikDogrula({ ...r, ...v }); v.guncellendi = simdi(); }
       if (this.t === 'goller' && 'kapak_url' in v && !K.kapakAdresiGecerli(v.kapak_url)) throw { code: '23514', message: 'new row for relation "goller" violates check constraint "goller_kapak_kaynagi"' };
-      if (this.t === 'goller') golDogrula({ ...r, ...v }, r);
+      if (this.t === 'goller') { const ara = { ...r, ...v }; golDogrula(ara, r); v.asist = ara.asist; }
+      if (this.t === 'mac_oyunculari') { const ara = { ...r, ...v }; macOyuncusuDogrula(ara); if (ara.oyuncu !== r.oyuncu && db.mac_oyunculari.some((x) => x !== r && x.mac_id === ara.mac_id && x.oyuncu === ara.oyuncu)) throw { code: '23505', message: 'duplicate key value violates unique constraint "mac_oyunculari_pkey"' }; v.oyuncu = ara.oyuncu; }
       if (this.t === 'haberler') { const ara = { ...r, ...v }; haberDogrula(ara, r); Object.assign(v, { kaynak: ara.kaynak, kaynak_url: ara.kaynak_url, duzeltme_notu: ara.duzeltme_notu, duzeltme_tarihi: ara.duzeltme_tarihi, kapak_alt: ara.kapak_alt, kaynak_gerekli: ara.kaynak_gerekli }); }
       if (this.t === 'maclar') macDogrula({ ...r, ...v });
       if (this.t === 'oyuncular' && 'foto_url' in v && !K.kapakAdresiGecerli(v.foto_url)) throw { code: '23514', message: 'new row for relation "oyuncular" violates check constraint "oyuncular_foto_kaynagi"' };
@@ -510,13 +552,18 @@ class Sorgu {
     if (this.t === 'haberler') db.yorumlar = db.yorumlar.filter((y) => !silinen.has(y.haber_id));
     if (this.t === 'maclar') {
       const golIdleri = new Set(db.goller.filter((g) => silinen.has(g.mac_id)).map((g) => g.id));
+      db.mac_oyunculari = db.mac_oyunculari.filter((x) => !silinen.has(x.mac_id)); // 018
       db.goller = db.goller.filter((g) => !silinen.has(g.mac_id)); db.yorumlar = db.yorumlar.filter((y) => !silinen.has(y.mac_id) && !golIdleri.has(y.gol_id));
       const reklamlar = new Set(db.reklamlar.filter((x) => silinen.has(x.mac_id)).map((x) => x.id)); // maça özel sponsorluk da gider
       db.reklamlar = db.reklamlar.filter((x) => !reklamlar.has(x.id));
       db.reklam_olaylari = db.reklam_olaylari.filter((o) => !reklamlar.has(o.reklam_id));
     }
     if (this.t === 'reklamlar') db.reklam_olaylari = db.reklam_olaylari.filter((o) => !silinen.has(o.reklam_id));
-    if (this.t === 'yorumlar') db.yorum_sikayetleri = db.yorum_sikayetleri.filter((x) => !silinen.has(x.yorum_id));
+    if (this.t === 'yorumlar') { // 017: ana yorum silinince yanıtları da silinir (on delete cascade)
+      for (const y of db.yorumlar) if (silinen.has(y.ust_yorum_id)) silinen.add(y.id);
+      db.yorumlar = db.yorumlar.filter((y) => !silinen.has(y.id));
+      db.yorum_sikayetleri = db.yorum_sikayetleri.filter((x) => !silinen.has(x.yorum_id));
+    }
     if (this.t === 'oyuncular') db.sakatliklar = db.sakatliklar.filter((x) => !silinen.has(x.oyuncu_id));
     if (this.t === 'goller') db.yorumlar = db.yorumlar.filter((y) => !silinen.has(y.gol_id));
     dbYaz(db);
@@ -524,7 +571,7 @@ class Sorgu {
   }
 
   yazabilir(ctx, r) {
-    if (['haberler', 'maclar', 'goller', 'reklamlar', 'oyuncular', 'sakatliklar', 'yorum_sikayetleri', 'yorum_kelimeleri'].includes(this.t)) return ctx.admin;
+    if (['haberler', 'maclar', 'goller', 'reklamlar', 'oyuncular', 'sakatliklar', 'yorum_sikayetleri', 'yorum_kelimeleri', 'mac_oyunculari'].includes(this.t)) return ctx.admin;
     if (this.t === 'yorumlar') return !!ctx.uid && (r.kullanici_id === ctx.uid || ctx.admin);
     if (this.t === 'profiles') return !!ctx.uid && (r.id === ctx.uid || ctx.admin);
     return false;
@@ -571,6 +618,18 @@ function golDogrula(r, eski) {
   if (r.video_kaynak && (r.video_kaynak.length < 3 || r.video_kaynak.length > 120)) throw kisitHatasi('goller', 'goller_video_kaynak');
   if (!K.altyaziAdresiGecerli(r.altyazi_url ?? null)) throw kisitHatasi('goller', 'goller_altyazi');
   if (r.altyazi_url && !/\.mp4$/i.test(r.video_url || '')) throw gecersiz("Altyazı yalnız siteye yüklenen .mp4 videoya eklenir (YouTube altyazısı YouTube'da açılır).");
+  // 018: asist (boş → null, 2-80) ve gol anı aralığı (birlikte, bitiş > başlangıç, yalnız YouTube)
+  r.asist = typeof r.asist === 'string' && r.asist.trim() ? r.asist.trim() : null;
+  const h = K.golAniHatalari(r);
+  if (h.length) throw gecersiz(h[0]);
+}
+function macOyuncusuDogrula(r) {
+  r.oyuncu = String(r.oyuncu ?? '').trim().replace(/\s+/g, ' ');
+  if (r.oyuncu.length < 2 || r.oyuncu.length > 80) throw kisitHatasi('mac_oyunculari', 'mac_oyunculari_oyuncu');
+  if (r.ilk11 && r.giris_dk != null) throw gecersiz("İlk 11'deki oyuncunun giriş dakikası olmaz.");
+  for (const k of ['giris_dk', 'cikis_dk']) if (r[k] != null && !(Number.isInteger(r[k]) && r[k] >= 0 && r[k] <= 130)) throw kisitHatasi('mac_oyunculari', 'mac_oyunculari_dakika');
+  if (r.giris_dk != null && r.cikis_dk != null && r.cikis_dk < r.giris_dk) throw gecersiz('Çıkış dakikası giriş dakikasından önce olamaz.');
+  if (!(Number.isInteger(r.sari) && r.sari >= 0 && r.sari <= 2)) throw kisitHatasi('mac_oyunculari', 'mac_oyunculari_kart');
 }
 function macDogrula(r) {
   // 016: hafta 1-60, özet videosu gol videosu kuralıyla, videolu maçta kaynak zorunlu
@@ -778,6 +837,13 @@ function kurtarmaOturumu() {
   } catch (e) { /* yok say */ }
 }
 
+// Depo yazma yetkisi: genel kovalar yalnız yönetici; 017 profil-fotograflari kişinin kendi klasörü (<uid>/...), yükleme için onaylı ve yasaklı değil
+function depoYazabilir(ctx, kova, yol, yukleme) {
+  if (kova !== K.PROFIL_FOTO_KOVASI) return ctx.admin;
+  if (!ctx.uid || String(yol).split('/')[0] !== ctx.uid) return false;
+  return !yukleme || (ctx.onayli && !ctx.engelli);
+}
+
 export function createClient() {
   if (typeof location !== 'undefined') kurtarmaOturumu();
   const dinleyiciler = [];
@@ -871,12 +937,13 @@ export function createClient() {
           async upload(yol, dosya, ops = {}) {
             await bekle();
             const db = dbOku();
-            if (!istemci.baglam(db).admin) return { data: null, error: { message: 'new row violates row-level security policy', statusCode: '403' } };
+            if (!depoYazabilir(istemci.baglam(db), kova, yol, true)) return { data: null, error: { message: 'new row violates row-level security policy', statusCode: '403' } };
             const tur = ops.contentType || dosya.type;
             // kova sınırları: reklam-gorselleri 2 MB jpeg/png/webp (010), haber-gorselleri 3 MB jpeg/png/webp/gif (002)
             const sinir = kova === 'reklam-gorselleri' ? { turler: RM.SINIRLAR.gorselTurleri, bayt: RM.SINIRLAR.gorselEnBuyukBayt }
               : kova === 'haber-gorselleri' ? { turler: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'], bayt: 3 * 1024 * 1024 }
-                : kova === 'gol-videolari' ? { turler: ['video/mp4', 'text/vtt'], bayt: 50 * 1024 * 1024 } : null; // 014
+                : kova === 'gol-videolari' ? { turler: ['video/mp4', 'text/vtt'], bayt: 50 * 1024 * 1024 } // 014
+                  : kova === K.PROFIL_FOTO_KOVASI ? { turler: ['image/webp', 'image/jpeg', 'image/png'], bayt: 300 * 1024 } : null; // 017
             if (sinir) {
               if (!sinir.turler.includes(tur)) return { data: null, error: { message: 'mime type ' + tur + ' is not supported', statusCode: '415' } };
               if (dosya.size > sinir.bayt) return { data: null, error: { message: 'The object exceeded the maximum allowed size', statusCode: '413' } };
@@ -893,7 +960,8 @@ export function createClient() {
           async remove(yollar) {
             await bekle();
             const db = dbOku();
-            if (!istemci.baglam(db).admin) return { data: [], error: null };
+            const ctx = istemci.baglam(db);
+            yollar = yollar.filter((y) => ctx.admin || depoYazabilir(ctx, kova, y, false)); // RLS: izinsiz dosya sessizce atlanır
             yollar.forEach((y) => { try { localStorage.removeItem(DEPO_ANAHTAR + kova + '/' + y); } catch (e) {} });
             return { data: yollar.map((name) => ({ name })), error: null };
           },

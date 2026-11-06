@@ -4,13 +4,13 @@
 // Önce son görülen kayıt (onbellek.js: bu gol daha önce açıldıysa, yoksa ana sayfa / gol arşivi listesindeki satırı) ANINDA çizilir
 // (data-durum="onbellek"; video kapağı ağ sorgusunu beklemeden iner, fetchpriority=high: performans 3. tur 2), sonra ağdan tazelenir.
 import { supabase, hazir, h, $, sayfaBaslat, param, kimlikGecerli, dakikaOgesi, dakikaOkunus, sureMetni, videoFasad, fotoAtfi, cevrimdisiKutusu, paylasDugmesi, altyaziGecerli, eslesmeOgeleri } from '../ortak.js';
-import { golKarti, macEtiketi, kartTarihi } from '../gol-kart.js';
+import { golKarti, macEtiketi, kartTarihi, golSuresi } from '../gol-kart.js';
 import { sonVeri, sonKayit, sonKayitYaz } from '../onbellek.js';
 
 const kok = $('#gol');
 const id = param('id');
 const oturumS = sayfaBaslat();
-const GOL_SUTUNLARI = 'id, mac_id, oyuncu, dakika, ek_dakika, penalti, video_url, video_kaynak, altyazi_url, aciklama, kapak_url, sure_sn, maclar(id, rakip, tarih, ic_saha, corum_skor, rakip_skor, durum)';
+const GOL_SUTUNLARI = 'id, mac_id, oyuncu, dakika, ek_dakika, penalti, video_url, video_kaynak, altyazi_url, aciklama, kapak_url, sure_sn, asist, video_baslangic_sn, video_bitis_sn, maclar(id, rakip, tarih, ic_saha, corum_skor, rakip_skor, durum)';
 
 function bulunamadi() {
   document.title = 'Gol bulunamadı · Çorumspor Taraftar';
@@ -21,11 +21,12 @@ function bulunamadi() {
 /** Golü çizer. kismi: listeden gelen önbellek satırı (video kaynağı / altyazı bilinmiyor): video notu ağ yanıtını bekler. */
 function golCiz(gol, { kismi = false } = {}) {
   const mac = gol.maclar || null;
-  const sure = sureMetni(gol.sure_sn);
+  const sure = sureMetni(golSuresi(gol));
   document.title = `${gol.oyuncu} golü · Çorumspor Taraftar`;
   const baslik = `${gol.oyuncu}, ${dakikaOkunus(gol)}${mac ? ', ' + mac.rakip + ' maçı' : ''}`;
   const altyazi = altyaziGecerli(gol.altyazi_url) ? gol.altyazi_url : null;
-  let video = videoFasad(gol.video_url, { baslik, kapak: gol.kapak_url, sure, altyazi, oncelik: 'high' });
+  // 018: YouTube videosunda yalnız gol anı (start/end); aralık yoksa video baştan
+  let video = videoFasad(gol.video_url, { baslik, kapak: gol.kapak_url, sure, altyazi, oncelik: 'high', baslangic: gol.video_baslangic_sn ?? null, bitis: gol.video_bitis_sn ?? null });
   const atif = video && gol.kapak_url ? fotoAtfi(gol.kapak_url) : null;
   if (video && atif) video.append(h('p', { class: 'foto-atif' }, atif));
   // Önbellekten çizilmiş video kutusu: oynatıcı açıldıysa olduğu gibi kalır; açılmadıysa aynı kapak <img>'i taşınır (titreme yok)
@@ -50,6 +51,7 @@ function golCiz(gol, { kismi = false } = {}) {
           : 'Dokununca YouTube oynatıcısı açılır (altyazı yükleyene bağlı); o ana kadar YouTube\'a bağlanılmaz.') : null,
     h('div', { class: 'gol-bas' },
       h('h2', { class: 'gorunmez' }, 'Golün anlatımı'),
+      gol.asist ? h('p', { class: 'gol-asist', id: 'gol-asist' }, 'Asist: ', gol.asist) : null,
       h('p', { id: 'gol-anlatim' }, gol.aciklama || `${gol.oyuncu}, ${dakikaOkunus(gol)}${gol.penalti ? ' penaltıdan' : ''} golü attı.`),
       !video ? h('p', { class: 'soluk' }, 'Bu golün videosu yok.') : null,
       mac ? h('a', { class: 'mac-baglanti', href: 'mac.html?id=' + encodeURIComponent(mac.id) }, h('span', null, eslesmeOgeleri(mac), ' · ', kartTarihi(mac.tarih)), h('span', { 'aria-hidden': 'true' }, '→')) : null,
@@ -88,7 +90,7 @@ async function yukle() {
   const mac = gol.maclar;
 
   if (mac) {
-    supabase.from('goller').select('id, oyuncu, dakika, ek_dakika, penalti, video_url, aciklama, kapak_url, sure_sn').eq('mac_id', mac.id).then(({ data }) => {
+    supabase.from('goller').select('id, oyuncu, dakika, ek_dakika, penalti, video_url, aciklama, kapak_url, sure_sn, asist, video_baslangic_sn, video_bitis_sn').eq('mac_id', mac.id).then(({ data }) => {
       const digerleri = (data || []).filter((g) => g.id !== gol.id).sort((a, b) => a.dakika - b.dakika);
       if (!digerleri.length) return;
       // Bölüm başlığı "Bu maçın diğer golleri": kartta maç satırı tekrar edilmez (tasarımcı 3. tur 2)

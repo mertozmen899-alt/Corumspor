@@ -9,13 +9,16 @@
 // (maç / haber / gol); sıralama varsayılan "En yeni" üstte, "En eski" seçilebilir (saklanmaz); yasaklı hesap düzenleyemez/şikâyet edemez.
 // 015: sıralama grubunun görünür adı "Sırala:" (aria-labelledby), seçili düğmede ✓ ve belirgin stil (stil.css "son tur: sunucu"),
 // 2'den az yorumda grup gizli; başlık ve liste adı yazanın kendi bekleyen yorumunu da söyler: "Yorumlar (0 · 1 onay bekliyor)".
-import { supabase, h, mesaj, duyur, tarihYaz, hataMetni, girisAdresi } from './ortak.js';
+// 017: tek seviye yanıt (ust_yorum_id): "Yanıtla" yorumun altında küçük form açar; yanıtın yanıtı da ana yoruma bağlanır (sunucu).
+// Yanıtlar ana yorumun içinde ol.yanitlar'da ESKİDEN YENİYE; sıralama yalnız ana yorumları çevirir; ana yorumu listede olmayan yanıt
+// gösterilmez; sayaç yanıtları da sayar. Avatar: profil fotoğrafı (profiles.foto_url, kendi depo klasörü) ya da baş harf.
+import { supabase, h, mesaj, duyur, tarihYaz, hataMetni, girisAdresi, avatarOgesi } from './ortak.js';
 import { YORUM_SINIRLARI } from './kurallar.js';
 
 const EN_FAZLA = YORUM_SINIRLARI.enUzun;
 const LISTE_SINIRI = 200; // en yeni 200 yorum gösterilir
 const ESIKLER = [100, 20, 0];
-const SECIM = 'id, metin, created_at, duzenlendi, gizli, onay_bekliyor, kullanici_id, profiles(kullanici_adi)';
+const SECIM = 'id, metin, created_at, duzenlendi, gizli, onay_bekliyor, kullanici_id, ust_yorum_id, profiles(kullanici_adi, foto_url)';
 const IPUCU = { haber_id: 'Bu haber hakkında ne düşünüyorsun?', mac_id: 'Bu maç hakkında ne düşünüyorsun?', gol_id: 'Bu gol hakkında ne düşünüyorsun?' };
 const herkeseAcik = (y) => !y.gizli && !y.onay_bekliyor;
 const NEDENLER = [['hakaret', 'Küfür / hakaret'], ['nefret', 'Irkçı, ayrımcı söz'], ['hedef_gosterme', 'Hedef gösterme, şiddete çağrı'], ['spam', 'Reklam / spam'], ['kisisel_veri', 'Kişisel bilgi paylaşımı'], ['diger', 'Başka bir neden']];
@@ -48,7 +51,7 @@ export async function yorumlariKur(kok, { haberId = null, macId = null, golId = 
     const acik = liste.querySelectorAll('li.yorum[data-durum="acik"]').length;
     const bekleyen = liste.querySelectorAll('li.yorum[data-durum="bekliyor"]').length;
     baslik.textContent = bekleyen ? `Yorumlar (${acik} · ${bekleyen} onay bekliyor)` : `Yorumlar (${acik})`;
-    siralama.hidden = liste.querySelectorAll('li.yorum').length < 2;
+    siralama.hidden = liste.querySelectorAll(':scope > li.yorum').length < 2; // sıralama yalnız ana yorumları çevirir
   };
   const hataGoster = (alan, metin) => { mesaj(uyariKutu, metin, 'hata'); if (alan) { alan.setAttribute('aria-invalid', 'true'); alan.focus(); } };
 
@@ -113,22 +116,37 @@ export async function yorumlariKur(kok, { haberId = null, macId = null, golId = 
   // Kendi yorumu yalnız yazıldıktan sonraki 30 dakika içinde düzenlenebilir (sunucu da denetler; yönetici muaf)
   const duzenlenebilir = (y) => admin || Date.now() - Date.parse(y.created_at) < YORUM_SINIRLARI.duzenlemeSuresiDakika * 60000;
 
-  function yorumOgesi(y) {
+  const adiOku = (li) => li.querySelector('.ad').textContent; // ilk .ad yorumun kendisi (yanıtlar sonra gelir)
+  const eylemi = (li) => li.querySelector(':scope > .yorum-govde > .yorum-eylem');
+  /** Ana yorumun yanıt listesi (yoksa açılır; boş ol bırakılmaz). */
+  function yanitListesi(anaLi) {
+    let ol = anaLi.querySelector(':scope > .yorum-govde > ol.yanitlar');
+    if (!ol) { ol = h('ol', { class: 'yanitlar', 'aria-label': `${adiOku(anaLi)} yorumuna yanıtlar` }); anaLi.querySelector('.yorum-govde').append(ol); }
+    return ol;
+  }
+
+  function yorumOgesi(y, anaAd = null) {
     const ad = (y.profiles && y.profiles.kullanici_adi) || 'taraftar';
+    const yanit = !!y.ust_yorum_id;
     const adId = `y-${y.id}-ad`, zamanId = `y-${y.id}-zaman`, bagli = `${adId} ${zamanId}`;
     const metinP = h('p', { class: 'yorum-metni' }, y.metin);
     const eylem = h('div', { class: 'yorum-eylem' });
-    const li = h('li', { class: 'yorum' + (y.gizli ? ' gizlenmis' : ''), 'data-yorum-id': y.id, id: 'y-' + y.id, 'data-durum': herkeseAcik(y) ? 'acik' : y.gizli ? 'gizli' : 'bekliyor' },
-      h('span', { class: 'avatar', 'aria-hidden': 'true' }, ad.slice(0, 1).toLocaleUpperCase('tr-TR')),
+    const li = h('li', { class: 'yorum' + (yanit ? ' yanit' : '') + (y.gizli ? ' gizlenmis' : ''), 'data-yorum-id': y.id, id: 'y-' + y.id, 'data-durum': herkeseAcik(y) ? 'acik' : y.gizli ? 'gizli' : 'bekliyor',
+      'data-ust-yorum-id': y.ust_yorum_id || null, 'data-ana-ad': yanit ? (anaAd || 'taraftar') : null },
+      avatarOgesi(ad, y.profiles && y.profiles.foto_url, y.kullanici_id),
       h('div', { class: 'yorum-govde' },
         h('p', { class: 'yorum-ust' },
           h('span', { class: 'ad', id: adId }, ad),
+          // Kime yanıt: görünür "↳ ad", ekran okuyucuya "yanıt: ad"
+          yanit ? h('span', { class: 'yanit-kime' }, h('span', { 'aria-hidden': 'true' }, '↳ '), h('span', { class: 'gorunmez' }, 'yanıt: '), anaAd || 'taraftar') : null,
           h('time', { class: 'tarih', id: zamanId, datetime: y.created_at }, tarihYaz(y.created_at, { yil: false })),
           y.duzenlendi ? h('span', null, '(düzenlendi)') : null,
           y.gizli ? h('span', { class: 'rozet gizli' }, 'Gizlendi') : null,
           y.onay_bekliyor ? h('span', { class: 'rozet gizli', id: `y-${y.id}-onay` }, 'Onay bekliyor') : null),
         metinP, eylem));
     const dugme = (metin, sinif, f) => h('button', { type: 'button', class: 'hayalet' + (sinif ? ' ' + sinif : ''), 'aria-describedby': bagli, onclick: f }, metin);
+    // Yanıtla: giriş yapmış, onaylı, yasaklı olmayan herkes (kendi yorumunda da); yalnız herkese açık yoruma
+    if (benim && onayli && !engelli && herkeseAcik(y)) eylem.append(dugme('Yanıtla', '', () => yanitAc(y, li)));
 
     if (y.kullanici_id === benim) {
       eylem.append(...[
@@ -143,10 +161,13 @@ export async function yorumlariKur(kok, { haberId = null, macId = null, golId = 
   }
 
   function yenile(li, y, odakMetni) {
-    const yeni = yorumOgesi(y);
+    const yeni = yorumOgesi(y, li.dataset.anaAd || null);
+    const yanitlar = li.querySelector(':scope > .yorum-govde > ol.yanitlar');
+    if (yanitlar) yeni.querySelector('.yorum-govde').append(yanitlar); // ana yorum yenilenince yanıtları yerinde kalır
     li.replaceWith(yeni);
     sayiYaz();
-    const hedef = [...yeni.querySelectorAll('.yorum-eylem button')].find((b) => b.textContent === odakMetni) || yeni.querySelector('.yorum-eylem button');
+    const dugmeler = [...eylemi(yeni).querySelectorAll('button')];
+    const hedef = dugmeler.find((b) => b.textContent === odakMetni) || dugmeler[0];
     if (hedef) hedef.focus(); else baslik.focus();
     return yeni;
   }
@@ -158,7 +179,7 @@ export async function yorumlariKur(kok, { haberId = null, macId = null, golId = 
     const vazgec = h('button', { type: 'button', class: 'dugme ikincil kucuk', onclick: () => yenile(li, y, 'Düzenle') }, 'Vazgeç');
     const kutu = h('div', { class: 'yorum-duzenle' }, h('label', { for: id }, 'Yorumu düzenle'), alan, h('div', { class: 'dugme-satir' }, kaydet, vazgec));
     metinP.replaceWith(kutu);
-    li.querySelector('.yorum-eylem').hidden = true;
+    eylemi(li).hidden = true;
     alan.focus();
     kaydet.addEventListener('click', async () => {
       if (kaydet.getAttribute('aria-disabled') === 'true') return;
@@ -183,11 +204,13 @@ export async function yorumlariKur(kok, { haberId = null, macId = null, golId = 
     const { error } = await supabase.from('yorumlar').delete().eq('id', y.id);
     if (error) return mesaj(uyariKutu, hataMetni(error, 'Yorum silinemedi.'));
     const sonraki = li.nextElementSibling || li.previousElementSibling;
-    li.remove();
+    const ana = li.parentElement.closest('li.yorum'); // yanıtsa ana yorumu
+    li.remove(); // ana yorum yanıtlarıyla gider (sunucuda da on delete cascade)
+    if (ana && !ana.querySelector('ol.yanitlar > li')) ana.querySelector('ol.yanitlar')?.remove();
     sayiYaz();
     mesaj(uyariKutu, 'Yorum silindi.', 'basari');
     duyur('Yorum silindi.');
-    const hedef = sonraki && sonraki.querySelector('button');
+    const hedef = (sonraki && sonraki.querySelector('button')) || (ana && eylemi(ana).querySelector('button'));
     if (hedef) hedef.focus(); else baslik.focus();
     if (!liste.children.length) liste.append(h('li', { class: 'bos' }, 'Tribün sessiz. İlk sözü sen söyle!'));
   }
@@ -199,8 +222,55 @@ export async function yorumlariKur(kok, { haberId = null, macId = null, golId = 
     yenile(li, { ...y, gizli: !y.gizli }, y.gizli ? 'Gizle' : 'Göster');
   }
 
+  /** 017: yanıt formu yorumun altında açılır; gönderimde ust_yorum_id = ana yorum (yanıtın yanıtı da ana yoruma bağlanır). */
+  function yanitAc(y, li) {
+    const id = `yanit-metni-${y.id}`;
+    const acik = document.getElementById(id);
+    if (acik) { acik.focus(); return; }
+    const anaId = y.ust_yorum_id || y.id;
+    const eylem = eylemi(li);
+    const ipucuId = `yanit-ipucu-${y.id}`, hataId = `yanit-hata-${y.id}`;
+    const ad = (y.profiles && y.profiles.kullanici_adi) || 'taraftar';
+    // Yanıtın yanıtında kime yazıldığı metinde de okunsun
+    const alan = h('textarea', { id, name: 'metin', rows: '2', required: true, 'aria-describedby': `${ipucuId} ${hataId}`, value: y.ust_yorum_id ? `@${ad} ` : '' });
+    const hata = h('p', { class: 'mesaj', id: hataId, hidden: true });
+    const gonder = h('button', { type: 'submit', class: 'dugme kucuk' }, 'Gönder');
+    const vazgec = h('button', { type: 'button', class: 'dugme ikincil kucuk' }, 'Vazgeç');
+    const kutu = h('form', { class: 'yorum-duzenle yanit-formu', novalidate: true },
+      h('label', { for: id }, 'Yanıtın'), alan, h('p', { class: 'sayac', id: ipucuId }, `En fazla ${EN_FAZLA} karakter.`), hata,
+      h('div', { class: 'dugme-satir' }, gonder, vazgec));
+    const kapat = () => {
+      kutu.remove();
+      eylem.hidden = false;
+      const d = [...eylem.querySelectorAll('button')];
+      (d.find((b) => b.textContent === 'Yanıtla') || d[0])?.focus();
+    };
+    const yanlis = (metin) => { mesaj(hata, metin, 'hata'); alan.setAttribute('aria-invalid', 'true'); alan.focus(); };
+    eylem.hidden = true;
+    eylem.after(kutu);
+    alan.focus();
+    alan.setSelectionRange(alan.value.length, alan.value.length);
+    vazgec.addEventListener('click', kapat);
+    kutu.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      if (gonder.getAttribute('aria-disabled') === 'true') return; // çift dokunma tek kayıt
+      const metin = alan.value.trim();
+      if (!metin) return yanlis('Boş yanıt gönderilemez. Bir şeyler yaz!');
+      if (metin.length > EN_FAZLA) return yanlis(`Yanıt en fazla ${EN_FAZLA} karakter olabilir (${metin.length - EN_FAZLA} karakter fazla).`);
+      gonder.setAttribute('aria-disabled', 'true');
+      const { data, error } = await supabase.from('yorumlar').insert({ [hedefAlan]: hedefId, metin, ust_yorum_id: anaId }).select(SECIM).single();
+      gonder.removeAttribute('aria-disabled');
+      if (error) return yanlis(hataMetni(error, 'Yanıt gönderilemedi.')); // yazılan metin kaybolmaz
+      const anaLi = liste.querySelector(`li[data-yorum-id="${data.ust_yorum_id || anaId}"]`);
+      if (anaLi) yanitListesi(anaLi).append(yorumOgesi(data, adiOku(anaLi)));
+      sayiYaz();
+      kapat();
+      duyur(data.onay_bekliyor ? 'Yanıtın alındı; yönetici onaylayınca herkes görecek.' : 'Yanıtın eklendi.');
+    });
+  }
+
   function sikayet(y, li) {
-    const eylem = li.querySelector('.yorum-eylem');
+    const eylem = eylemi(li);
     const sec = h('select', { id: `sikayet-neden-${y.id}` }, NEDENLER.map(([v, t]) => h('option', { value: v }, t)));
     const gonder = h('button', { type: 'button', class: 'dugme kucuk' }, 'Şikâyeti gönder');
     const vazgec = h('button', { type: 'button', class: 'hayalet' }, 'Vazgeç');
@@ -229,9 +299,15 @@ export async function yorumlariKur(kok, { haberId = null, macId = null, golId = 
       .order('created_at', { ascending: false }) // en yeniler (201. yorumdan sonra yenisi kaybolmasın)
       .limit(LISTE_SINIRI);
     if (error) { liste.replaceChildren(h('li', { class: 'bos' }, 'Yorumlar yüklenemedi. Sayfayı yenileyip tekrar dene.')); return; }
-    if (sira === 'eski') data.reverse();
+    // Ana yorumlar seçili sırayla; yanıtlar ana yorumun içinde eskiden yeniye; ana yorumu listede olmayan yanıt gösterilmez
+    const analar = data.filter((y) => !y.ust_yorum_id);
+    if (sira === 'eski') analar.reverse();
+    const ogeler = new Map(analar.map((y) => [y.id, yorumOgesi(y)]));
+    data.filter((y) => y.ust_yorum_id && ogeler.has(y.ust_yorum_id))
+      .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at))
+      .forEach((y) => { const anaLi = ogeler.get(y.ust_yorum_id); yanitListesi(anaLi).append(yorumOgesi(y, adiOku(anaLi))); });
     sinirNotu.hidden = data.length < LISTE_SINIRI;
-    liste.replaceChildren(...(data.length ? data.map(yorumOgesi) : [h('li', { class: 'bos' }, 'Tribün sessiz. İlk sözü sen söyle!')]));
+    liste.replaceChildren(...(ogeler.size ? ogeler.values() : [h('li', { class: 'bos' }, 'Tribün sessiz. İlk sözü sen söyle!')]));
     sayiYaz();
   }
 

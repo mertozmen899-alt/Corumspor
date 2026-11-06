@@ -1,7 +1,7 @@
 // Ortak yardımcılar: DOM üretimi (innerHTML yok), tarih, oturum, üst bar, alt menü, duyurular, video kapağı.
 import { supabase, sahteMod, ayarEksik } from './istemci.js';
 import { TAKIM_ADI, AMBLEM_DOSYASI, SAHIP_ADI, ILETISIM_EPOSTA } from './ayar.js';
-import { kapakAdresiGecerli, SAKATLIK_DURUMLARI } from './kurallar.js';
+import { kapakAdresiGecerli, SAKATLIK_DURUMLARI, profilFotoGecerli } from './kurallar.js';
 import { fotoKaynagi, FOTO_KAYNAKLARI } from './foto-kaynaklari.js';
 
 export { supabase, sahteMod, TAKIM_ADI };
@@ -160,6 +160,18 @@ export function gorselYedek(img, sinif = '') {
     if (!img.isConnected) return;
     img.replaceWith(h('span', { class: ((sinif || img.className || '') + ' kapak-yok').trim(), 'aria-hidden': 'true', 'data-gorsel-hata': '' }));
   }, { once: true });
+  return img;
+}
+
+/**
+ * Profil fotoğrafı (017) ya da baş harf. Fotoğraf yalnız kişinin kendi depo klasöründen (kurallar.js profilFotoGecerli);
+ * açılmazsa (silinmiş dosya, ağ hatası) baş harfe döner. Yorumlarda alt="" (ad yanında yazılı); profil sayfası anlamlı alt verir.
+ */
+export function avatarOgesi(ad, fotoUrl, kullaniciId, { boyut = 36, alt = '' } = {}) {
+  const harf = () => h('span', { class: 'avatar', 'aria-hidden': 'true' }, String(ad || '?').slice(0, 1).toLocaleUpperCase('tr-TR'));
+  if (!fotoUrl || !profilFotoGecerli(fotoUrl, kullaniciId)) return harf();
+  const img = h('img', { class: 'avatar', crossorigin: 'anonymous', alt, width: boyut, height: boyut, loading: 'lazy', decoding: 'async', src: fotoUrl });
+  img.addEventListener('error', () => img.replaceWith(harf()), { once: true });
   return img;
 }
 
@@ -344,7 +356,8 @@ export function altyaziGecerli(url) {
 
 /** ops.baslik: "Ali Örnek, 23. dakika, Örnekköy Spor maçı" (düğme adı "Videoyu oynat: <baslik>"; tekrar yok, erişilebilirlik 3. tur 2);
  *  ops.tur: oynatıcının adındaki ön ek ("Gol videosu: …"); ops.oncelik: kapak görseli LCP ise 'high' (performans 3. tur 2). */
-export function videoFasad(url, { baslik = 'Gol', tur = 'Gol videosu', kapak = null, sure = null, altyazi = null, oncelik = null } = {}) {
+/** 018: ops.baslangic / ops.bitis (sn): YouTube gömmesi yalnız bu aralığı oynatır (gol anı; start/end yalnız verilirse). */
+export function videoFasad(url, { baslik = 'Gol', tur = 'Gol videosu', kapak = null, sure = null, altyazi = null, oncelik = null, baslangic = null, bitis = null } = {}) {
   const id = youtubeKimlik(url);
   const mp4 = !id && mp4Mu(url) ? url : null;
   if (!id && !mp4) return null;
@@ -363,8 +376,10 @@ export function videoFasad(url, { baslik = 'Gol', tur = 'Gol videosu', kapak = n
     kap.querySelectorAll('.foto-atif').forEach((x) => { x.hidden = true; });
     let oynatici;
     if (id) {
+      const sn = (x) => (Number.isInteger(x) && x >= 0 ? x : null);
+      const aralik = (sn(baslangic) != null ? `&start=${baslangic}` : '') + (sn(bitis) != null ? `&end=${bitis}` : '');
       oynatici = h('iframe', {
-        src: `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1&rel=0&cc_load_policy=1&cc_lang_pref=tr&hl=tr`,
+        src: `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1&rel=0&cc_load_policy=1&cc_lang_pref=tr&hl=tr${aralik}`,
         title: ad + ' (YouTube)', allow: 'autoplay; encrypted-media; picture-in-picture; fullscreen', allowfullscreen: '',
         referrerpolicy: 'strict-origin-when-cross-origin',
       });

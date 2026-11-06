@@ -99,6 +99,7 @@ async function tasarimTestleri() {
     [`gol.html?id=${G1}`, '#gol[data-durum="tamam"]', 'Gol Arşivi', 'true'],
     [`haber.html?id=${H1}`, '#haber[data-durum="tamam"]', 'Ana Sayfa', 'true'],
     [`mac.html?id=${M1}`, '#mac[data-durum="tamam"]', 'Takım', 'true'],
+    ['oyuncu.html?id=55555555-0000-4000-8000-000000000007', '#oyuncu[data-durum="tamam"]', 'Takım', 'true'], // 018
     ['giris.html', '#g-eposta', 'Profil', 'true'],
     ['sifre.html', '#sifre-icerik, main form, main .mesaj', 'Profil', 'true'],
     // Künye sayfalarına Profil'den gidilir: Profil sekmesi etkin (true) ve üst barda geri düğmesi (tasarımcı 9)
@@ -676,8 +677,9 @@ async function tasarimTestleri() {
       kontrol(`goller ${vp.width}×${vp.height} (2. tur): yalnız rakip satırı yapışır, sabit alan ≤ %25 (tasarımcı 3)`, d.yapisti && d.sezonAkista && d.sabit <= d.ekran * 0.25, JSON.stringify(d));
       const tek = await b.p.evaluate(() => { const iz = document.querySelector('#sezonlar'); return { tek: iz.classList.contains('tek'), zemin: getComputedStyle(iz).backgroundColor, n: iz.querySelectorAll('input').length }; });
       if (tek.n === 1) kontrol(`goller ${vp.width} (2. tur): tek sezonda iz (hap içinde hap) yok`, tek.tek && /rgba\(0, 0, 0, 0\)|transparent/.test(tek.zemin), JSON.stringify(tek));
-      const kart = await b.p.evaluate(() => ({ meta: document.querySelectorAll('#arsiv .video-kart .meta').length, kart: document.querySelectorAll('#arsiv .video-kart').length }));
-      kontrol(`goller ${vp.width} (2. tur): arşivde kartlar maç satırını tekrar etmez (grup başlığı söylüyor)`, kart.kart >= 1 && kart.meta === 0, JSON.stringify(kart));
+      // 018: her maç tek satır (kapalı açılır düğme, ≥44 px); gol satırları açılınca görünür, büyük video kartı yok
+      const kart = await b.p.evaluate(() => ({ satir: document.querySelectorAll('#arsiv button.mac-ac[aria-expanded="false"]').length, kucuk: [...document.querySelectorAll('#arsiv button.mac-ac')].filter((x) => x.getBoundingClientRect().height < 44).length, gorunurGol: [...document.querySelectorAll('#arsiv .gol-ani')].filter((x) => x.getClientRects().length).length, kart: document.querySelectorAll('#arsiv .video-kart').length }));
+      kontrol(`goller ${vp.width} (018): maçlar kapalı tek satır (≥44 px), gol satırları gizli, büyük video kartı yok`, kart.satir >= 1 && kart.kucuk === 0 && kart.gorunurGol === 0 && kart.kart === 0, JSON.stringify(kart));
       await b.ctx.close();
     }
   });
