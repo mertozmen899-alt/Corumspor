@@ -65,7 +65,11 @@ y013=[("Açık","alt menü edilgin / zemin","#5C5A57","#FFFFFF",4.5),("Açık","
 ("Açık","maç sponsoru alt notu (etiketle aynı) / kart","#6B4F00","#FFF6DB",4.5),("Koyu","maç sponsoru alt notu / kart","#F0CF73","#2A2312",4.5),
 # son tur: maç başlığında başlama saati kutusu (beyaz / %14 beyaz, koyu kırmızı degrade ucunda: #492C32), maç notu kaynak satırı
 ("Her iki","maç saati kutusu: beyaz / %14 beyaz + #2B0A10","#FFFFFF","#492C32",4.5),
-("Açık","maç notu kaynak satırı: soluk / yüzey","#5C5A57","#F6F4F0",4.5),("Koyu","maç notu kaynak satırı: soluk / yüzey","#A9A6A0","#161618",4.5)]
+("Açık","maç notu kaynak satırı: soluk / yüzey","#5C5A57","#F6F4F0",4.5),("Koyu","maç notu kaynak satırı: soluk / yüzey","#A9A6A0","#161618",4.5),
+# 019: ikili maç kartı etiketi (koyu kırmızı / yüzey), "Yeni" rozeti ve takvimde iç saha günü (beyaz / kırmızı), takvimde deplasman günü çerçevesi
+("Açık","ikili kart etiketi: koyu kırmızı / yüzey","#A80000","#F6F4F0",4.5),("Koyu","ikili kart etiketi: --vurgu-guclu / yüzey","#FF8A85","#161618",4.5),
+("Her iki","Yeni rozeti, takvim iç saha günü, Çorum FK olay rozeti: beyaz / kırmızı","#FFFFFF","#CC0000",4.5),
+("Açık","takvim deplasman günü çerçevesi / zemin (UI ≥3)","#CC0000","#FFFFFF",3.0),("Koyu","takvim deplasman günü çerçevesi / zemin (UI ≥3)","#FF6B66","#0B0B0B",3.0)]
 bad013=0
 print("\n**013 çiftleri**\n\n| Tema | Kullanım | Ön plan | Arka plan | Oran | Eşik | Sonuç |\n|---|---|---|---|---|---|---|")
 for m,r,a,b,need in y013:

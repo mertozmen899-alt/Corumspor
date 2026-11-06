@@ -128,8 +128,9 @@ async function tarayiciTestleri() {
     });
     kontrol(c('ana (013): reklam yokken akışta yuva hiç kalmadı (modül yüklendi, sessiz kaldı)'), yuva.yuva === 0 && !yuva.sponsor, JSON.stringify(yuva));
     kontrol(c('ana (013): liste öğesi sayısı = haber sayısı; 3. ve 4. haber arası boşluk diğerleriyle aynı'), yuva.li === yuva.haber && yuva.aralik === yuva.normal, JSON.stringify(yuva));
-    const sonraki = await metin(p, '#sonraki-mac');
-    kontrol(c('ana: sıradaki maç kartı (Deneme FK)'), /Deneme FK/.test(sonraki) && /Çorum FK/.test(sonraki), sonraki);
+    await p.waitForSelector('#ikili-siradaki');
+    const sonraki = await metin(p, '#ikili-siradaki');
+    kontrol(c('ana (019): ikili kartın sağı sıradaki maç (Deneme FK)'), /Deneme FK/.test(sonraki) && /Çorum FK/.test(sonraki), sonraki);
     kontrol(c('ana: maç saati Türkiye saatiyle (19:00, tarayıcı New York)'), /19:00/.test(sonraki), sonraki);
     kontrol(c('ana: altbilgide "Çorum FK\'nın resmî uygulaması değildir", şeritte "Bağımsız taraftar uygulaması"'), /Çorum FK'nın resmî uygulaması değildir/.test(await metin(p, 'footer')) && (await metin(p, '.resmi-degil')) === 'Bağımsız taraftar uygulaması');
     kontrol(c('ana: oturum yokken üst barda Profil bağlantısı (giriş Profil\'de)'), (await p.getAttribute('#oturum-alani a', 'href')) === 'profil.html' && (await metin(p, '#oturum-alani')) === 'Profil');
@@ -1038,14 +1039,25 @@ async function tarayiciTestleri() {
     const { ctx, p, hatalar } = await baglam({ width: 390, height: 844 });
     await git(p, 'index.html?sahte=1');
     await p.waitForSelector(AKIS);
-    // ---- "Sıradaki:" şeridi hero'nun hemen altında, ilk ekranda
-    await p.waitForSelector('#siradaki-serit a');
-    const serit = await p.evaluate(() => { const a = document.querySelector('#siradaki-serit a'); const r = a.getBoundingClientRect(); const hero = document.querySelector('#hero').getBoundingClientRect(); return { metin: a.textContent.replace(/\s+/g, ' '), href: a.getAttribute('href'), ust: Math.round(r.top), alt: Math.round(r.bottom), heroAlt: Math.round(hero.bottom), heroH: Math.round(hero.height), ekran: innerHeight }; });
-    kontrol('ana (2. tur): hero altında tek satır "Sıradaki: Çorum FK – Deneme FK · <gün> 19:00 · … kaldı" maç sayfasına', /^Sıradaki/.test(serit.metin) && /Çorum FK – Deneme FK/.test(serit.metin) && /19:00/.test(serit.metin) && /kaldı/.test(serit.metin) && /^mac\.html\?id=11111111-0000-4000-8000-000000000003$/.test(serit.href), JSON.stringify(serit));
-    kontrol('ana (2. tur): şerit ilk ekranda (hero ≤ 60svh, şerit hemen altında)', serit.alt <= serit.ekran && serit.ust >= serit.heroAlt - 1 && serit.heroH <= Math.ceil(serit.ekran * 0.6) + 1, JSON.stringify(serit));
-    // ---- bizim takımda "ÇF" baş harf rozeti yok: özgün ÇT işareti
-    const rozet = await p.evaluate(() => [...document.querySelectorAll('#sonraki-mac .takim')].map((t) => ({ biz: t.classList.contains('biz'), harf: t.querySelector('.harf').textContent.trim(), img: !!t.querySelector('.harf img[src="assets/logo/amblem-yedek.svg"]') })));
-    kontrol('ana (2. tur): sıradaki maç kartında bizim takımda "ÇF" yok, özgün ÇT işareti; rakipte baş harfler', rozet.length === 2 && rozet.some((r) => r.biz && r.img && !r.harf) && rozet.some((r) => !r.biz && /^[A-ZÇĞİÖŞÜ]{1,2}$/.test(r.harf)) && !(await metin(p, '#sonraki-mac')).includes('ÇF'), JSON.stringify(rozet));
+    // ---- 019: "Son maç | Sıradaki" ikili kartı hero'nun hemen altında, ilk ekranda (eski tek satırlık şerit + büyük kartın yerine)
+    await p.waitForSelector('#ikili-siradaki');
+    const ikili = await p.evaluate(() => {
+      const k = (s) => { const a = document.querySelector(s); const r = a.getBoundingClientRect(); return { metin: a.textContent.replace(/\s+/g, ' ').trim(), href: a.getAttribute('href'), ust: Math.round(r.top), alt: Math.round(r.bottom), h: Math.round(r.height) }; };
+      const hero = document.querySelector('#hero').getBoundingClientRect();
+      return { son: k('#ikili-son'), sira: k('#ikili-siradaki'), heroAlt: Math.round(hero.bottom), heroH: Math.round(hero.height), ekran: innerHeight,
+        eskiYok: !document.querySelector('#siradaki-serit, #sonraki-mac'), cf: document.querySelector('#mac-ikili').textContent.includes('ÇF') };
+    });
+    kontrol('ana (019): ikili kart: solda "Son maç" (Kurgu Gençlik 1 – 1, B), sağda "Sıradaki" Çorum FK – Deneme FK · 19:00 · kalan; ikisi de maç sayfasına',
+      /^Son maç/.test(ikili.son.metin) && /Kurgu Gençlik/.test(ikili.son.metin) && /1 – 1/.test(ikili.son.metin) && /Beraberlik/.test(ikili.son.metin) && ikili.son.href === 'mac.html?id=11111111-0000-4000-8000-000000000002'
+      && /^Sıradaki/.test(ikili.sira.metin) && /Çorum FK – Deneme FK/.test(ikili.sira.metin) && /19:00/.test(ikili.sira.metin) && /kaldı/.test(ikili.sira.metin) && ikili.sira.href === 'mac.html?id=11111111-0000-4000-8000-000000000003', JSON.stringify(ikili));
+    kontrol('ana (019): ikili kart ilk ekranda (hero ≤ 60svh, kart hemen altında); eski şerit ve büyük sıradaki maç kartı yok; "ÇF" yok',
+      ikili.sira.alt <= ikili.ekran && ikili.sira.ust >= ikili.heroAlt - 1 && ikili.heroH <= Math.ceil(ikili.ekran * 0.6) + 1 && ikili.eskiYok && !ikili.cf && ikili.son.ust === ikili.sira.ust, JSON.stringify(ikili));
+    // ---- 019: son 24 saatte yayınlanan haberde "Yeni" rozeti (yazı; eski haberde yok)
+    await dbYaz(p, (db) => { db.haberler.find((x) => x.baslik.startsWith('Test haberi 4')).yayin_tarihi = new Date(Date.now() - 2 * 3600e3).toISOString(); });
+    await git(p, 'index.html?sahte=1');
+    await p.waitForSelector(AKIS);
+    const yeni = await p.evaluate(() => [...document.querySelectorAll('#akis .haber-satir')].map((a) => ({ b: a.querySelector('h3').textContent, yeni: a.querySelector('.yeni-rozet')?.textContent || null })));
+    kontrol('ana (019): son 24 saatteki haberde görünür "Yeni" rozeti, eski haberlerde yok', yeni.some((x) => x.b.startsWith('Test haberi 4') && x.yeni === 'Yeni') && yeni.filter((x) => /Test haberi [5-7]/.test(x.b)).every((x) => !x.yeni), JSON.stringify(yeni));
     // ---- gol şeridi kapakları tembel (ilk ekranın altında)
     const golYukleme = await p.$$eval('#son-goller img', (l) => l.map((i) => i.getAttribute('loading')));
     kontrol('ana (2. tur): gol şeridindeki kapaklar loading=lazy', golYukleme.length >= 1 && golYukleme.every((x) => x === 'lazy'), JSON.stringify(golYukleme));
@@ -1177,12 +1189,13 @@ async function tarayiciTestleri() {
     // ---- tasarımcı 7: etiket yüklenirken iskelet (HTML'de "Manşet" yazmaz); veri gelince gerçek etiket
     const et = await p.$eval('#hero-etiket', (e) => ({ metin: e.textContent, iskelet: e.classList.contains('iskelet') }));
     kontrol('son tur (tasarımcı 7): veri gelince hero etiketi gerçek metin, iskelet sınıfı kalkar', et.metin === 'Maç sonu' && !et.iskelet, JSON.stringify(et));
-    // ---- taraftar 5 / tasarımcı 5: "Sıradaki" şeridi bölünmez parçalar, ayraç parçanın başında, geri sayım "5 g 15 sa"
-    const sp = await tekSatir('#siradaki-serit .serit-parca');
-    const kalanMetin = await p.$eval('#siradaki-serit .serit-kalan [aria-hidden="true"]', (e) => e.textContent).catch(() => '');
-    const okunus = await p.$eval('#siradaki-serit .serit-kalan .gorunmez', (e) => e.textContent).catch(() => '');
-    kontrol('son tur (taraftar 5): şerit parçaları (takım adları, gün + saat, geri sayım) tek satırda; ayraç "·" parçanın başında (satır sonunda asılı nokta yok)',
-      sp.length >= 4 && sp.every((x) => x.satir === 1) && sp.slice(2).every((x) => /^· /.test(x.t)) && !sp.some((x) => /·\s*$/.test(x.t)), JSON.stringify(sp));
+    // ---- taraftar 5 / tasarımcı 5 (019: ikili kartta): uzun rakip adı karttan taşmaz (sarar), geri sayım tek parça "· 5 g 15 sa"
+    const sp = await tekSatir('#ikili-siradaki .serit-kalan');
+    const kalanMetin = await p.$eval('#ikili-siradaki .serit-kalan [aria-hidden="true"]', (e) => e.textContent).catch(() => '');
+    const okunus = await p.$eval('#ikili-siradaki .serit-kalan .gorunmez', (e) => e.textContent).catch(() => '');
+    const tasma = await p.$$eval('.ikili-kart', (l) => l.map((e) => e.scrollWidth - e.clientWidth));
+    kontrol('son tur (taraftar 5, 019): ikili kartta uzun rakip adı sarar (yatay taşma yok); geri sayım tek satırda, ayraç "·" başta',
+      sp.length === 1 && sp[0].satir === 1 && /^· /.test(kalanMetin) && tasma.every((x) => x <= 0), JSON.stringify({ sp, tasma }));
     kontrol('son tur (tasarımcı 5): geri sayım tek parça "N g M sa", ekran okuyucuya "N gün M saat kaldı"', /^· \d+ g \d+ sa$/.test(kalanMetin) && /^, \d+ gün \d+ saat kaldı$/.test(okunus), JSON.stringify({ kalanMetin, okunus }));
     // ---- fikstür ve gol arşivi satırlarında skor bölünmez
     await git(p, 'takim.html?sahte=1#fikstur');
@@ -1294,15 +1307,15 @@ async function tarayiciTestleri() {
     await p.keyboard.press('ArrowRight');
     await p.waitForSelector('#olaylar[data-durum="tamam"]');
     const ol = await p.evaluate(() => ({
-      odak: document.activeElement.id, url: location.hash, taraf: document.getElementById('olay-cizelge')?.dataset.taraf,
-      olaylar: [...document.querySelectorAll('#olay-cizelge .olay')].map((l) => l.className.replace('olay olay-', '') + '@' + l.querySelector('.dk [aria-hidden]').textContent),
+      odak: document.activeElement.id, url: location.hash,
+      olaylar: [...document.querySelectorAll('#olay-cizelge .olay')].map((l) => l.className.split(' ')[1].replace('olay-', '') + ':' + l.dataset.taraf + '@' + l.querySelector('.dk [aria-hidden]').textContent),
       golHref: document.querySelector('#olay-cizelge .olay-gol a')?.getAttribute('href'),
       kartlar: document.querySelector('.kart-listesi')?.textContent || '',
       ilk11: [...document.querySelectorAll('#ilk11-baslik + .mac-kadro li')].map((l) => l.textContent),
       yedek: [...document.querySelectorAll('#yedek-baslik + .mac-kadro a')].map((a) => a.getAttribute('href')),
     }));
-    kontrol('hareket: Olaylar sekmesi klavyeyle (sağ ok) açılır, adres #olaylar; çizelge iç sahada solda, dakika sırasıyla gol 23\' · değişiklik 70\' · gol 90+2\'',
-      ol.odak === 'sekme-olaylar' && ol.url === '#olaylar' && ol.taraf === 'sol' && ol.olaylar.join('|') === "gol@23'|degisiklik@70'|gol@90+2'", JSON.stringify(ol));
+    kontrol('hareket: Olaylar sekmesi klavyeyle (sağ ok) açılır, adres #olaylar; çizelge dakika sırasıyla gol 23\' · rakip golü 55\' (019) · değişiklik 70\' · gol 90+2\'',
+      ol.odak === 'sekme-olaylar' && ol.url === '#olaylar' && ol.olaylar.join('|') === "gol:biz@23'|rakip_gol:rakip@55'|degisiklik:biz@70'|gol:biz@90+2'", JSON.stringify(ol));
     kontrol('hareket: gol satırı gol.html\'e bağlanır; sarı kart dakikasız listede; İlk 11 ve oyuna girenler oyuncu sayfasına bağlı',
       ol.golHref === 'gol.html?id=22222222-0000-4000-8000-000000000001' && /Sarı kart: Ali Örnek/.test(ol.kartlar) && ol.ilk11.length === 2 && ol.yedek.join() === 'oyuncu.html?id=55555555-0000-4000-8000-000000000008', JSON.stringify(ol));
     await p.keyboard.press('End');
@@ -1480,9 +1493,10 @@ async function tarayiciTestleri() {
     }
     await git(p, 'index.html?sahte=1');
     await p.waitForSelector(AKIS);
-    await p.waitForSelector('#sonraki-mac .stadyum');
-    const k = await p.evaluate(() => ({ sinif: document.documentElement.classList.contains('buyuk-yazi'), kirpik: [...document.querySelectorAll('.haber-satir h3, .video-kart .baslik')].filter((e) => { const c = getComputedStyle(e); return c.overflow !== 'visible' || (c.webkitLineClamp && c.webkitLineClamp !== 'none'); }).map((e) => e.textContent), clamp: getComputedStyle(document.querySelector('.haber-satir h3')).webkitLineClamp, stadyum: getComputedStyle(document.querySelector('#sonraki-mac .stadyum')).whiteSpace }));
-    kontrol('son tur (erişilebilirlik 5): büyük yazıda haber ve gol kartı başlıkları kırpılmaz (line-clamp yok), stadyum adı sarar', k.sinif && !k.kirpik.length && /none|unset/.test(k.clamp || 'none') && k.stadyum === 'normal', JSON.stringify(k));
+    await p.waitForSelector('#ikili-siradaki');
+    const k = await p.evaluate(() => ({ sinif: document.documentElement.classList.contains('buyuk-yazi'), kirpik: [...document.querySelectorAll('.haber-satir h3, .video-kart .baslik')].filter((e) => { const c = getComputedStyle(e); return c.overflow !== 'visible' || (c.webkitLineClamp && c.webkitLineClamp !== 'none'); }).map((e) => e.textContent), clamp: getComputedStyle(document.querySelector('.haber-satir h3')).webkitLineClamp,
+      ikili: getComputedStyle(document.querySelector('#mac-ikili')).gridTemplateColumns.split(' ').length }));
+    kontrol('son tur (erişilebilirlik 5): büyük yazıda haber ve gol kartı başlıkları kırpılmaz (line-clamp yok); 019: ikili kart alt alta (tek sütun)', k.sinif && !k.kirpik.length && /none|unset/.test(k.clamp || 'none') && k.ikili === 1, JSON.stringify(k));
     await ctx.close();
   });
 
@@ -1665,6 +1679,132 @@ async function tarayiciTestleri() {
     await p.waitForSelector('#profil[data-durum="tamam"]');
     kontrol('profil fotoğrafı (017): onaysız hesapta düğme yok, "e-posta adresini onayla" açıklaması', !(await p.$('#profil-foto-yukle')) && /e-posta adresini onayla/.test(await metin(p, '#profil-foto-not')), await metin(p, '#profil-foto'));
     kontrol('yanıt ve profil fotoğrafı sayfalarında JavaScript hatası yok', !hatalar.length, hatalar.join(' | '));
+    await ctx.close();
+  });
+
+  // ------------------------------------------------ 019: kadro dönüş konumu, piyasa değeri, olay çizelgesi (rakip golleri), Takvime ekle,
+  // fikstür takvimi + önizleme penceresi (klavye), Golü tekrar izle
+  await guvenli('019 ön yüz', async () => {
+    const { ctx, p, hatalar } = await baglam({ width: 390, height: 844 }, { acceptDownloads: true });
+    const M2 = '11111111-0000-4000-8000-000000000002', M3 = '11111111-0000-4000-8000-000000000003';
+    // ---- Kadro: Forvet'ten oyuncuya gir, geri dön → aynı kaydırma yeri (veri ağdan sonra gelse de)
+    await git(p, 'takim.html?sahte=1#kadro');
+    await p.waitForSelector('#kadro-icerik[data-durum="tamam"] a.oyuncu-kart');
+    const hedef = '#kadro-icerik a[data-oyuncu-id="55555555-0000-4000-8000-000000000008"]';
+    await p.$eval(hedef, (a) => a.scrollIntoView({ block: 'center' }));
+    // Kartın ekrandaki yeri karşılaştırılır (tarayıcının kaydırma çapası üstte birkaç px büyüyen içerikte scrollY'yi kaydırabilir)
+    const yer = () => p.$eval(hedef, (a) => ({ y: Math.round(scrollY), ust: Math.round(a.getBoundingClientRect().top) }));
+    const y0 = await yer();
+    // bfcache'i kapat (pageshow'la eski sayfa geri gelmesin; asıl yol: sayfa yeniden açılır, veri ağdan sonra gelir)
+    await p.evaluate(() => addEventListener('unload', () => {}));
+    await p.click(hedef);
+    await p.waitForSelector('#oyuncu[data-durum="tamam"]');
+    await p.goBack();
+    await p.waitForSelector('#kadro-icerik[data-durum="tamam"] a.oyuncu-kart');
+    await p.waitForFunction((u) => Math.abs(document.querySelector('#kadro-icerik a[data-oyuncu-id="55555555-0000-4000-8000-000000000008"]').getBoundingClientRect().top - u) <= 6, y0.ust, { timeout: 4000 }).catch(() => {});
+    const y1 = await yer();
+    kontrol('019: Kadro → oyuncu → geri: kaydırma yeri korunur (aynı kart ekranda aynı yerde; Kaleciler\'e atmaz)', y0.y > 0 && y1.y > 0 && Math.abs(y1.ust - y0.ust) <= 6, JSON.stringify({ y0, y1 }));
+    kontrol('019: kadro kartlarında piyasa değeri yok (sade)', !/€/.test(await metin(p, '#kadro-icerik')));
+
+    // ---- Oyuncu: piyasa değeri kutusu (yalnız girilmişse)
+    await git(p, 'oyuncu.html?sahte=1&id=55555555-0000-4000-8000-000000000007');
+    await p.waitForSelector('#oyuncu[data-durum="tamam"]');
+    const pd = { deger: await metin(p, '#piyasa-degeri .piyasa-deger'), kaynak: await metin(p, '#piyasa-degeri .piyasa-kaynak') };
+    await git(p, 'oyuncu.html?sahte=1&id=55555555-0000-4000-8000-000000000001');
+    await p.waitForSelector('#oyuncu[data-durum="tamam"]');
+    pd.yok = !(await p.$('#piyasa-degeri'));
+    kontrol('019: oyuncu sayfasında "3,00 Mn €" + "Transfermarkt\'a göre, 30 Eylül 2026"; değer yoksa kutu hiç yok', pd.deger === '3,00 Mn €' && pd.kaynak === "Transfermarkt'a göre, 30 Eylül 2026" && pd.yok, JSON.stringify(pd));
+
+    // ---- Maç Olaylar: skor 2 – 1 = 2 Çorum FK golü + 1 rakip golü; tam genişlik satır; taraf rozeti (yazı)
+    await git(p, `mac.html?sahte=1&id=${M1}#olaylar`);
+    await p.waitForSelector('#olaylar[data-durum="tamam"] #olay-cizelge');
+    const ol = await p.evaluate(() => {
+      const l = [...document.querySelectorAll('#olay-cizelge .olay')];
+      const g = document.querySelector('#olay-cizelge').getBoundingClientRect();
+      return {
+        biz: l.filter((x) => x.matches('.olay-gol')).length, rakip: l.filter((x) => x.matches('.olay-rakip_gol')).length,
+        rozetler: [...new Set(l.map((x) => x.querySelector('.taraf-rozet').textContent.replace(/^\s*·\s*/, '').trim()))],
+        tamGenis: l.every((x) => Math.abs(x.getBoundingClientRect().width - g.width) <= 1),
+        satir: l.filter((x) => x.matches('.olay-gol, .olay-rakip_gol')).map((x) => { const b = x.querySelector('b'); return Math.round(b.getBoundingClientRect().height / (parseFloat(getComputedStyle(b).lineHeight) || 20)); }),
+        not: document.querySelector('#olay-not').textContent,
+      };
+    });
+    kontrol('019: Olaylar: skor 2 – 1 = çizelgede 2 Çorum FK + 1 rakip golü; satırlar tam genişlik, "Çorum FK" / "Örnekköy Spor" rozetleri, adlar tek satır',
+      ol.biz === 2 && ol.rakip === 1 && ol.tamGenis && ol.rozetler.includes('Çorum FK') && ol.rozetler.includes('Örnekköy Spor') && ol.satir.every((n) => n <= 1) && !/henüz yok/.test(ol.not), JSON.stringify(ol));
+    kontrol('019: biten maçta "Takvime ekle" yok', !(await p.$('#takvime-ekle')));
+    await git(p, `mac.html?sahte=1&id=${M2}#olaylar`);
+    await p.waitForSelector('#olaylar[data-durum="tamam"]');
+    const not2 = await metin(p, '#olay-not');
+    kontrol('019: rakip golü girilmemiş maçta okuyan aramasın: "Çizelgede henüz yok: Kurgu Gençlik 1 gol"', /Çizelgede henüz yok: Kurgu Gençlik 1 gol/.test(not2), not2);
+
+    // ---- Maç sayfası: Takvime ekle (.ics tarayıcıda; dış istek yok)
+    await git(p, `mac.html?sahte=1&id=${M3}`);
+    await p.waitForSelector('#takvime-ekle');
+    const [indir] = await Promise.all([p.waitForEvent('download'), p.click('#takvime-ekle')]);
+    const ics = fs.readFileSync(await indir.path(), 'utf8');
+    const acik = ics.replace(/\r\n /g, '');
+    kontrol('019: "Takvime ekle" .ics: dosya adı, 16:00Z başlangıç + 2 saat, başlık "Çorum FK – Deneme FK", yer, maç sayfası adresi, CRLF',
+      /^corum-fk-deneme-fk-\d{4}-\d{2}-\d{2}\.ics$/.test(indir.suggestedFilename()) && /\r\nDTSTART:\d{8}T160000Z\r\n/.test(acik) && /\r\nDTEND:\d{8}T180000Z\r\n/.test(acik)
+      && /\r\nSUMMARY:Çorum FK – Deneme FK\r\n/.test(acik) && /\r\nLOCATION:Çorum Şehir Stadyumu\r\n/.test(acik) && acik.includes(`mac.html?sahte=1&id=${M3}`) && !/[^\r]\n/.test(ics), acik.slice(0, 600));
+
+    // ---- Fikstür → Takvim: segment, ay ızgarası, gün düğmesi, önizleme penceresi (klavye), geri dönüşte görünüm korunur
+    await git(p, 'takim.html?sahte=1#fikstur');
+    await p.waitForSelector('#gelecek[data-durum="tamam"]');
+    await p.click('#fikstur-gorunum [data-gorunum="takvim"]');
+    await p.waitForSelector('#takvim-izgara');
+    const tk = await p.evaluate(() => ({
+      basili: document.querySelector('[data-gorunum="takvim"]').getAttribute('aria-pressed'), liste: document.querySelector('#fikstur-liste').hidden,
+      th: document.querySelectorAll('.takvim-izgara th').length, ay: document.querySelector('#takvim-ay').textContent, durum: document.querySelector('#durum').textContent,
+      gunler: [...document.querySelectorAll('.takvim-gun')].map((b) => ({ sinif: b.className, ad: b.getAttribute('aria-label'), isaret: b.querySelector('.takvim-isaret').textContent, w: Math.round(b.getBoundingClientRect().width), h: Math.round(b.getBoundingClientRect().height) })),
+    }));
+    kontrol('019: Fikstür → Takvim: aria-pressed, liste gizli, 7 gün başlığı, #durum duyurur; maç günü ≥ 44×44, iç saha "İ" / deplasman "D", adı maçı söyler',
+      tk.basili === 'true' && tk.liste && tk.th === 7 && /Takvim görünümü/.test(tk.durum) && tk.gunler.length >= 1
+      && tk.gunler.every((g) => g.w >= 44 && g.h >= 44 && (/\bic\b/.test(g.sinif) ? g.isaret === 'İ' : g.isaret === 'D') && /Çorum FK/.test(g.ad)), JSON.stringify(tk));
+    if ((await p.getAttribute('#takvim-onceki', 'aria-disabled')) !== 'true') {
+      const ay0 = await metin(p, '#takvim-ay');
+      await p.click('#takvim-onceki');
+      const gz = await p.evaluate(() => ({ ay: document.querySelector('#takvim-ay').textContent, odak: document.activeElement.id }));
+      kontrol('019: takvimde önceki ay düğmesi ayı değiştirir, odak düğmede kalır', gz.ay !== ay0 && gz.odak === 'takvim-onceki', JSON.stringify({ ay0, gz }));
+      await p.click('#takvim-sonraki');
+    }
+    await p.focus('.takvim-gun[aria-label*="Deneme FK"]');
+    await p.keyboard.press('Enter');
+    await p.waitForSelector('#takvim-onizleme[open]');
+    const dl = await p.evaluate(() => ({
+      odak: document.activeElement.textContent, inert: ['#icerik', '#alt-nav', 'header.ust'].every((s) => document.querySelector(s).hasAttribute('inert')),
+      metin: document.querySelector('#takvim-onizleme').textContent.replace(/\s+/g, ' '), ekle: !!document.querySelector('#takvim-onizleme .takvime-ekle'),
+    }));
+    await p.keyboard.press('Escape');
+    await p.waitForFunction(() => !document.querySelector('#takvim-onizleme[open]'));
+    const kapali = await p.evaluate(() => ({ odakGun: document.activeElement.classList.contains('takvim-gun'), inert: document.querySelector('#icerik').hasAttribute('inert') }));
+    kontrol('019: takvim günü (Enter) alttan pencere açar: maç, 19:00, stadyum, odak "Maç sayfası", "Takvime ekle"; arka plan inert; Esc kapatır, odak güne döner',
+      dl.odak === 'Maç sayfası' && dl.inert && /Deneme FK/.test(dl.metin) && /19:00/.test(dl.metin) && /Çorum Şehir Stadyumu/.test(dl.metin) && dl.ekle && kapali.odakGun && !kapali.inert, JSON.stringify({ dl, kapali }));
+    await p.click('.takvim-gun[aria-label*="Deneme FK"]');
+    await p.click('#takvim-onizleme a.dugme');
+    await p.waitForSelector('#mac[data-durum="tamam"]');
+    await p.goBack();
+    await p.waitForSelector('#takvim-izgara');
+    kontrol('019: maç sayfasından geri dönünce Takvim görünümü açık kalır', (await p.getAttribute('[data-gorunum="takvim"]', 'aria-pressed')) === 'true');
+
+    // ---- Gol: "Golü tekrar izle" (iframe aynı start/end ile yeniden kurulur)
+    await dbYaz(p, (db) => { const g = db.goller.find((x) => x.id.endsWith('0001')); g.video_baslangic_sn = 5; g.video_bitis_sn = 47; });
+    await git(p, 'gol.html?sahte=1&id=22222222-0000-4000-8000-000000000001');
+    await p.waitForSelector('#gol[data-durum="tamam"] .video-baslat');
+    const once = !!(await p.$('#video-tekrar'));
+    await p.click('.video-baslat');
+    await p.waitForSelector('#video-tekrar');
+    const src1 = await p.getAttribute('.video iframe', 'src');
+    const eski = await p.$('.video iframe');
+    await p.focus('#video-tekrar');
+    await p.keyboard.press('Enter');
+    const gt = await p.evaluate((e) => {
+      const f = document.querySelector('.video iframe');
+      const v = document.querySelector('.gol-makale > .video').getBoundingClientRect(), t = document.querySelector('#video-tekrar').getBoundingClientRect();
+      return { yeni: f !== e, src: f.getAttribute('src'), odak: document.activeElement.id, ad: document.querySelector('#video-tekrar').textContent, durum: document.querySelector('#durum').textContent, altinda: t.top >= v.bottom - 1, h: Math.round(t.height) };
+    }, eski);
+    kontrol('019: "Golü tekrar izle": oynatmadan önce yok; oynatınca videonun altında (≥44 px); iframe yeniden kurulur, aynı start=5&end=47; odak düğmede; #durum duyurur',
+      !once && gt.yeni && gt.src === src1 && /&start=5&end=47$/.test(gt.src) && gt.odak === 'video-tekrar' && /Golü tekrar izle/.test(gt.ad) && /golün başından/.test(gt.durum) && gt.altinda && gt.h >= 44, JSON.stringify(gt));
+    kontrol('019 sayfalarında JavaScript hatası yok', !hatalar.length, hatalar.join(' | '));
     await ctx.close();
   });
 

@@ -1,12 +1,14 @@
 // Oyuncu sayfası (oyuncu.html?id=<oyuncular.id>; 018): ad, forma no, mevki; bu sezonun (kurallar.js sezonAdi, Temmuz–Haziran)
 // Maç, İlk 11, Dakika (mac_oyunculari: maç olayları, uzatma = 90), Gol, Asist, Gole katkı (goller.oyuncu / goller.asist),
 // Sarı, Kırmızı ve gollerinin / asistlerinin listesi (→ gol.html). Eşleştirme adla: kurallar.js oyuncuAnahtari (Türkçe harf,
-// aksan, büyük/küçük harf ve boşluk farkı yok sayılır). Pas, şut, piyasa değeri GÖSTERİLMEZ (lisanslı veri; kaynağımız yok).
+// aksan, büyük/küçük harf ve boşluk farkı yok sayılır). Pas, şut GÖSTERİLMEZ (lisanslı veri; kaynağımız yok).
+// 019: piyasa değeri yalnız girilmişse, kaynağı ve tarihiyle ("3,00 Mn €" + "Transfermarkt'a göre, 30 Eylül 2026"); yoksa kutu hiç çıkmaz.
+// Kadro kartlarında gösterilmez (sade kalsın). Otomatik çekme yok: yönetici panelden girer.
 // Üstte 3 büyük sayı (Gol, Asist, Maç); sayılar HER ZAMAN çizilir (forma giymemiş oyuncuda 0 + tek satır not: sayfa "boş" görünmez).
 // Sonda kadro sırasıyla (Takım sayfasıyla aynı: mevki, sıra, forma no) önceki / sonraki oyuncu ve aynı mevkiden "Diğer oyuncular"
 // şeridi (elle kaydırılır, kendi kendine kaymaz). Kadro listesi tek sorgu: oyuncunun kendi satırı da ondan (ek istek yok).
 import { supabase, hazir, h, $, sayfaBaslat, param, kimlikGecerli, cevrimdisiKutusu, hataMetni, dakikaMetni, dakikaOkunus, tarihYaz, evSahibiDeplasman, skorMetni, skorOgesi } from '../ortak.js';
-import { sezonAdi, oyuncuAnahtari, oyuncuOzeti } from '../kurallar.js';
+import { sezonAdi, oyuncuAnahtari, oyuncuOzeti, piyasaDegeriMetni } from '../kurallar.js';
 
 const kok = $('#oyuncu');
 const id = param('id');
@@ -15,6 +17,7 @@ const MEVKI = { kaleci: 'Kaleci', defans: 'Defans', orta_saha: 'Orta saha', forv
 const MEVKI_SIRASI = { kaleci: 0, defans: 1, orta_saha: 2, forvet: 3 };
 const kadroSirasi = (a, b) => (MEVKI_SIRASI[a.mevki] ?? 9) - (MEVKI_SIRASI[b.mevki] ?? 9) || (a.sira ?? 99) - (b.sira ?? 99) || (a.forma_no ?? 99) - (b.forma_no ?? 99);
 const MAC_SUTUNLARI = 'id, rakip, tarih, ic_saha, corum_skor, rakip_skor, durum, hafta';
+const OYUNCU_SUTUNLARI = 'id, ad, forma_no, mevki, sira, piyasa_degeri_eur, piyasa_degeri_tarih, piyasa_degeri_kaynak';
 
 function bulunamadi() {
   document.title = 'Oyuncu bulunamadı · Çorumspor Taraftar';
@@ -33,6 +36,25 @@ function golSatiri(g, asistMi) {
     h('span', { class: 'dakika', 'aria-hidden': 'true' }, dakikaMetni(g)),
     h('span', null, asistMi ? h('span', { class: 'oyuncu' }, g.oyuncu, ' golü · ') : null, h('span', { class: 'asist' }, ...macMetni(m))),
     h('span', { class: 'soluk', 'aria-hidden': 'true' }, '›')));
+}
+
+/** Yönelme eki: "Transfermarkt" → "Transfermarkt'a", "Mackolik" → "Mackolik'e", "Sofascore" → "Sofascore'a". */
+function yoneEki(ad) {
+  const k = String(ad).toLocaleLowerCase('tr-TR');
+  const unlu = [...k].reverse().find((c) => 'aıoueiöü'.includes(c));
+  const ince = unlu && 'eiöü'.includes(unlu);
+  return `${ad}'${/[aıoueiöü]$/.test(k) ? 'y' : ''}${ince ? 'e' : 'a'}`;
+}
+
+/** 019: piyasa değeri kutusu; değer, tarih ve kaynak yoksa null (boş kutu çizilmez). */
+function piyasaKutusu(o) {
+  const metin = piyasaDegeriMetni(o.piyasa_degeri_eur);
+  if (!metin || !o.piyasa_degeri_tarih || !o.piyasa_degeri_kaynak) return null;
+  const tarih = tarihYaz(String(o.piyasa_degeri_tarih).slice(0, 10) + 'T12:00:00Z', { saat: false });
+  return h('section', { class: 'piyasa-kutu', id: 'piyasa-degeri', 'aria-labelledby': 'piyasa-baslik' },
+    h('h2', { class: 'piyasa-etiket', id: 'piyasa-baslik' }, 'Piyasa değeri'),
+    h('p', { class: 'piyasa-deger' }, metin),
+    h('p', { class: 'piyasa-kaynak' }, `${yoneEki(o.piyasa_degeri_kaynak)} göre, `, h('time', { datetime: String(o.piyasa_degeri_tarih).slice(0, 10) }, tarih)));
 }
 
 function ciz(o, sezon, kadro, goller, liste) {
@@ -58,6 +80,7 @@ function ciz(o, sezon, kadro, goller, liste) {
       h('span', { class: 'no', 'aria-hidden': 'true' }, o.forma_no ?? '–'),
       h('div', null, h('h1', { id: 'oyuncu-ad' }, ad),
         h('p', { class: 'mevki' }, [MEVKI[o.mevki], o.forma_no != null ? `${o.forma_no} numara` : null].filter(Boolean).join(' · ')))),
+    piyasaKutusu(o),
     h('ul', { class: 'one-cikan', id: 'one-cikan', 'aria-label': `${sezon} sezonu öne çıkanlar` }, buyuk(ozet.gol, 'Gol'), buyuk(ozet.asist, 'Asist'), buyuk(ozet.mac, 'Maç')),
     h('section', { class: 'oyuncu-bolum', 'aria-labelledby': 'sezon-baslik' },
       h('h2', { id: 'sezon-baslik' }, `${sezon} sezonu`),
@@ -86,14 +109,14 @@ function ciz(o, sezon, kadro, goller, liste) {
 async function yukle() {
   if (!kimlikGecerli(id)) return bulunamadi();
   const [li, go, ka] = await Promise.all([
-    supabase.from('oyuncular').select('id, ad, forma_no, mevki, sira').eq('aktif', true).order('sira', { ascending: true }).limit(80),
+    supabase.from('oyuncular').select(OYUNCU_SUTUNLARI).eq('aktif', true).order('sira', { ascending: true }).limit(80),
     supabase.from('goller').select(`id, oyuncu, asist, dakika, ek_dakika, penalti, maclar(${MAC_SUTUNLARI})`).limit(3000),
     supabase.from('mac_oyunculari').select('mac_id, oyuncu, ilk11, giris_dk, cikis_dk, sari, kirmizi, maclar(tarih)').limit(5000),
   ]);
   const liste = li.error ? [] : [...(li.data || [])].sort(kadroSirasi);
   // Kadrodan çıkmış (aktif değil) oyuncunun eski bağlantısı: kendi satırı ayrıca istenir (seyrek)
   const kendi = liste.find((x) => x.id === id);
-  const oy = li.error ? li : kendi ? { data: kendi } : await supabase.from('oyuncular').select('id, ad, forma_no, mevki, sira').eq('id', id).maybeSingle();
+  const oy = li.error ? li : kendi ? { data: kendi } : await supabase.from('oyuncular').select(OYUNCU_SUTUNLARI).eq('id', id).maybeSingle();
   const hata = oy.error || go.error || ka.error;
   if (hata) {
     kok.replaceChildren(cevrimdisiKutusu(hataMetni(hata, 'Oyuncu yüklenemedi. İnternet bağlantını kontrol et.'), () => location.reload()));

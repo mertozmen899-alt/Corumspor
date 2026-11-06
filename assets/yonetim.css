@@ -23,3 +23,7 @@
 .ry-sayac.asim { color: var(--ry-kotu); font-weight: 700; }
 .ry-sektor { border: 1px solid var(--ry-kenar) !important; border-radius: 8px; padding: 10px 12px !important; }
 .ry-sektor .ry-secenek { align-items: flex-start; min-height: 32px; }
+
+/* 019: kadro formunda piyasa değeri grubu */
+.alan-grubu { margin: 0 0 12px; padding: 8px 12px 0; border: 1px solid var(--kenar); border-radius: var(--r-kart); }
+.alan-grubu legend { padding: 0 4px; font-weight: 700; }

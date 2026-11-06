@@ -3,6 +3,8 @@
 // (yorumlar.js, gol_id). DOM'da h1 videodan ÖNCE (başlıkla gezen video düğmesini atlamasın); görsel sırada video üstte (CSS order).
 // Önce son görülen kayıt (onbellek.js: bu gol daha önce açıldıysa, yoksa ana sayfa / gol arşivi listesindeki satırı) ANINDA çizilir
 // (data-durum="onbellek"; video kapağı ağ sorgusunu beklemeden iner, fetchpriority=high: performans 3. tur 2), sonra ağdan tazelenir.
+// 019: YouTube gol anında oynatma başlayınca videonun altında "Golü tekrar izle" (iframe aynı start/end ile yeniden kurulur; YouTube'un
+// kendi tekrar düğmesi videoyu 0:00'dan başlatıyordu).
 import { supabase, hazir, h, $, sayfaBaslat, param, kimlikGecerli, dakikaOgesi, dakikaOkunus, sureMetni, videoFasad, fotoAtfi, cevrimdisiKutusu, paylasDugmesi, altyaziGecerli, eslesmeOgeleri } from '../ortak.js';
 import { golKarti, macEtiketi, kartTarihi, golSuresi } from '../gol-kart.js';
 import { sonVeri, sonKayit, sonKayitYaz } from '../onbellek.js';
@@ -26,11 +28,12 @@ function golCiz(gol, { kismi = false } = {}) {
   const baslik = `${gol.oyuncu}, ${dakikaOkunus(gol)}${mac ? ', ' + mac.rakip + ' maçı' : ''}`;
   const altyazi = altyaziGecerli(gol.altyazi_url) ? gol.altyazi_url : null;
   // 018: YouTube videosunda yalnız gol anı (start/end); aralık yoksa video baştan
-  let video = videoFasad(gol.video_url, { baslik, kapak: gol.kapak_url, sure, altyazi, oncelik: 'high', baslangic: gol.video_baslangic_sn ?? null, bitis: gol.video_bitis_sn ?? null });
+  let video = videoFasad(gol.video_url, { baslik, kapak: gol.kapak_url, sure, altyazi, oncelik: 'high', baslangic: gol.video_baslangic_sn ?? null, bitis: gol.video_bitis_sn ?? null, tekrar: 'Golü tekrar izle' });
   const atif = video && gol.kapak_url ? fotoAtfi(gol.kapak_url) : null;
   if (video && atif) video.append(h('p', { class: 'foto-atif' }, atif));
   // Önbellekten çizilmiş video kutusu: oynatıcı açıldıysa olduğu gibi kalır; açılmadıysa aynı kapak <img>'i taşınır (titreme yok)
   const onceki = kok.querySelector('.gol-makale > .video');
+  const oncekiTekrar = kok.querySelector('.gol-makale > .tekrar-izle'); // 019: oynayan videonun altındaki 'Golü tekrar izle' de taşınır
   if (video && onceki && onceki.dataset.video === video.dataset.video) {
     if (!onceki.querySelector('.video-baslat')) video = onceki;
     else {
@@ -56,6 +59,7 @@ function golCiz(gol, { kismi = false } = {}) {
       !video ? h('p', { class: 'soluk' }, 'Bu golün videosu yok.') : null,
       mac ? h('a', { class: 'mac-baglanti', href: 'mac.html?id=' + encodeURIComponent(mac.id) }, h('span', null, eslesmeOgeleri(mac), ' · ', kartTarihi(mac.tarih)), h('span', { 'aria-hidden': 'true' }, '→')) : null,
       kismi ? null : h('div', { class: 'eylem-satir' }, paylasDugmesi(paylasMetni)))));
+  if (video && video === onceki && oncekiTekrar) video.after(oncekiTekrar);
 }
 
 /** Son görülen kayıt: bu gol daha önce açıldıysa, yoksa ana sayfa şeridi ya da gol arşivi listesindeki satır. */

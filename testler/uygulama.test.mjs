@@ -454,3 +454,95 @@ test('hareket: tema.js sayfa geçişi yönü (pagereveal) ve mac.html sekmeleri 
   assert.ok(mac.indexOf('id="mac-sponsoru"') < mac.indexOf('id="mac-sekmeler"'));
   assert.ok(mac.indexOf('id="mac-sekmeler"') < mac.indexOf('id="mac-golleri"') && mac.indexOf('id="mac-golleri"') < mac.indexOf('id="yorumlar"'));
 });
+
+// ---------------------------------------------------------------- 019
+test('019: rakip golleri olay çizelgesinde (taraf: biz | rakip), dakika sırası; skor = çizelgedeki gol sayısı', () => {
+  const goller = [{ id: 'g1', dakika: 10, oyuncu: 'Cengiz Ünder' }, { id: 'g2', dakika: 15, oyuncu: 'Cengiz Ünder' }];
+  const rakip = [{ id: 'r1', dakika: 5, oyuncu: 'Logi Tómasson', penalti: false, kendi_kalesine: false }, { id: 'r2', dakika: 90, ek_dakika: 3, oyuncu: 'Ali Örnek', kendi_kalesine: true }];
+  const { olaylar } = K.macOlaylari(goller, [], rakip);
+  assert.deepEqual(olaylar.map((o) => `${o.tur}:${o.taraf}@${o.dakika}${o.ek ? '+' + o.ek : ''}`), ['rakip_gol:rakip@5', 'gol:biz@10', 'gol:biz@15', 'rakip_gol:rakip@90+3']);
+  assert.equal(olaylar.filter((o) => o.tur === 'gol').length, 2);
+  assert.equal(olaylar.filter((o) => o.tur === 'rakip_gol').length, 2);
+  assert.ok(K.macOlaylari(goller, [{ oyuncu: 'X', ilk11: true, cikis_dk: 60, kirmizi: true }]).olaylar.every((o) => o.taraf === 'biz'));
+});
+
+test('019: piyasa değeri biçimi (tr-TR) ve panel hataları SQL kısıtlarının aynası; rakip golü hataları', () => {
+  assert.equal(K.piyasaDegeriMetni(3000000), '3,00 Mn €');
+  assert.equal(K.piyasaDegeriMetni(61750000), '61,75 Mn €');
+  assert.equal(K.piyasaDegeriMetni(800000), '800 Bin €');
+  assert.equal(K.piyasaDegeriMetni(150000), '150 Bin €');
+  assert.equal(K.piyasaDegeriMetni(500), '500 €');
+  for (const x of [null, undefined, -1, 1.5, '3000000']) assert.equal(K.piyasaDegeriMetni(x), null, String(x));
+  assert.deepEqual(K.piyasaDegeriHatalari({ piyasa_degeri_eur: 3000000, piyasa_degeri_tarih: '2026-09-30', piyasa_degeri_kaynak: 'Transfermarkt' }), []);
+  assert.deepEqual(K.piyasaDegeriHatalari({}), []);
+  assert.match(K.piyasaDegeriHatalari({ piyasa_degeri_eur: 100, piyasa_degeri_kaynak: 'Transfermarkt' })[0], /tarihini ve kaynağını/);
+  assert.match(K.piyasaDegeriHatalari({ piyasa_degeri_eur: 100, piyasa_degeri_tarih: '2026-09-30', piyasa_degeri_kaynak: '  ' })[0], /tarihini ve kaynağını/);
+  assert.match(K.piyasaDegeriHatalari({ piyasa_degeri_eur: 600000000, piyasa_degeri_tarih: '2026-09-30', piyasa_degeri_kaynak: 'X Y' })[0], /500 milyon/);
+  assert.match(K.piyasaDegeriHatalari({ piyasa_degeri_kaynak: 'x'.repeat(81) })[0], /2-80/);
+  assert.deepEqual(K.rakipGolHatalari({ dakika: 90, ek_dakika: 3, oyuncu: 'Victor Osimhen', penalti: true }), []);
+  assert.match(K.rakipGolHatalari({ dakika: 0, oyuncu: 'Rakip' })[0], /1-130/);
+  assert.match(K.rakipGolHatalari({ dakika: 90, ek_dakika: 25, oyuncu: 'Rakip' })[0], /1-20/);
+  assert.match(K.rakipGolHatalari({ dakika: 10, oyuncu: 'R' })[0], /2-80/);
+  assert.match(K.rakipGolHatalari({ dakika: 10, oyuncu: 'Rakip', penalti: true, kendi_kalesine: true })[0], /hem penaltı/);
+  // SQL ile aynı sınırlar (019_piyasa_rakip_gol.sql)
+  const sql = readFileSync(path.join(KOK, 'supabase', 'migrations', '019_piyasa_rakip_gol.sql'), 'utf8');
+  assert.match(sql, /piyasa_degeri_eur between 0 and 500000000/);
+  assert.match(sql, /dakika between 1 and 130 and \(ek_dakika is null or ek_dakika between 1 and 20\)/);
+  assert.match(sql, /revoke truncate on public\.rakip_goller from anon, authenticated/);
+  assert.match(sql, /alter table public\.rakip_goller enable row level security/);
+});
+
+test('019: .ics (Takvime ekle): UTC saat (16:00 TSİ = 13:00Z), 2 saat, başlık "Çorum FK – Rakip", kaçış, 75 bayt katlama, CRLF', async () => {
+  const T = await import(new URL('../assets/takvim.js', import.meta.url).href);
+  const mac = { id: '76333f9b-0028-49e3-be81-dbf7f6474f5f', rakip: 'Fenerbahçe', tarih: '2026-11-08T13:00:00+00:00', stadyum: 'Dr. Turhan Kılıçcıoğlu Stadyumu', ic_saha: true, organizasyon: 'Süper Lig, 12. Hafta' };
+  const adres = 'https://corumtaraftar.example/mac.html?id=76333f9b-0028-49e3-be81-dbf7f6474f5f';
+  const ics = T.macIcs(mac, adres, Date.parse('2026-11-06T10:00:00Z'));
+  assert.ok(ics.endsWith('\r\n') && !/[^\r]\n/.test(ics), 'satırlar CRLF');
+  const acik = ics.replace(/\r\n /g, ''); // katlanmış satırları aç
+  assert.match(acik, /^BEGIN:VCALENDAR\r\nVERSION:2\.0\r\n/);
+  assert.match(acik, /\r\nDTSTART:20261108T130000Z\r\n/);
+  assert.match(acik, /\r\nDTEND:20261108T150000Z\r\n/);
+  assert.match(acik, /\r\nDTSTAMP:20261106T100000Z\r\n/);
+  assert.match(acik, /\r\nSUMMARY:Çorum FK – Fenerbahçe\r\n/);
+  assert.match(acik, /\r\nLOCATION:Dr\. Turhan Kılıçcıoğlu Stadyumu\r\n/);
+  assert.match(acik, /\r\nDESCRIPTION:Süper Lig\\, 12\. Hafta\\nİç saha maçı\\nMaç sayfası: https:\/\/corumtaraftar\.example\/mac\.html\?id=76333f9b/);
+  assert.match(acik, /\r\nUID:mac-76333f9b-0028-49e3-be81-dbf7f6474f5f@corumspor-taraftar\r\n/);
+  const enc = new TextEncoder();
+  for (const satir of ics.split('\r\n')) assert.ok(enc.encode(satir).length <= 75, `75 bayt: ${satir}`);
+  assert.equal(T.icsKacis('a;b,c\\d\ne'), 'a\\;b\\,c\\\\d\\ne');
+  // Katlama çok baytlı harfi bölmez: açınca aynı metin
+  const uzun = 'DESCRIPTION:' + 'çşğüöı–'.repeat(20);
+  assert.equal(T.icsKatla(uzun).replace(/\r\n /g, ''), uzun);
+  // Gece yarısına yakın saat: dosya adında Türkiye günü
+  assert.equal(T.icsDosyaAdi({ rakip: 'Çaykur Rizespor', tarih: '2026-10-16T21:30:00Z' }), 'corum-fk-caykur-rizespor-2026-10-17.ics');
+  assert.equal(T.trGunu('2026-10-16T21:30:00Z'), '2026-10-17');
+  assert.throws(() => T.macIcs({ ...mac, tarih: 'yok' }, adres));
+});
+
+test('019: ay takvimi ızgarası Pazartesi başlar, hücre sayısı 7\'nin katı', async () => {
+  const T = await import(new URL('../assets/takvim.js', import.meta.url).href);
+  const kasim = T.ayIzgarasi(2026, 11); // 1 Kasım 2026 Pazar
+  assert.equal(kasim.length % 7, 0);
+  assert.deepEqual(kasim.slice(0, 7).map((c) => c.no), [null, null, null, null, null, null, 1]);
+  assert.equal(kasim.filter((c) => c.gun).length, 30);
+  assert.equal(kasim.find((c) => c.no === 8).gun, '2026-11-08');
+  const subat = T.ayIzgarasi(2027, 2); // 1 Şubat 2027 Pazartesi, 28 gün
+  assert.equal(subat[0].no, 1);
+  assert.equal(subat.length, 28);
+});
+
+test('019: SW yeni sürüm notu, konum koruma ve "Golü tekrar izle" kaynakta (otomatik yeniden yükleme yok)', () => {
+  const ortak = readFileSync(path.join(KOK, 'assets', 'ortak.js'), 'utf8');
+  assert.match(ortak, /addEventListener\('controllerchange', yeniSurumNotu, \{ once: true \}\)/);
+  const not = ortak.slice(ortak.indexOf('function yeniSurumNotu'), ortak.indexOf('function swKaydet'));
+  assert.match(not, /'Yeni sürüm hazır'/);
+  assert.equal((not.match(/location\.reload\(\)/g) || []).length, 1, 'yeniden yükleme yalnız "Yenile" düğmesinde');
+  assert.match(not, /addEventListener\('click', \(\) => location\.reload\(\)\)/);
+  assert.match(ortak, /export function konumKoru/);
+  assert.match(ortak, /nav\.type === 'back_forward'/);
+  assert.match(ortak, /if \(f\) f\.replaceWith\(kur\(\)\)/);
+  const takim = readFileSync(path.join(KOK, 'assets', 'sayfa', 'takim.js'), 'utf8');
+  assert.match(takim, /yukle\(\)\.then\(\(\) => konum\.geriYukle\(\)\)/, 'veri çizildikten SONRA geri yükleme');
+  for (const s of ['takim', 'mac']) assert.match(readFileSync(path.join(KOK, s + '.html'), 'utf8'), /<link rel="modulepreload" href="assets\/takvim\.js">/);
+  assert.match(readFileSync(path.join(KOK, 'sw.js'), 'utf8'), /'assets\/takvim\.js'/);
+});

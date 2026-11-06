@@ -175,7 +175,13 @@ function baslangicVerisi() {
     oyuncular: [
       ['Kemal Kaleci', 1, 'kaleci', 1], ['Yedek Eldiven', 12, 'kaleci', 2], ['Deniz Defans', 4, 'defans', 1], ['Barış Bek', 2, 'defans', 2],
       ['Orhan Ortasaha', 8, 'orta_saha', 1], ['Mehmet Deneme', 10, 'orta_saha', 2], ['Ali Örnek', 9, 'forvet', 1], ['Fikret Forvet', 11, 'forvet', 2],
-    ].map(([ad, forma_no, mevki, sira], i) => ({ id: O(i + 1), ad, forma_no, mevki, sira, foto_url: null, aktif: true, created_at: gunOnce(30), updated_at: gunOnce(30) })),
+    ].map(([ad, forma_no, mevki, sira], i) => ({ id: O(i + 1), ad, forma_no, mevki, sira, foto_url: null, aktif: true, created_at: gunOnce(30), updated_at: gunOnce(30),
+      // 019: piyasa değeri (yalnız Ali Örnek; diğerlerinde kutu çıkmaz)
+      piyasa_degeri_eur: ad === 'Ali Örnek' ? 3000000 : null, piyasa_degeri_tarih: ad === 'Ali Örnek' ? '2026-09-30' : null, piyasa_degeri_kaynak: ad === 'Ali Örnek' ? 'Transfermarkt' : null })),
+    // 019: rakip golleri. M1 (2-1) tam; M2 (1-1) bilerek eksik (maç sayfası "Çizelgede henüz yok" notunu gösterir)
+    rakip_goller: [
+      { id: 'rg-1', mac_id: M(1), dakika: 55, ek_dakika: null, oyuncu: 'Rakip Golcü', penalti: false, kendi_kalesine: false, created_at: gunOnce(14) },
+    ],
     sakatliklar: [
       { id: S(1), oyuncu_id: O(3), durum: 'sakat', aciklama: 'İç not: kulüp açıklaması 1. paragraf.', kaynak: 'Kulüp açıklaması', kaynak_url: 'https://ornek.test/aciklama/1', kaynak_tarihi: gunOnce(1).slice(0, 10), beklenen_donus: new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10), guncellendi: new Date(Date.now() - 5 * 3600e3).toISOString(), yayinda: true, created_at: gunOnce(3) },
       { id: S(2), oyuncu_id: O(8), durum: 'cezali', aciklama: 'İç not: sarı kart cezası.', kaynak: 'TFF disiplin kurulu', kaynak_url: null, kaynak_tarihi: gunOnce(2).slice(0, 10), beklenen_donus: null, guncellendi: gunOnce(1), yayinda: true, created_at: gunOnce(1) },
@@ -200,7 +206,7 @@ function dbOku() {
     const s = localStorage.getItem(DB_ANAHTAR);
     if (s) {
       const db = JSON.parse(s);
-      for (const k of ['reklamlar', 'reklam_olaylari', 'reklam_sinir_dakikalari', 'yorum_duzenlemeleri', 'oyuncular', 'sakatliklar', 'yorum_sikayetleri', 'yorum_kelimeleri', 'reklam_yerlesimleri', 'reklam_sekme_sayaclari', 'reklam_gunluk_toplanan', 'mac_oyunculari']) db[k] = db[k] || [];
+      for (const k of ['reklamlar', 'reklam_olaylari', 'reklam_sinir_dakikalari', 'yorum_duzenlemeleri', 'oyuncular', 'sakatliklar', 'yorum_sikayetleri', 'yorum_kelimeleri', 'reklam_yerlesimleri', 'reklam_sekme_sayaclari', 'reklam_gunluk_toplanan', 'mac_oyunculari', 'rakip_goller']) db[k] = db[k] || [];
       return db;
     }
   } catch (e) {}
@@ -379,8 +385,9 @@ class Sorgu {
     const eklenen = [];
     for (const ham of this.veri) {
       const r = { id: uuid(), created_at: simdi(), ...ham };
-      if (['haberler', 'maclar', 'goller', 'oyuncular', 'sakatliklar', 'yorum_kelimeleri', 'mac_oyunculari'].includes(this.t)) {
+      if (['haberler', 'maclar', 'goller', 'oyuncular', 'sakatliklar', 'yorum_kelimeleri', 'mac_oyunculari', 'rakip_goller'].includes(this.t)) {
         if (!ctx.admin) throw rlsHatasi(this.t);
+        if (this.t === 'rakip_goller') { Object.assign(r, { ek_dakika: r.ek_dakika ?? null, penalti: !!r.penalti, kendi_kalesine: !!r.kendi_kalesine }); rakipGolDogrula(r); } // 019
         if (this.t === 'mac_oyunculari') { // 018: birincil anahtar (mac_id, oyuncu)
           Object.assign(r, { ilk11: !!r.ilk11, giris_dk: r.giris_dk ?? null, cikis_dk: r.cikis_dk ?? null, sari: r.sari ?? 0, kirmizi: !!r.kirmizi });
           macOyuncusuDogrula(r);
@@ -393,7 +400,7 @@ class Sorgu {
           if (db.yorum_kelimeleri.some((x) => x.kelime === k)) throw { code: '23505', message: 'duplicate key value violates unique constraint "yorum_kelimeleri_pkey"' };
           const satir = { id: k, kelime: k, created_at: simdi() }; db.yorum_kelimeleri.push(satir); eklenen.push(satir); continue; // id: silme için (gerçekte birincil anahtar kelime)
         }
-        if (this.t === 'oyuncular') { Object.assign(r, { aktif: r.aktif !== false, sira: r.sira ?? 0, foto_url: r.foto_url ?? null, forma_no: r.forma_no ?? null, updated_at: simdi() }); if (!K.kapakAdresiGecerli(r.foto_url)) throw { code: '23514', message: 'new row for relation "oyuncular" violates check constraint "oyuncular_foto_kaynagi"' }; }
+        if (this.t === 'oyuncular') { piyasaDogrula(r); Object.assign(r, { aktif: r.aktif !== false, sira: r.sira ?? 0, foto_url: r.foto_url ?? null, forma_no: r.forma_no ?? null, updated_at: simdi() }); if (!K.kapakAdresiGecerli(r.foto_url)) throw { code: '23514', message: 'new row for relation "oyuncular" violates check constraint "oyuncular_foto_kaynagi"' }; }
         if (this.t === 'sakatliklar') { sakatlikDogrula(r); Object.assign(r, { yayinda: !!r.yayinda, guncellendi: simdi(), aciklama: r.aciklama ?? null, kaynak_url: r.kaynak_url ?? null, kaynak_tarihi: r.kaynak_tarihi ?? null, beklenen_donus: r.beklenen_donus ?? null }); }
         if (this.t === 'haberler') {
           Object.assign(r, { ozet: r.ozet ?? null, kapak_url: r.kapak_url ?? null, govde: r.govde ?? '', yayinda: !!r.yayinda, yazar_id: ctx.uid, updated_at: simdi() });
@@ -515,6 +522,8 @@ class Sorgu {
       if (this.t === 'sakatliklar') { sakatlikDogrula({ ...r, ...v }); v.guncellendi = simdi(); }
       if (this.t === 'goller' && 'kapak_url' in v && !K.kapakAdresiGecerli(v.kapak_url)) throw { code: '23514', message: 'new row for relation "goller" violates check constraint "goller_kapak_kaynagi"' };
       if (this.t === 'goller') { const ara = { ...r, ...v }; golDogrula(ara, r); v.asist = ara.asist; }
+      if (this.t === 'rakip_goller') { const ara = { ...r, ...v }; rakipGolDogrula(ara); v.oyuncu = ara.oyuncu; } // 019
+      if (this.t === 'oyuncular') { const ara = { ...r, ...v }; piyasaDogrula(ara); if ('piyasa_degeri_kaynak' in v) v.piyasa_degeri_kaynak = ara.piyasa_degeri_kaynak; } // 019
       if (this.t === 'mac_oyunculari') { const ara = { ...r, ...v }; macOyuncusuDogrula(ara); if (ara.oyuncu !== r.oyuncu && db.mac_oyunculari.some((x) => x !== r && x.mac_id === ara.mac_id && x.oyuncu === ara.oyuncu)) throw { code: '23505', message: 'duplicate key value violates unique constraint "mac_oyunculari_pkey"' }; v.oyuncu = ara.oyuncu; }
       if (this.t === 'haberler') { const ara = { ...r, ...v }; haberDogrula(ara, r); Object.assign(v, { kaynak: ara.kaynak, kaynak_url: ara.kaynak_url, duzeltme_notu: ara.duzeltme_notu, duzeltme_tarihi: ara.duzeltme_tarihi, kapak_alt: ara.kapak_alt, kaynak_gerekli: ara.kaynak_gerekli }); }
       if (this.t === 'maclar') macDogrula({ ...r, ...v });
@@ -553,6 +562,7 @@ class Sorgu {
     if (this.t === 'maclar') {
       const golIdleri = new Set(db.goller.filter((g) => silinen.has(g.mac_id)).map((g) => g.id));
       db.mac_oyunculari = db.mac_oyunculari.filter((x) => !silinen.has(x.mac_id)); // 018
+      db.rakip_goller = db.rakip_goller.filter((x) => !silinen.has(x.mac_id)); // 019
       db.goller = db.goller.filter((g) => !silinen.has(g.mac_id)); db.yorumlar = db.yorumlar.filter((y) => !silinen.has(y.mac_id) && !golIdleri.has(y.gol_id));
       const reklamlar = new Set(db.reklamlar.filter((x) => silinen.has(x.mac_id)).map((x) => x.id)); // maça özel sponsorluk da gider
       db.reklamlar = db.reklamlar.filter((x) => !reklamlar.has(x.id));
@@ -571,7 +581,7 @@ class Sorgu {
   }
 
   yazabilir(ctx, r) {
-    if (['haberler', 'maclar', 'goller', 'reklamlar', 'oyuncular', 'sakatliklar', 'yorum_sikayetleri', 'yorum_kelimeleri', 'mac_oyunculari'].includes(this.t)) return ctx.admin;
+    if (['haberler', 'maclar', 'goller', 'reklamlar', 'oyuncular', 'sakatliklar', 'yorum_sikayetleri', 'yorum_kelimeleri', 'mac_oyunculari', 'rakip_goller'].includes(this.t)) return ctx.admin;
     if (this.t === 'yorumlar') return !!ctx.uid && (r.kullanici_id === ctx.uid || ctx.admin);
     if (this.t === 'profiles') return !!ctx.uid && (r.id === ctx.uid || ctx.admin);
     return false;
@@ -622,6 +632,20 @@ function golDogrula(r, eski) {
   r.asist = typeof r.asist === 'string' && r.asist.trim() ? r.asist.trim() : null;
   const h = K.golAniHatalari(r);
   if (h.length) throw gecersiz(h[0]);
+}
+// 019: rakip golü ve piyasa değeri (SQL: rakip_gol_kontrol + rakip_goller_* kısıtları, oyuncu_piyasa_kontrol + oyuncular_piyasa_degeri)
+function rakipGolDogrula(r) {
+  r.oyuncu = String(r.oyuncu ?? '').trim().replace(/\s+/g, ' ');
+  if (r.penalti && r.kendi_kalesine) throw gecersiz('Gol hem penaltı hem kendi kalesine olamaz.');
+  if (!(Number.isInteger(r.dakika) && r.dakika >= 1 && r.dakika <= 130) || (r.ek_dakika != null && !(Number.isInteger(r.ek_dakika) && r.ek_dakika >= 1 && r.ek_dakika <= 20))) throw kisitHatasi('rakip_goller', 'rakip_goller_dakika');
+  if (r.oyuncu.length < 2 || r.oyuncu.length > 80) throw kisitHatasi('rakip_goller', 'rakip_goller_oyuncu');
+}
+function piyasaDogrula(r) {
+  if (typeof r.piyasa_degeri_kaynak === 'string') r.piyasa_degeri_kaynak = r.piyasa_degeri_kaynak.trim() || null;
+  for (const k of ['piyasa_degeri_eur', 'piyasa_degeri_tarih', 'piyasa_degeri_kaynak']) r[k] = r[k] ?? null;
+  if (r.piyasa_degeri_eur != null && !(Number.isInteger(r.piyasa_degeri_eur) && r.piyasa_degeri_eur >= 0 && r.piyasa_degeri_eur <= K.PIYASA_DEGERI_SINIRI)) throw gecersiz('Piyasa değeri 0 ile 500 milyon € arasında olmalı.');
+  if (r.piyasa_degeri_kaynak != null && (r.piyasa_degeri_kaynak.length < 2 || r.piyasa_degeri_kaynak.length > 80)) throw kisitHatasi('oyuncular', 'oyuncular_piyasa_degeri');
+  if (r.piyasa_degeri_eur != null && (!r.piyasa_degeri_tarih || !r.piyasa_degeri_kaynak)) throw gecersiz('Piyasa değeri girildiyse tarihini ve kaynağını da yazın.');
 }
 function macOyuncusuDogrula(r) {
   r.oyuncu = String(r.oyuncu ?? '').trim().replace(/\s+/g, ' ');

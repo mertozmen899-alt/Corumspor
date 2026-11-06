@@ -1051,3 +1051,64 @@ select test.esit('kadro (018): TRUNCATE yetkisi yok',
   (not has_table_privilege('anon', 'public.mac_oyunculari', 'TRUNCATE') and not has_table_privilege('authenticated', 'public.mac_oyunculari', 'TRUNCATE'))::text, 'true');
 update public.goller set asist = null, video_baslangic_sn = null, video_bitis_sn = null where id = '22222222-0000-4000-8000-000000000001';
 delete from public.mac_oyunculari;
+
+-- ================================================================ 019: piyasa değeri ve rakip golleri
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.esit('piyasa (019): yönetici değer, tarih ve kaynak yazar (boşluk temizlenir)',
+  test.satir($q$update public.oyuncular set piyasa_degeri_eur = 3000000, piyasa_degeri_tarih = '2026-09-30', piyasa_degeri_kaynak = '  Transfermarkt ' where id = '55555555-0000-4000-8000-000000000007'$q$)::text, '1');
+select test.hata_bekle('piyasa (019): değer varsa kaynak zorunlu',
+  $q$update public.oyuncular set piyasa_degeri_eur = 100000, piyasa_degeri_tarih = '2026-09-30', piyasa_degeri_kaynak = ' ' where id = '55555555-0000-4000-8000-000000000008'$q$, 'tarihini ve kaynağını');
+select test.hata_bekle('piyasa (019): değer varsa tarih zorunlu',
+  $q$update public.oyuncular set piyasa_degeri_eur = 100000, piyasa_degeri_tarih = null, piyasa_degeri_kaynak = 'Transfermarkt' where id = '55555555-0000-4000-8000-000000000008'$q$, 'tarihini ve kaynağını');
+select test.hata_bekle('piyasa (019): 500 milyon € sınırı',
+  $q$update public.oyuncular set piyasa_degeri_eur = 600000000, piyasa_degeri_tarih = '2026-09-30', piyasa_degeri_kaynak = 'Transfermarkt' where id = '55555555-0000-4000-8000-000000000008'$q$, '500 milyon');
+select test.hata_bekle('piyasa (019): eksi değer olmaz',
+  $q$update public.oyuncular set piyasa_degeri_eur = -1, piyasa_degeri_tarih = '2026-09-30', piyasa_degeri_kaynak = 'Transfermarkt' where id = '55555555-0000-4000-8000-000000000008'$q$, '500 milyon');
+select test.hata_bekle('piyasa (019): kaynak 2-80 karakter (kısıt)',
+  $q$update public.oyuncular set piyasa_degeri_kaynak = repeat('x', 81) where id = '55555555-0000-4000-8000-000000000008'$q$, 'oyuncular_piyasa_degeri');
+select test.esit('rakip gol (019): yönetici rakip golü ekler (ad boşlukları temizlenir)',
+  test.satir($q$insert into public.rakip_goller (mac_id, dakika, ek_dakika, oyuncu, penalti) values ('11111111-0000-4000-8000-000000000001', 90, 3, '  Rakip   Golcü ', true), ('11111111-0000-4000-8000-000000000001', 12, null, 'Ali Örnek', false)$q$)::text, '2');
+select test.esit('rakip gol (019): yönetici düzeltir (kendi kalesine)',
+  test.satir($q$update public.rakip_goller set kendi_kalesine = true where oyuncu = 'Ali Örnek'$q$)::text, '1');
+select test.hata_bekle('rakip gol (019): dakika 1-130',
+  $q$insert into public.rakip_goller (mac_id, dakika, oyuncu) values ('11111111-0000-4000-8000-000000000001', 0, 'Rakip')$q$, 'rakip_goller_dakika');
+select test.hata_bekle('rakip gol (019): uzatma 1-20',
+  $q$insert into public.rakip_goller (mac_id, dakika, ek_dakika, oyuncu) values ('11111111-0000-4000-8000-000000000001', 90, 25, 'Rakip')$q$, 'rakip_goller_dakika');
+select test.hata_bekle('rakip gol (019): ad 2-80 karakter',
+  $q$insert into public.rakip_goller (mac_id, dakika, oyuncu) values ('11111111-0000-4000-8000-000000000001', 10, 'R')$q$, 'rakip_goller_oyuncu');
+select test.hata_bekle('rakip gol (019): hem penaltı hem kendi kalesine olmaz',
+  $q$insert into public.rakip_goller (mac_id, dakika, oyuncu, penalti, kendi_kalesine) values ('11111111-0000-4000-8000-000000000001', 10, 'Rakip', true, true)$q$, 'hem penaltı');
+reset role;
+set role anon;
+select test.esit('piyasa (019): ziyaretçi değeri, tarihi ve kaynağı okur',
+  (select piyasa_degeri_eur || '|' || piyasa_degeri_tarih || '|' || piyasa_degeri_kaynak from public.oyuncular where id = '55555555-0000-4000-8000-000000000007'), '3000000|2026-09-30|Transfermarkt');
+select test.esit('rakip gol (019): ziyaretçi rakip gollerini okur',
+  (select string_agg(dakika || coalesce('+' || ek_dakika, '') || ':' || oyuncu || ':' || penalti || ':' || kendi_kalesine, ',' order by dakika) from public.rakip_goller where mac_id = '11111111-0000-4000-8000-000000000001'),
+  '12:Ali Örnek:false:true,90+3:Rakip Golcü:true:false');
+select test.hata_bekle('rakip gol (019): ziyaretçi yazamaz',
+  $q$insert into public.rakip_goller (mac_id, dakika, oyuncu) values ('11111111-0000-4000-8000-000000000001', 10, 'Sahte')$q$, 'permission denied|row-level security');
+select test.esit('piyasa (019): ziyaretçi değer yazamaz (0 satır)',
+  test.satir($q$update public.oyuncular set piyasa_degeri_eur = 1 where id = '55555555-0000-4000-8000-000000000007'$q$)::text, '0');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000017a01', false);
+set role authenticated;
+select test.hata_bekle('rakip gol (019): taraftar ekleyemez (RLS)',
+  $q$insert into public.rakip_goller (mac_id, dakika, oyuncu) values ('11111111-0000-4000-8000-000000000001', 10, 'Sahte')$q$, 'row-level security');
+select test.esit('rakip gol (019): taraftar değiştiremez (0 satır)',
+  test.satir($q$update public.rakip_goller set dakika = 1$q$)::text, '0');
+select test.esit('rakip gol (019): taraftar silemez (0 satır)',
+  test.satir($q$delete from public.rakip_goller$q$)::text, '0');
+select test.esit('piyasa (019): taraftar değeri değiştiremez (0 satır)',
+  test.satir($q$update public.oyuncular set piyasa_degeri_eur = null, piyasa_degeri_tarih = null, piyasa_degeri_kaynak = null where id = '55555555-0000-4000-8000-000000000007'$q$)::text, '0');
+reset role;
+select test.esit('rakip gol (019): RLS açık, TRUNCATE yetkisi yok',
+  ((select relrowsecurity from pg_class where oid = 'public.rakip_goller'::regclass)
+   and not has_table_privilege('anon', 'public.rakip_goller', 'TRUNCATE') and not has_table_privilege('authenticated', 'public.rakip_goller', 'TRUNCATE'))::text, 'true');
+insert into public.maclar (id, rakip, tarih) values ('11111111-0000-4000-8000-000000000199', 'Silinecek Rakip', now());
+insert into public.rakip_goller (mac_id, dakika, oyuncu) values ('11111111-0000-4000-8000-000000000199', 10, 'Silinecek Golcü');
+delete from public.maclar where id = '11111111-0000-4000-8000-000000000199';
+select test.esit('rakip gol (019): maç silinince golleri de silinir (cascade)',
+  (select count(*)::text from public.rakip_goller where mac_id = '11111111-0000-4000-8000-000000000199'), '0');
+delete from public.rakip_goller;
+update public.oyuncular set piyasa_degeri_eur = null, piyasa_degeri_tarih = null, piyasa_degeri_kaynak = null where id = '55555555-0000-4000-8000-000000000007';

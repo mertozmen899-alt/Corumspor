@@ -23,9 +23,9 @@ Yazı tipleri sitenin kendisinden yüklenir (Google'a istek gitmez).
 2. Proje adı: `corumspor`. Bölge: **Central EU (Frankfurt)** (Türkiye'ye yakın). Veritabanı şifresini bir yere not edin.
 3. Proje hazır olunca (1-2 dakika) devam edin.
 
-## 2. Veritabanını kurun (migration'lar) — SIRAYLA: 001 → 002 → 010 → 011 → 012 → 013 → 014 → 015 → 016 → 017 → 018
+## 2. Veritabanını kurun (migration'lar) — SIRAYLA: 001 → 002 → 010 → 011 → 012 → 013 → 014 → 015 → 016 → 017 → 018 → 019
 
-On bir dosya var ve **bu sırayla, her biri bir kez** çalıştırılır:
+On iki dosya var ve **bu sırayla, her biri bir kez** çalıştırılır:
 
 | Sıra | Dosya | Ne kurar |
 |---|---|---|
@@ -40,11 +40,12 @@ On bir dosya var ve **bu sırayla, her biri bir kez** çalıştırılır:
 | 9 | `supabase/migrations/016_mac_ozeti.sql` | Maç özeti: maça **özet videosu** (YouTube ya da sitenin deposundaki .mp4) ve kaynağı, **lig haftası**; gol arşivinde "N. Hafta"; özet maç sayfasında (018'den beri gol arşivinde "Özeti izle" yok) |
 | 10 | `supabase/migrations/017_yanit_profil_foto.sql` | Yorumlara **yanıt** (tek seviye: yanıtın yanıtı ana yoruma bağlanır, ana yorum silinince yanıtları da silinir) ve **profil fotoğrafı** (`profiles.foto_url`, yalnız kişinin kendi klasöründe; `profil-fotograflari` deposu: herkese açık, 300 KB, webp/jpeg/png; yönetici uygunsuz fotoğrafı kaldırabilir) |
 | 11 | `supabase/migrations/018_gol_ani_asist.sql` | **Gol anı ve oyuncu sayfası:** gole **asist** (`goller.asist`) ve uzun özet videosunda yalnız golü oynatan **aralık** (`video_baslangic_sn` / `video_bitis_sn`, yalnız YouTube); **maç kadrosu** (`mac_oyunculari`: ilk 11, giriş/çıkış dakikası, sarı/kırmızı kart; herkes okur, yalnız yönetici yazar). Oyuncu sayfasındaki Maç / İlk 11 / Dakika / Gol / Asist / Kart sayıları bunlardan hesaplanır |
+| 12 | `supabase/migrations/019_piyasa_rakip_gol.sql` | **Piyasa değeri ve rakip golleri:** oyuncuya isteğe bağlı **piyasa değeri** (`piyasa_degeri_eur`, tarih ve kaynak zorunlu; oyuncu sayfasında "3,00 Mn € · Transfermarkt'a göre, 30 Eylül 2026", kadro kartında yok) ve **rakibin golleri** (`rakip_goller`: dakika, uzatma, golcü, penaltı, kendi kalesine; herkes okur, yalnız yönetici yazar). Maç sayfasındaki Olaylar çizelgesi skorla tutar. Bu dosyadan sonra isterseniz tek seferlik veri SQL'i (piyasa değerleri + 10 maçın rakip golleri; tek işlem, eşleşme tutmazsa geri alınır) çalıştırılır |
 
 **En kolayı: SQL Editor**
 
 **En kolayı (yeni, boş proje):** **Database → Extensions → pg_cron**'u açın, sonra **SQL Editor → New query**'ye
-`supabase/kurulum/tek-dosya-kurulum.sql` dosyasının tamamını yapıştırıp **Run** deyin (001→018'in hepsi sırayla; pg_cron'u da açmayı dener).
+`supabase/kurulum/tek-dosya-kurulum.sql` dosyasının tamamını yapıştırıp **Run** deyin (001→019'un hepsi sırayla; pg_cron'u da açmayı dener).
 Ardından aşağıdaki 015 adımındaki `ayrilmis_adlar` satırını ve pg_cron kontrolünü çalıştırın. Yeni migration eklenince dosyayı
 `araclar/kurulum-dosyasi-olustur.sh` ile yeniden üretin. Tek tek kurmak isterseniz:
 

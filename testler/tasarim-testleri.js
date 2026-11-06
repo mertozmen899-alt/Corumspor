@@ -238,6 +238,30 @@ async function tasarimTestleri() {
     await ctx.close();
   });
 
+  // 019: fikstür takvimi 320 px'te (ve %200 yazıda) taşmaz, maç günleri ≥44×44; önizleme penceresi klavyeyle (Tab penceren dışına çıkmaz)
+  await guvenli('takvim (019)', async () => {
+    const { ctx, p } = await baglam({ width: 320, height: 800 });
+    await git(p, 'takim.html#fikstur', '#gelecek[data-durum="tamam"]');
+    await p.click('#fikstur-gorunum [data-gorunum="takvim"]');
+    await p.waitForSelector('#takvim-izgara');
+    for (const yazi of ['100%', '200%']) {
+      await p.evaluate((y) => { document.documentElement.style.fontSize = y; }, yazi);
+      await p.waitForTimeout(80);
+      const d = await p.evaluate(() => ({
+        tasma: document.documentElement.scrollWidth - innerWidth,
+        kucuk: [...document.querySelectorAll('#fikstur-takvim button, #fikstur-gorunum button')].map((b) => b.getBoundingClientRect()).filter((r) => r.width < 43.5 || r.height < 43.5).map((r) => `${Math.round(r.width)}×${Math.round(r.height)}`),
+      }));
+      kontrol(`takvim (019) 320 px + ${yazi} yazı: yatay taşma yok, maç günü / ay / görünüm düğmeleri ≥44×44 (T-08/T-09)`, d.tasma <= 0 && !d.kucuk.length, JSON.stringify(d));
+    }
+    await p.evaluate(() => { document.documentElement.style.fontSize = ''; });
+    await p.click('.takvim-gun:not(.oynandi)'); // oynanmamış maç: Maç sayfası, Takvime ekle, Kapat
+    await p.waitForSelector('#takvim-onizleme[open]');
+    const icerde = [];
+    for (let i = 0; i < 2; i++) { await p.keyboard.press('Tab'); icerde.push(await p.evaluate(() => !!document.activeElement.closest('#takvim-onizleme'))); }
+    kontrol('takvim (019): önizleme penceresi açıkken Tab pencerenin içinde kalır (arka plan inert)', icerde.every(Boolean), JSON.stringify(icerde));
+    await ctx.close();
+  });
+
   await guvenli('animasyon', async () => {
     for (const hareket of ['no-preference', 'reduce']) {
       const { ctx, p } = await baglam({ width: 390, height: 844 }, { reklam: true, ekstra: { reducedMotion: hareket } });

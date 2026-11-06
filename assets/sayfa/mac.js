@@ -3,14 +3,18 @@
 // sekmeler Özet · Olaylar · Yorumlar (Takım sayfasındaki tablist deseni; adres #ozet | #olaylar | #yorumlar, geri tuşu çalışır):
 //  Özet: maç notu (bilet / yayın / kapı saati: maclar.mac_notu; yalnız maç bitmeden, altında "resmî duyuruya bak"), maç özeti videosu,
 //        goller (gol sayfasına bağlantılı kartlar; video burada YÜKLENMEZ)
-//  Olaylar: iki taraflı çizelge (yalnız Çorum FK: gol, değişiklik, kırmızı kart; iç sahada solda, deplasmanda sağda; rakip verisi yok),
-//           kartlar, İlk 11 ve oyuna girenler (mac_oyunculari; oyuncu sayfası varsa bağlantı). İlk açılışta yüklenir (açılışta istek yok).
+//  Olaylar: tam genişlik satırlar (dakika | simge | olay ve isim | taraf rozeti). Çorum FK: gol, değişiklik, kırmızı kart (kırmızı sol
+//           çizgi + dolu "Çorum FK" rozeti); rakip (019 rakip_goller): yalnız golleri (çerçeveli rakip adı rozeti). Çizelgedeki gol
+//           sayısı skoru tutar (rakip golleri girilmemişse altta not). Kartlar, İlk 11 ve oyuna girenler (mac_oyunculari; oyuncu
+//           sayfası varsa bağlantı). İlk açılışta yüklenir (açılışta istek yok).
+// 019: oynanmamış maçta Paylaş'ın yanında "Takvime ekle" (.ics, tarayıcıda üretilir; assets/takvim.js).
 //  Yorumlar: yorum bileşeni, sekme ilk açılınca tembel yüklenir.
 // Aşağı kaydırınca üstte küçük skor çubuğu (sabit; yer kaplamaz, ekran okuyucuda yok: aynı bilgi h1'de).
-import { supabase, hazir, h, $, sayfaBaslat, param, kimlikGecerli, tarihYaz, saatYaz, evSahibiDeplasman, skorMetni, macRozeti, sonucBilgisi, cevrimdisiKutusu, paylasDugmesi, videoFasad, sekmeKlavyesi, hataMetni, dakikaMetni, dakikaOkunus, simge, TAKIM_ADI } from '../ortak.js';
+import { supabase, hazir, h, $, sayfaBaslat, param, kimlikGecerli, tarihYaz, saatYaz, evSahibiDeplasman, skorMetni, macRozeti, sonucBilgisi, cevrimdisiKutusu, paylasDugmesi, videoFasad, sekmeKlavyesi, hataMetni, dakikaMetni, dakikaOkunus, simge, duyur, TAKIM_ADI } from '../ortak.js';
 import { reklamYuvalariniDoldur } from '../reklam-yukle.js';
 import { golKarti } from '../gol-kart.js';
 import { macOlaylari, oyuncuAnahtari } from '../kurallar.js';
+import { takvimIndir } from '../takvim.js';
 
 const kok = $('#mac');
 const id = param('id');
@@ -78,25 +82,38 @@ function skorCubugu(ev, dep, orta) {
 }
 
 // ------------------------------------------------------------ olaylar
-function olayOgesi(o) {
-  const dk = o.tur === 'gol' ? { metin: dakikaMetni(o.gol), okunus: dakikaOkunus(o.gol) } : { metin: `${o.dakika}'`, okunus: `${o.dakika}. dakika` };
+/** Tek olay satırı: dakika | simge | olay ve isim | taraf rozeti (Çorum FK dolu, rakip çerçeveli; renk dışında rozetin yazısı). */
+function olayOgesi(o, rakip) {
+  const golMu = o.tur === 'gol' || o.tur === 'rakip_gol';
+  const dk = golMu ? { metin: dakikaMetni(o.gol), okunus: dakikaOkunus(o.gol) } : { metin: `${o.dakika}'`, okunus: `${o.dakika}. dakika` };
   const isaret = (sinif, d) => h('span', { class: 'olay-isaret ' + sinif, 'aria-hidden': 'true' }, d ? simge(d) : null);
-  let icerik;
+  const takim = o.taraf === 'rakip' ? rakip : TAKIM_ADI;
+  let simgesi, icerik;
   if (o.tur === 'gol') {
     const g = o.gol;
     const alt = [g.asist ? `Asist: ${g.asist}` : null, g.penalti ? 'Penaltı' : null].filter(Boolean).join(' · ');
-    icerik = [isaret('gol', TOP_YOLU), h('a', { href: 'gol.html?id=' + encodeURIComponent(g.id), 'data-gol-id': g.id },
-      h('span', { class: 'olay-tur' }, 'Gol'), h('b', null, g.oyuncu), alt ? h('small', null, alt) : null)];
+    simgesi = isaret('gol', TOP_YOLU);
+    icerik = h('a', { class: 'olay-metin', href: 'gol.html?id=' + encodeURIComponent(g.id), 'data-gol-id': g.id },
+      h('span', { class: 'olay-tur' }, 'Gol'), h('b', null, g.oyuncu), alt ? h('small', null, alt) : null);
+  } else if (o.tur === 'rakip_gol') {
+    const g = o.gol;
+    simgesi = isaret('gol rakip', TOP_YOLU);
+    // Kendi kalesine: rakibe yazılan gol, ad = kendi kalesine atan Çorum FK oyuncusu
+    icerik = h('span', { class: 'olay-metin' }, h('span', { class: 'olay-tur' }, g.kendi_kalesine ? 'Gol (kendi kalesine)' : 'Gol'), h('b', null, g.oyuncu),
+      g.penalti ? h('small', null, 'Penaltı') : null);
   } else if (o.tur === 'kirmizi') {
-    icerik = [isaret('kart kirmizi'), h('span', null, h('span', { class: 'olay-tur' }, 'Kırmızı kart'), h('b', null, o.oyuncu))];
+    simgesi = isaret('kart kirmizi');
+    icerik = h('span', { class: 'olay-metin' }, h('span', { class: 'olay-tur' }, 'Kırmızı kart'), h('b', null, o.oyuncu));
   } else {
-    icerik = [isaret(o.giren ? 'giren' : 'cikan', o.giren ? OK_YUKARI : OK_ASAGI), h('span', null, h('span', { class: 'olay-tur' }, 'Değişiklik'),
+    simgesi = isaret(o.giren ? 'giren' : 'cikan', o.giren ? OK_YUKARI : OK_ASAGI);
+    icerik = h('span', { class: 'olay-metin' }, h('span', { class: 'olay-tur' }, 'Değişiklik'),
       o.giren ? h('b', null, h('span', { class: 'gorunmez' }, 'Giren: '), o.giren) : null,
-      o.cikan ? h('small', null, 'Çıkan: ', o.cikan) : null)];
+      o.cikan ? h('small', null, 'Çıkan: ', o.cikan) : null);
   }
-  return h('li', { class: 'olay olay-' + o.tur },
+  return h('li', { class: `olay olay-${o.tur} olay-${o.taraf}`, 'data-taraf': o.taraf },
     h('span', { class: 'dk' }, h('span', { 'aria-hidden': 'true' }, dk.metin), h('span', { class: 'gorunmez' }, dk.okunus + ': ')),
-    h('span', { class: 'olay-icerik' }, ...icerik));
+    simgesi, icerik,
+    h('span', { class: 'taraf-rozet' }, h('span', { class: 'gorunmez' }, ' · '), takim));
 }
 
 function kadroListesi(baslikId, baslik, satirlar, oyuncular, dk) {
@@ -115,9 +132,10 @@ function kadroListesi(baslikId, baslik, satirlar, oyuncular, dk) {
 async function olaylariYukle(mac, goller) {
   const yer = $('#olaylar');
   yer.replaceChildren(h('div', { class: 'arsiv-iskelet', 'aria-hidden': 'true' }, h('span', { class: 'iskelet iskelet-mac' }), h('span', { class: 'iskelet iskelet-mac' })));
-  const [ka, oy] = await Promise.all([
+  const [ka, oy, rg] = await Promise.all([
     supabase.from('mac_oyunculari').select('oyuncu, ilk11, giris_dk, cikis_dk, sari, kirmizi').eq('mac_id', mac.id).limit(60),
     supabase.from('oyuncular').select('id, ad, forma_no, mevki, sira').eq('aktif', true).limit(80),
+    supabase.from('rakip_goller').select('id, dakika, ek_dakika, oyuncu, penalti, kendi_kalesine').eq('mac_id', mac.id).order('dakika', { ascending: true }).limit(40),
   ]);
   if (ka.error) {
     yer.replaceChildren(cevrimdisiKutusu(hataMetni(ka.error, 'Maç olayları yüklenemedi.'), () => olaylariYukle(mac, goller)));
@@ -126,7 +144,9 @@ async function olaylariYukle(mac, goller) {
   }
   const kadro = ka.data || [];
   const oyuncular = new Map((oy.data || []).map((o) => [oyuncuAnahtari(o.ad), o]));
-  const { olaylar, kartlar } = macOlaylari(goller, kadro);
+  // Rakip golleri sorgusu hata verirse (ör. 019 henüz kurulmadı) çizelge yine Çorum FK olaylarıyla açılır; eksik gol altta söylenir
+  const rakipGoller = rg.error ? [] : rg.data || [];
+  const { olaylar, kartlar } = macOlaylari(goller, kadro, rakipGoller);
   if (!olaylar.length && !kadro.length) {
     yer.replaceChildren(h('p', { class: 'bos', id: 'olaylar-bos' }, mac.durum === 'bitti'
       ? 'Bu maçın olayları henüz girilmedi. Goller ve değişiklikler eklenince burada.'
@@ -134,11 +154,15 @@ async function olaylariYukle(mac, goller) {
     yer.dataset.durum = 'tamam';
     return;
   }
-  const taraf = mac.ic_saha ? 'sol' : 'sag';
+  // Skor = çizelgedeki gol sayısı mı? Biten maçta eksik gol varsa (veri girilmemiş) okuyan aramasın diye söylenir
+  const eksik = [];
+  if (mac.durum === 'bitti' && Number.isInteger(mac.corum_skor) && goller.length < mac.corum_skor) eksik.push(`${TAKIM_ADI} ${mac.corum_skor - goller.length} gol`);
+  if (mac.durum === 'bitti' && Number.isInteger(mac.rakip_skor) && rakipGoller.length < mac.rakip_skor) eksik.push(`${mac.rakip} ${mac.rakip_skor - rakipGoller.length} gol`);
   yer.replaceChildren(h('div', { class: 'olay-icerigi' },
-    h('h2', { class: 'gorunmez', id: 'olay-baslik' }, `${TAKIM_ADI} maç olayları`),
-    olaylar.length ? h('ol', { class: 'olay-cizelge', id: 'olay-cizelge', 'data-taraf': taraf, 'aria-labelledby': 'olay-baslik' }, olaylar.map(olayOgesi)) : null,
-    h('p', { class: 'olay-not' }, `Yalnız ${TAKIM_ADI} olayları (${mac.ic_saha ? 'iç saha: solda' : 'deplasman: sağda'}); rakibin olay verisi yok. Kaynak: maç olayları.`),
+    h('h2', { class: 'gorunmez', id: 'olay-baslik' }, 'Maç olayları'),
+    olaylar.length ? h('ol', { class: 'olay-cizelge', id: 'olay-cizelge', 'aria-labelledby': 'olay-baslik' }, olaylar.map((o) => olayOgesi(o, mac.rakip))) : null,
+    h('p', { class: 'olay-not', id: 'olay-not' }, `${TAKIM_ADI}: gol, değişiklik ve kırmızı kart; ${mac.rakip}: yalnız goller (rakibin kart ve değişiklik verisi yok).`,
+      eksik.length ? ` Çizelgede henüz yok: ${eksik.join(', ')}.` : ''),
     kartlar.length ? [h('h3', { class: 'olay-alt-baslik', id: 'kart-baslik' }, 'Kartlar'),
       h('ul', { class: 'kart-listesi', 'aria-labelledby': 'kart-baslik' }, kartlar.map((k) => h('li', null,
         h('span', { class: 'olay-isaret kart ' + (k.kirmizi ? 'kirmizi' : 'sari'), 'aria-hidden': 'true' }),
@@ -148,6 +172,14 @@ async function olaylariYukle(mac, goller) {
       kadroListesi('ilk11-baslik', 'İlk 11', kadro.filter((s) => s.ilk11), oyuncular, (s) => (s.cikis_dk != null ? `${s.cikis_dk}' çıktı` : null)),
       kadroListesi('yedek-baslik', 'Yedekler (oyuna girenler)', kadro.filter((s) => !s.ilk11 && s.giris_dk != null), oyuncular, (s) => `${s.giris_dk}' girdi`))));
   yer.dataset.durum = 'tamam';
+}
+
+// 019: "Takvime ekle": .ics tarayıcıda üretilir (dış istek yok), Paylaş düğmesiyle aynı görünüm
+const TAKVIM_YOLU = 'M7 3v3m10-3v3M4 8h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm7 6v6m-3-3h6';
+function takvimDugmesi(mac) {
+  const d = h('button', { type: 'button', class: 'paylas takvime-ekle', id: 'takvime-ekle' }, simge(TAKVIM_YOLU), h('span', null, 'Takvime ekle'));
+  d.addEventListener('click', () => { takvimIndir(mac, location.href.split('#')[0]); duyur('Takvim dosyası indirildi. Açınca takvimine eklenir.'); });
+  return d;
 }
 
 // ------------------------------------------------------------ yükleme
@@ -182,7 +214,7 @@ async function yukle() {
       h('time', { datetime: mac.tarih, id: 'mac-tarihi' }, tarihYaz(mac.tarih, { gun: true }), ' (TSİ)'),
       mac.stadyum ? h('span', null, mac.stadyum) : null,
       h('span', null, mac.ic_saha ? 'İç saha maçı' : 'Deplasman maçı'))),
-  h('div', { class: 'eylem-satir' }, paylasDugmesi(paylasMetni)));
+  h('div', { class: 'eylem-satir' }, paylasDugmesi(paylasMetni), mac.durum !== 'bitti' ? takvimDugmesi(mac) : null));
   kok.dataset.durum = 'tamam';
   skorCubugu(ev, dep, skor || (mac.durum === 'canli' ? '–' : saatYaz(mac.tarih)));
   if (not) {

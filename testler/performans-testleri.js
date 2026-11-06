@@ -371,6 +371,13 @@ async function performansTestleri() {
       navigator.serviceWorker.getRegistration().then((k) => k.update());
       setTimeout(() => tamam(false), 15000);
     }));
+    // 019: eski sekmede kısa, görünür "Yeni sürüm hazır" + "Yenile" (otomatik yeniden yükleme yok; duyuru #durum'dan)
+    const not = await p.waitForSelector('#surum-notu', { timeout: 5000 }).then(() => p.evaluate(() => ({
+      metin: document.querySelector('#surum-notu p').textContent, dugme: document.querySelector('#surum-yenile').textContent,
+      gorunur: document.querySelector('#surum-notu').getBoundingClientRect().height > 0, durum: document.querySelector('#durum').textContent, adres: location.href,
+    }))).catch(() => null);
+    kontrol('SW güncelleme (019): yeni sürüm etkinleşince açık sekmede görünür "Yeni sürüm hazır" + "Yenile"; sayfa kendiliğinden yenilenmez, #durum duyurur',
+      !!not && not.metin === 'Yeni sürüm hazır' && not.dugme === 'Yenile' && not.gorunur && /yeni sürümü hazır/.test(not.durum) && not.adres === A + '/', JSON.stringify(not));
     const eskiSekme = await p.evaluate(async () => (await (await fetch('assets/ortak.js')).text()).includes('yeni-surum-isareti'));
     const p2 = await ctx.newPage();
     await p2.goto(A + '/goller');

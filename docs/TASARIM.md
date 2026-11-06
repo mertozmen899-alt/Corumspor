@@ -430,8 +430,12 @@ metni kullanılmadı. Ekran görüntüleri: `docs/ekran/onizleme-ana-360.png`, `
 - **Gol kapağı** (`.video-kart`): 16:9, sol üstte dakika rozeti, ortada kırmızı oynat dairesi, sağ altta süre, altında oyuncu ·
   gol türü ve maç satırı. Ana sayfada yatay kaydırılan şerit (`ul` + `li`, otomatik ilerleme yok, kart genişliği `min(77vw, 320px)`),
   arşivde liste. Videosuz gol: `.gol-satir` (dakika, oyuncu, Penaltı rozeti; büyük yazıda rozet alt satıra iner).
-- **Sıradaki maç kartı** (`.sonraki-mac`): ortalı, küçük; lig · geri sayım, bizim takımda özgün "ÇT" işareti (baş harf "ÇF" YOK: kulüp kısaltmasına çok yakın), rakipte gri baş harf rozeti,
-  ortada saat kutusu, tarih ve stat, "Maç bilgisi →". Canlı skor yok; "Canlı" rozeti sabit (yanıp sönmez).
+- **İkili maç kartı** (`#mac-ikili`, 019; eski "Sıradaki:" şeridi ve büyük `.sonraki-mac` kartının yerine): hero'nun hemen altında iki
+  kart yan yana (büyük yazıda alt alta). Solda "SON MAÇ": eşleşme, büyük skor + G/B/M rozeti, "31 Ekim · Deplasman"; sağda "SIRADAKİ":
+  eşleşme, büyük "Pazar 16:00", "İç saha · 2 g 3 sa" (ekran okuyucuya "2 gün 3 saat kaldı"). İkisi de maç sayfasına ayrı bağlantı.
+  Hero aynı maçı gösteriyorsa tekrar yok: maç sonunda solda "Önceki maç", maç gününde sağda "Sonraki". Yükseklik iskeletle aynı
+  (`min-height`; CLS yok); geri sayım açılışta bir kez hesaplanır (sayaç / sonsuz animasyon yok). Stadyum ve lig maç sayfasında.
+  "Canlı" rozeti sabit (yanıp sönmez).
 - **"Kim yok?"**: yayında sakatlık kayıtlarından en çok 3 ad + durum çipi, "Kaynaklı sakatlık bilgisi →".
 - **Haplar** (`fieldset > legend` + `.hap-iz` / `.cip-satir`, gerçek `input[type=radio]` görsel olarak gizli ama odaklanabilir):
   seçili hap kırmızı zemin + **✓** (renk dışında şekil), odak halkası etikette. Tek seçenek içeriği kadar genişlikte. İskeletler aynı
@@ -459,7 +463,7 @@ metni kullanılmadı. Ekran görüntüleri: `docs/ekran/onizleme-ana-360.png`, `
 
 | Ekran | Sıra |
 |---|---|
-| Ana Sayfa | hero → Son dakika (+ sponsor) → Gol arşivinden şeridi → Sıradaki maç → Kim yok? |
+| Ana Sayfa | hero → ikili maç kartı (Son maç · Sıradaki) → Son dakika (+ sponsor, "Yeni" rozeti) → Gol arşivinden şeridi → Kim yok? |
 | Gol Arşivi | başlık + alt yazı → yapışkan filtreler (Sezon, Rakip) → sonuç sayısı (duyurulur) → maç grupları (tarih · iç saha/deplasman, maç adı, "Maç →", goller) → Daha fazla gol |
 | Gol | facade video (+ atıf) → dakika + oyuncu (`h1`) → anlatım → maç bağlantısı → WhatsApp'ta paylaş → Bu maçın diğer golleri → Yorumlar |
 | Takım | `h1` Takım → sekmeler → Kadro (mevkiye göre) / Sakatlık (KVKK notu + kayıtlar) / Fikstür (sıradaki maçlar, sonuçlar) |
@@ -561,5 +565,19 @@ Hepsi yalnız CSS + küçük JS; yeni ağ isteği, bağımlılık, satır içi s
 | Alt menü aynı sekme | Açık sekmeye (`aria-current="page"`) dokununca yeniden yükleme yok: başa yumuşak kayar, odak `#icerik`. Ayrıntı sayfasındaki bölüm bağlantısı (`aria-current="true"`) normal bağlantı | Başa anında |
 | Maç skor çubuğu | `#skor-cubugu` sabit (`fixed`, yer kaplamaz), büyük başlık üst barın altına girince `.acik` (IntersectionObserver), `aria-hidden` (bilgi h1'de). Sabit alan %25'i aşarsa çıkmaz (`yapiskanIzle`) | Belirme animasyonsuz |
 | Maç sekmeleri | Özet · Olaylar · Yorumlar (Takım deseni: tablist, ok/Home/End, `#ozet` `#olaylar` `#yorumlar`, geri tuşu). Sponsor yuvası sekmelerin üstünde. Sekmeler yapışkan DEĞİL: üst bar + skor + sekme + alt menü 390×844'te %25'i aşardı. Olaylar ve Yorumlar ilk açılışta yüklenir (açılışta ek istek yok) | — |
-| Olay çizelgesi | Ortada dakika, Çorum FK olayı kendi tarafında (iç sahada solda, deplasmanda sağda), rakip tarafı boş (veri yok). Gol (→ gol sayfası), değişiklik (aynı dakikada çıkan ↔ giren), kırmızı kart (dakika = çıkış). Sarı kartın dakikası yok: ayrı liste. Altta İlk 11 ve oyuna girenler (→ oyuncu sayfası). `kurallar.js` `macOlaylari` | — |
+| Olay çizelgesi | 019: tam genişlik satır = dakika · simge · olay ve isim · taraf rozeti (Çorum FK satırı solda kırmızı çizgi + dolu rozet, rakip çerçeveli rozet: rozetin yazısı takım adı). Çorum FK: gol (→ gol sayfası), değişiklik (aynı dakikada çıkan ↔ giren), kırmızı kart (dakika = çıkış); rakip: yalnız golleri (`rakip_goller`; "Gol (kendi kalesine)", "Penaltı"). Skor = çizelgedeki gol sayısı; eksikse altta "Çizelgede henüz yok: …". Sarı kartın dakikası yok: ayrı liste. Altta İlk 11 ve oyuna girenler (→ oyuncu sayfası). `kurallar.js` `macOlaylari` | — |
 | Oyuncu sayfası | Üstte 3 büyük sayı (Gol, Asist, Maç; siyah kutu, `--ust-*` çiftleri), altında 8 kutu; sayılar her zaman (forma giymemişte 0 + "henüz forma giymedi"). Kadro sırasıyla önceki / sonraki, aynı mevkiden "Diğer oyuncular" şeridi (elle kaydırılır, kendi kendine kaymaz) | — |
+
+### 9.11 019: telefon doğrulaması ve Barça/RM karşılaştırması (6 Kasım 2026)
+
+| Ne | Nasıl | Neden |
+|---|---|---|
+| Geri dönüş konumu | Takım (Kadro, Fikstür) ve ana sayfa akışı: ayrılırken kaydırma yeri + sayfa durumu (fikstür görünümü, takvim ayı, yüklenen haber sayfası) `sessionStorage` `konum:<yol>`; yalnız geri/ileri gezinmede ve veri çizildikten SONRA geri yüklenir; kullanıcı bu arada kaydırdıysa dokunulmaz (`ortak.js konumKoru`) | Forvetler'den oyuncuya girip dönünce Kaleciler'de açılıyordu (veri ağdan sonra geldiği için tarayıcının kendi geri yüklemesi kaçıyordu) |
+| Golü tekrar izle | Gol sayfasında YouTube gol anı oynatılınca videonun altında `.dugme.ikincil` "↺ Golü tekrar izle" (SVG simge + yazı, ≥ 44 px); iframe aynı start/end ile yeniden kurulur, odak düğmede kalır, #durum duyurur. IFrame API / dış betik yok | YouTube'un kendi tekrar düğmesi videoyu 0:00'dan başlatıyordu |
+| Olay çizelgesi | 9.10 tablosu (019 satırı) | Tek taraflı maçta sol yarı boştu, adlar 2-3 satıra kırılıyordu; rakibin golü yoktu (skor 1–5, çizelgede 5 gol) |
+| Yeni sürüm notu | `#surum-notu`: alt menünün üstünde sabit siyah şerit "Yeni sürüm hazır" + "Yenile" + kapat (×). Yalnız sayfa eski kabuktan açılıp yeni sürüm etkinleşince; otomatik yeniden yükleme yok | İlk açılış eski sürümle geliyordu (atomik sürüm gereği); kullanıcı yeniyi isterse tek dokunuş |
+| Piyasa değeri | Oyuncu sayfasında başlığın altında kutu: küçük büyük harf "PİYASA DEĞERİ", büyük "3,00 Mn €" (tr-TR, `tabular-nums`), soluk "Transfermarkt'a göre, 30 Eylül 2026". Değer yoksa kutu hiç yok; kadro kartında gösterilmez | Barça/RM oyuncu sayfası; kadro sade kalsın |
+| İkili maç kartı | 9.3 | Şerit + büyük kart aynı maçı iki kez gösteriyordu |
+| "Yeni" rozeti | Son 24 saatte yayınlanan haberde (akış satırı ve hero) seçili hap çifti (beyaz / kırmızı 5.89:1) "YENİ" yazısı | Yeni haber bir bakışta; renk tek başına anlam taşımaz |
+| Fikstür takvimi | "Liste | Takvim" (`aria-pressed`, seçilide ✓). Ay ızgarası Pazartesi başlar, yalnız maç olan aylar arasında ileri/geri (#durum ay adını ve maç sayısını söyler). Maç günü düğme (≥ 44×44; 320 px'te ızgara kenar boşluğuna taşar): iç saha dolu kırmızı + "İ", deplasman kırmızı çerçeve + "D", oynanmış maç kesikli çerçeve; bugün `aria-current="date"`. Güne dokununca alttan pencere (profil çıkış penceresi bileşeni: arka plan inert, Esc / arka plana dokunma / "Kapat", odak güne döner): tarih, maç (+ skor ve G/B/M), saat · stadyum, lig · saha, "Maç sayfası", "Takvime ekle" | Barça/RM takvim görünümü |
+| Takvime ekle | Maç sayfasında Paylaş'ın yanında (oynanmamış maç) ve takvim penceresinde. `.ics` tarayıcıda (Blob, `assets/takvim.js`): UTC başlangıç (16:00 TSİ = 13:00Z), 2 saat, "Çorum FK – Rakip", yer stadyum, açıklamada lig, saha ve maç sayfası adresi. Dış istek ve kişisel veri yok: gizlilik metnine not gerekmez (hiçbir şey saklanmaz, gönderilmez) | Maç saatini kaçırmamak |

@@ -32,6 +32,7 @@
 <link rel="modulepreload" href="assets/kurallar.js">
 <link rel="modulepreload" href="assets/foto-kaynaklari.js">
 <link rel="modulepreload" href="assets/onbellek.js">
+<link rel="modulepreload" href="assets/takvim.js">
 <script type="module" src="assets/sayfa/takim.js"></script>
 </head>
 <body>
@@ -66,10 +67,17 @@
   <section id="panel-fikstur" role="tabpanel" aria-labelledby="sekme-fikstur" tabindex="0" hidden>
     <h2 class="gorunmez">Fikstür</h2>
     <div id="mac-mesaj"></div>
-    <h3 class="mevki-baslik" id="gelecek-baslik">Sıradaki maçlar</h3>
-    <div id="gelecek" data-durum="bekliyor"><span class="iskelet iskelet-satir uzun" aria-hidden="true"></span></div>
-    <h3 class="mevki-baslik" id="sonuc-baslik">Sonuçlar</h3>
-    <div id="sonuclar"></div>
+    <div class="gorunum-sec" id="fikstur-gorunum" role="group" aria-label="Fikstür görünümü">
+      <button type="button" data-gorunum="liste" aria-pressed="true">Liste</button>
+      <button type="button" data-gorunum="takvim" aria-pressed="false">Takvim</button>
+    </div>
+    <div id="fikstur-liste">
+      <h3 class="mevki-baslik" id="gelecek-baslik">Sıradaki maçlar</h3>
+      <div id="gelecek" data-durum="bekliyor"><span class="iskelet iskelet-satir uzun" aria-hidden="true"></span></div>
+      <h3 class="mevki-baslik" id="sonuc-baslik">Sonuçlar</h3>
+      <div id="sonuclar"></div>
+    </div>
+    <div id="fikstur-takvim" class="takvim" hidden></div>
   </section>
 </div>
 <noscript><p class="kap uyari">Bu site JavaScript ile çalışır. Tarayıcında JavaScript'i aç.</p></noscript>

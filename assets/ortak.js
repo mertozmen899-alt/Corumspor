@@ -357,7 +357,10 @@ export function altyaziGecerli(url) {
 /** ops.baslik: "Ali Örnek, 23. dakika, Örnekköy Spor maçı" (düğme adı "Videoyu oynat: <baslik>"; tekrar yok, erişilebilirlik 3. tur 2);
  *  ops.tur: oynatıcının adındaki ön ek ("Gol videosu: …"); ops.oncelik: kapak görseli LCP ise 'high' (performans 3. tur 2). */
 /** 018: ops.baslangic / ops.bitis (sn): YouTube gömmesi yalnız bu aralığı oynatır (gol anı; start/end yalnız verilirse). */
-export function videoFasad(url, { baslik = 'Gol', tur = 'Gol videosu', kapak = null, sure = null, altyazi = null, oncelik = null, baslangic = null, bitis = null } = {}) {
+/** 019: ops.tekrar ('Golü tekrar izle'): YouTube'da aralık varken oynatma başlayınca videonun ALTINA kendi düğmemiz gelir. YouTube'un
+ *  kendi tekrar düğmesi videoyu 0:00'dan başlatır; bizimki iframe'i aynı start/end ile yeniden kurar (IFrame API / dış betik yok). */
+const TEKRAR_YOLU = 'M3 12a9 9 0 1 0 2.6-6.4M3 4v5h5';
+export function videoFasad(url, { baslik = 'Gol', tur = 'Gol videosu', kapak = null, sure = null, altyazi = null, oncelik = null, baslangic = null, bitis = null, tekrar = null } = {}) {
   const id = youtubeKimlik(url);
   const mp4 = !id && mp4Mu(url) ? url : null;
   if (!id && !mp4) return null;
@@ -378,11 +381,18 @@ export function videoFasad(url, { baslik = 'Gol', tur = 'Gol videosu', kapak = n
     if (id) {
       const sn = (x) => (Number.isInteger(x) && x >= 0 ? x : null);
       const aralik = (sn(baslangic) != null ? `&start=${baslangic}` : '') + (sn(bitis) != null ? `&end=${bitis}` : '');
-      oynatici = h('iframe', {
+      const kur = () => h('iframe', {
         src: `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1&rel=0&cc_load_policy=1&cc_lang_pref=tr&hl=tr${aralik}`,
         title: ad + ' (YouTube)', allow: 'autoplay; encrypted-media; picture-in-picture; fullscreen', allowfullscreen: '',
         referrerpolicy: 'strict-origin-when-cross-origin',
       });
+      oynatici = kur();
+      if (tekrar && sn(baslangic) != null && !kap.nextElementSibling?.classList.contains('tekrar-izle')) {
+        const t = h('button', { type: 'button', class: 'dugme ikincil tekrar-izle', id: 'video-tekrar' }, simge(TEKRAR_YOLU, { boyut: 20 }), tekrar);
+        // Odak düğmede kalır (art arda tekrar edilebilir); yeniden başladığı #durum'dan duyurulur
+        t.addEventListener('click', () => { const f = kap.querySelector('iframe'); if (f) f.replaceWith(kur()); duyur(`${tekrar}: video golün başından oynatılıyor.`); });
+        kap.after(t);
+      }
     } else {
       const vtt = altyaziGecerli(altyazi) ? altyazi : null;
       // Altyazı (1.2.2): kendi depomuzdaki .vtt; başka kökenden <track> için CORS gerekir (crossorigin)
@@ -575,10 +585,64 @@ function klavyeIzle() {
 }
 
 // Service worker: yalnız gerçek alan adında (localhost / ?sahte=1 testleri eski önbelleğe takılmasın)
+// 019: sayfa önceki sürümün kabuğundan açıldıysa (atomik sürüm: sayfa + JS aynı sürümden) ve bu sırada yeni sürüm kurulup etkinleştiyse
+// (controllerchange) altta kısa, görünür "Yeni sürüm hazır" + "Yenile" notu çıkar; duyuru #durum'dan. Otomatik yeniden yükleme YOK
+// (okuduğu yer / yazdığı yorum kaybolmasın). Bundan sonraki her gezinme zaten yeni sürümü alır. Ana ekrandan açılan uygulama gezinmeden
+// uzun süre açık kalabildiği için öne gelince (en çok 30 dakikada bir) güncelleme de denetlenir.
+const SW_DENETIM_ARALIGI = 30 * 60e3;
+function yeniSurumNotu() {
+  if (document.getElementById('surum-notu')) return;
+  const not = h('div', { class: 'surum-notu', id: 'surum-notu' },
+    h('p', null, 'Yeni sürüm hazır'),
+    h('button', { type: 'button', class: 'dugme', id: 'surum-yenile' }, 'Yenile'),
+    h('button', { type: 'button', class: 'ikon-dugme surum-kapat', 'aria-label': 'Notu kapat (sonraki açılışta yeni sürüm gelir)' }, simge('M6 6l12 12M18 6 6 18', { boyut: 20 })));
+  not.querySelector('#surum-yenile').addEventListener('click', () => location.reload());
+  not.querySelector('.surum-kapat').addEventListener('click', () => not.remove());
+  document.body.append(not);
+  duyur('Uygulamanın yeni sürümü hazır. Görmek için ekranın altındaki Yenile düğmesine dokun.');
+}
 function swKaydet() {
-  if (!('serviceWorker' in navigator) || ['localhost', '127.0.0.1'].includes(location.hostname) || sahteMod) return;
-  const kaydet = () => navigator.serviceWorker.register('sw.js').catch(() => {});
+  if (!('serviceWorker' in navigator)) return;
+  const sw = navigator.serviceWorker;
+  if (sw.controller) sw.addEventListener('controllerchange', yeniSurumNotu, { once: true });
+  if (['localhost', '127.0.0.1'].includes(location.hostname) || sahteMod) return;
+  const kaydet = () => sw.register('sw.js').then((k) => {
+    let son = Date.now();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && Date.now() - son > SW_DENETIM_ARALIGI) { son = Date.now(); k.update().catch(() => {}); }
+    });
+  }).catch(() => {});
   if (document.readyState === 'complete') kaydet(); else addEventListener('load', kaydet, { once: true });
+}
+
+/**
+ * 019: liste sayfasına (Takım › Kadro / Fikstür, ana sayfa akışı) geri dönünce kaydırma yeri. Veri ağdan geldiği için tarayıcının
+ * kendi geri yüklemesi sayfa henüz kısayken çalışıp kayboluyordu (Forvetler'den oyuncuya girip dönünce Kaleciler). Ayrılırken konum
+ * ve sayfanın ek durumu (ör. yüklenen haber sayfası) sessionStorage'a yazılır; geri/ileri ile gelinince sayfa veriyi çizdikten SONRA
+ * `geriYukle()` çağırır (çizimden önce kaydırma yok, kayma yok). Kullanıcı bu arada kendisi kaydırdıysa dokunulmaz.
+ * anahtar: adres yolu + sorgu; parça (#kadro / #fikstur) ayrıca saklanır ve aynı değilse geri yüklenmez.
+ */
+export function konumKoru(durumAl = () => null) {
+  const anahtar = 'konum:' + location.pathname + location.search;
+  const nav = typeof performance !== 'undefined' && performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : null;
+  let kayit = null;
+  try { kayit = nav && nav.type === 'back_forward' ? JSON.parse(sessionStorage.getItem(anahtar) || 'null') : null; } catch (e) { kayit = null; }
+  let elle = false;
+  const dur = () => { elle = true; };
+  for (const t of ['wheel', 'touchstart', 'keydown']) addEventListener(t, dur, { once: true, passive: true });
+  addEventListener('pagehide', () => {
+    try { sessionStorage.setItem(anahtar, JSON.stringify({ y: Math.round(scrollY), parca: location.hash, durum: durumAl() })); } catch (e) { /* gizli mod: yok say */ }
+  });
+  return {
+    durum: kayit && kayit.parca === location.hash ? kayit.durum : null,
+    geriYukle() {
+      if (!kayit || elle || kayit.parca !== location.hash || !(kayit.y > 0)) return false;
+      const y = kayit.y;
+      kayit = null;
+      scrollTo({ top: y, behavior: 'instant' });
+      return true;
+    },
+  };
 }
 
 /**

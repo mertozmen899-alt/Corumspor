@@ -436,15 +436,6 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
 .daha-fazla { display: flex; justify-content: center; margin-top: 16px; }
 .akis-son { margin: 0; min-height: var(--dokunma); display: flex; align-items: center; color: var(--metin-soluk); font-size: var(--fs-meta); font-weight: 700; }
 
-/* "Sıradaki:" şeridi: hero'nun hemen altında tek satır (ilk ekranda); yükseklik sabit, veri gelince kayma yok */
-.siradaki-serit { min-height: 52px; display: flex; align-items: center; margin: 0 calc(-1 * var(--sayfa-kenar)); padding: 0 var(--sayfa-kenar); border-bottom: 1px solid var(--kenar); }
-.siradaki-serit > .iskelet { width: 80%; margin: 0; }
-.serit-baglanti { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 6px 0; color: var(--metin); text-decoration: none; font-size: .9375rem; line-height: 1.3; }
-.serit-baglanti:hover { color: var(--metin); }
-.serit-etiket { flex: none; font-size: var(--fs-etiket); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--vurgu-guclu); }
-.serit-metin { flex: 1; min-width: 0; }
-.serit-metin b { font-family: var(--font-baslik); text-transform: uppercase; letter-spacing: .02em; }
-.serit-baglanti .git { flex: none; color: var(--vurgu); font-weight: 700; }
 /* Bölünmez parçalar (takım adı, gün + saat, '5 g 15 sa'); ayraç parçanın başında: satır sonunda asılı '·' yok (taraftar 3. tur 5) */
 .serit-parca { white-space: nowrap; }
 /* Büyük yazıda (%200) tek parça satıra sığmayabilir: yatay taşma olmasın diye parça içinde de sarar (1.4.10) */
@@ -469,26 +460,13 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
 .video-kart .meta { display: block; color: var(--metin-soluk); font-size: var(--fs-meta); line-height: var(--lh-meta); margin-top: 2px; }
 .iskelet-video { display: block; aspect-ratio: 16 / 9; border-radius: var(--r-kapak); }
 
-/* ---------- 13. Sıradaki Maç kartı (ortalanmış, küçük) ---------- */
-.sonraki-mac { display: block; text-decoration: none; color: var(--metin); background: var(--yuzey); border: 1px solid var(--kenar); border-radius: var(--r-kart); box-shadow: var(--golge-1); padding: 16px 16px 0; text-align: center; min-height: 204px; }
-.sonraki-mac:hover { color: var(--metin); }
-.sonraki-mac .ust-satir { font-size: var(--fs-meta); color: var(--metin-soluk); }
 .takimlar { display: grid; grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1fr); align-items: center; gap: 8px; margin-top: 12px; text-align: center; }
 .takim { display: grid; justify-items: center; gap: 8px; font-family: var(--font-baslik); font-weight: 700; font-size: .875rem; text-transform: uppercase; letter-spacing: .02em; line-height: 1.15; text-wrap: balance; min-width: 0; }
-.takim .harf { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; font-size: 1rem; background: var(--yuzey-2); border: 1px solid var(--kenar-guclu); color: var(--metin); }
 .takim.biz { color: var(--vurgu); }
-/* Bizim takım: baş harf ("ÇF") yerine özgün ÇT işareti (kural 7) */
-.takim.biz .harf.isaret { background: transparent; border: 0; }
-.takim .harf.isaret img { width: 40px; height: 48px; object-fit: contain; display: block; }
 .saat-kutu { height: 48px; border-radius: var(--r-saat); background: var(--saat-zemin); display: grid; place-items: center; font-weight: 700; font-size: var(--fs-saat); line-height: 1; font-variant-numeric: tabular-nums; }
 .saat-kutu .rozet { font-size: .6875rem; }
-.sonraki-mac .tarih-satir { margin: 12px 0 0; font-size: .875rem; }
-.sonraki-mac .stadyum { margin: 0; font-size: .875rem; color: var(--metin-soluk); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Büyük yazıda (%200) kırpma yok: başlıklar ve stadyum adı sarar (1.4.4; erişilebilirlik 3. tur 5) */
 .buyuk-yazi .haber-satir h3, .buyuk-yazi .video-kart .baslik { display: block; -webkit-line-clamp: unset; overflow: visible; }
-.buyuk-yazi .sonraki-mac .stadyum { white-space: normal; text-overflow: clip; }
-.sonraki-mac .alt-satir { margin-top: 12px; border-top: 1px solid var(--kenar); min-height: 44px; display: flex; align-items: center; justify-content: space-between; font-size: var(--fs-meta); color: var(--metin-soluk); }
-.sonraki-mac .alt-satir .git { color: var(--vurgu); font-weight: 700; font-size: .9375rem; }
 
 /* "Kim yok?" kutusu */
 .kim-yok { display: block; margin-top: var(--kart-aralik); padding: 12px 16px; border-radius: var(--r-kart); border: 1px solid var(--kenar); background: var(--zemin); color: var(--metin); text-decoration: none; }
@@ -900,7 +878,7 @@ a.oyuncu-kart:hover { border-color: var(--kenar-guclu); color: inherit; }
 html { -webkit-tap-highlight-color: transparent; }
 .dugme:active, .paylas:active, .hayalet:active, .dugme-metin:active, .ikon-dugme:active, .mac-baglanti-kucuk:active, .alt-nav a:active,
 .sekme-iz [role="tab"]:active, .sekme-dugmeleri button:active, .hap-iz label:active, .cip-satir label:active, .oyuncu-gezgin a:active { opacity: var(--basma-opaklik); }
-.haber-satir:active, .fikstur-satir:active, .gol-satir:active, .serit-baglanti:active, .mac-kadro a:active, .olay-icerik a:active { background-color: var(--yuzey); }
+.haber-satir:active, .fikstur-satir:active, .gol-satir:active, .ikili-kart:active, .mac-kadro a:active, a.olay-metin:active { background-color: var(--yuzey); }
 .mac-ac:active, a.oyuncu-kart:active, .oyuncu-mini:active { background-color: var(--yuzey-2); }
 @media (prefers-reduced-motion: no-preference) {
   .dugme, .paylas, .hayalet, .dugme-metin, .ikon-dugme, .mac-baglanti-kucuk, .alt-nav a, .sekme-iz [role="tab"], .sekme-dugmeleri button,
@@ -963,23 +941,28 @@ html:active-view-transition-type(geri)::view-transition-new(root) { animation-na
 .mac-sekmeler { margin-top: var(--b-4); }
 .mac-panel { padding-top: var(--b-2); }
 
-/* Olay çizelgesi: ortada dakika, Çorum FK olayı kendi tarafında (iç sahada solda, deplasmanda sağda); rakip tarafı boş (veri yok) */
-.olay-cizelge { list-style: none; margin: var(--b-3) 0 0; padding: 0; position: relative; }
-.olay-cizelge::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; background: var(--kenar); }
-.olay { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1fr); align-items: center; min-height: var(--dokunma); padding: 4px 0; }
-.olay .dk { grid-row: 1; grid-column: 2; justify-self: center; position: relative; min-width: 44px; padding: 2px 6px; border-radius: var(--r-hap); background: var(--yuzey-2); color: var(--metin); font-weight: 700; font-size: var(--fs-meta); text-align: center; font-variant-numeric: tabular-nums; }
-.olay .olay-icerik { grid-row: 1; min-width: 0; display: flex; align-items: center; gap: 8px; line-height: var(--lh-meta); }
-.olay-cizelge[data-taraf="sol"] .olay-icerik { grid-column: 1; flex-direction: row-reverse; text-align: right; }
-.olay-cizelge[data-taraf="sag"] .olay-icerik { grid-column: 3; }
-.olay-icerik > span, .olay-icerik > a { min-width: 0; }
-.olay-icerik a { display: inline-flex; flex-direction: column; justify-content: center; min-height: var(--dokunma); padding: 0 6px; border-radius: var(--r-saat); color: var(--metin); text-decoration: none; }
-.olay-icerik a:hover { color: var(--vurgu); }
-.olay-icerik b { font-weight: 700; }
-.olay-icerik small { display: block; color: var(--metin-soluk); font-size: var(--fs-meta); }
+/* Olay çizelgesi (019): tam genişlik satır = dakika | simge | olay ve isim | taraf rozeti. Çorum FK satırında solda kırmızı çizgi ve
+   dolu rozet, rakipte çerçeveli rozet (rozetin yazısı takım adı: yalnız renge dayanmaz). Ad tek satıra sığmazsa sarar (kırpılmaz). */
+.olay-cizelge { list-style: none; margin: var(--b-3) 0 0; padding: 0; }
+.olay { display: grid; grid-template-columns: 48px 24px minmax(0, 1fr) auto; align-items: center; column-gap: 10px; min-height: var(--dokunma); padding: 6px 8px 6px 6px; border-left: 3px solid transparent; }
+.olay + .olay { border-top: 1px solid var(--kenar); }
+.olay-biz { border-left-color: var(--vurgu); }
+.olay .dk { justify-self: start; min-width: 44px; padding: 2px 6px; border-radius: var(--r-hap); background: var(--yuzey-2); color: var(--metin); font-weight: 700; font-size: var(--fs-meta); text-align: center; font-variant-numeric: tabular-nums; }
+.olay-metin { min-width: 0; display: flex; flex-direction: column; justify-content: center; line-height: var(--lh-meta); color: var(--metin); text-decoration: none; overflow-wrap: anywhere; }
+a.olay-metin { min-height: var(--dokunma); border-radius: var(--r-saat); }
+a.olay-metin:hover { color: var(--vurgu); }
+.olay-metin b { font-weight: 700; }
+.olay-metin small { display: block; color: var(--metin-soluk); font-size: var(--fs-meta); }
+.taraf-rozet { justify-self: end; max-width: 9.5em; padding: 2px 8px; border-radius: var(--r-hap); border: 1px solid var(--kenar-guclu); color: var(--metin); font-size: var(--fs-etiket); font-weight: 700; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.olay-biz .taraf-rozet { background: var(--hap-aktif-zemin); border-color: var(--hap-aktif-zemin); color: var(--hap-aktif-metin); }
+/* Dar ekran / büyük yazı: rozet alt satıra iner (ad kırpılmaz) */
+@media (max-width: 359px) { .olay { grid-template-columns: 48px 24px minmax(0, 1fr); } .taraf-rozet { grid-column: 3; justify-self: start; } }
+.buyuk-yazi .olay { grid-template-columns: auto minmax(0, 1fr); } .buyuk-yazi .olay .olay-isaret { display: none; } .buyuk-yazi .taraf-rozet { grid-column: 2; justify-self: start; max-width: none; white-space: normal; }
 .olay-tur { display: block; font-size: var(--fs-etiket); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--metin-soluk); }
 .olay-isaret { flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; color: var(--metin); }
 .olay-isaret svg { width: 20px; height: 20px; }
-.olay-isaret.kart { width: 12px; height: 16px; border-radius: 2px; }
+.olay-isaret.gol.rakip { color: var(--metin-soluk); }
+.olay-isaret.kart { width: 12px; height: 16px; border-radius: 2px; justify-self: center; }
 .olay-isaret.kart.sari { background: var(--kulup-altin); }
 .olay-isaret.kart.kirmizi { background: var(--kulup-kirmizi); }
 .olay-isaret.giren { color: var(--basari-metin); }
@@ -1017,3 +1000,81 @@ html:active-view-transition-type(geri)::view-transition-new(root) { animation-na
 .oyuncu-mini .no { font-family: var(--font-baslik); font-weight: 700; font-size: 2rem; line-height: 1; color: var(--vurgu); font-variant-numeric: tabular-nums; }
 .oyuncu-mini .ad { font-family: var(--font-baslik); font-weight: 700; text-transform: uppercase; letter-spacing: .02em; line-height: 1.2; overflow-wrap: anywhere; }
 .oyuncu-mini .mevki { color: var(--metin-soluk); font-size: var(--fs-meta); }
+
+/* ---------- 32. 019: ikili maç kartı, "Yeni" rozeti, Golü tekrar izle, piyasa değeri, fikstür takvimi, yeni sürüm notu ---------- */
+/* Ana sayfa: hero'nun altında "Son maç | Sıradaki" (eski tek satırlık şerit + büyük sıradaki maç kartı yerine). Yükseklik iskeletle aynı
+   (min-height): veri gelince kayma yok. Dar ekranda yan yana, büyük yazıda alt alta. */
+.mac-ikili { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: var(--b-3) 0 0; }
+.buyuk-yazi .mac-ikili { grid-template-columns: minmax(0, 1fr); }
+.ikili-kart { display: block; min-width: 0; min-height: 124px; padding: 10px 12px; border: 1px solid var(--kenar); border-radius: var(--r-kart); background: var(--yuzey); color: var(--metin); text-decoration: none; }
+a.ikili-kart:hover { border-color: var(--kenar-guclu); color: var(--metin); }
+.ikili-kart.iskelet-kart { display: grid; align-content: start; gap: 8px; }
+.ikili-kart.iskelet-kart .iskelet { margin: 0; }
+.ikili-ic { display: grid; gap: 4px; }
+.ikili-etiket { font-size: var(--fs-etiket); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--vurgu-guclu); }
+.ikili-eslesme { font-family: var(--font-baslik); font-weight: 700; font-size: .875rem; line-height: 1.2; text-transform: uppercase; letter-spacing: .02em; overflow-wrap: anywhere; }
+.ikili-buyuk { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-family: var(--font-govde); font-weight: 700; font-size: 1.375rem; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.ikili-buyuk .sonuc-rozet { font-size: var(--fs-etiket); }
+.ikili-gun { font-size: 1rem; }
+.ikili-meta { color: var(--metin-soluk); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.ikili-kart.bos .ikili-eslesme { font-family: var(--font-govde); text-transform: none; letter-spacing: 0; font-weight: 400; }
+.kim-yok-yer:empty { display: none; }
+
+/* "Yeni" rozeti: son 24 saatte yayınlanan haber (yazı + seçili hap çifti; renk tek başına anlam taşımaz) */
+.yeni-rozet { display: inline-block; padding: 0 6px; border-radius: var(--r-hap); background: var(--hap-aktif-zemin); color: var(--hap-aktif-metin); font-size: var(--fs-etiket); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; line-height: 1.5; vertical-align: 1px; }
+
+/* Gol sayfası: oynatma başlayınca videonun altında "Golü tekrar izle" (gol anının başından; YouTube'un kendi tekrar düğmesi 0:00'a gider) */
+.gol-makale > .tekrar-izle { order: -1; align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; }
+.tekrar-izle svg { flex: none; }
+
+/* Oyuncu sayfası: piyasa değeri (yalnız girilmişse; kaynak ve tarih altında) */
+.piyasa-kutu { margin: var(--b-3) 0 0; padding: 12px 16px; border: 1px solid var(--kenar); border-radius: var(--r-kart); background: var(--yuzey); }
+.piyasa-etiket { margin: 0; font-family: var(--font-govde); font-size: var(--fs-etiket); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--metin-soluk); }
+.piyasa-deger { margin: 2px 0 0; font-weight: 700; font-size: 1.75rem; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.piyasa-kaynak { margin: 2px 0 0; color: var(--metin-soluk); font-size: var(--fs-meta); }
+
+/* Fikstür: Liste | Takvim (aria-pressed düğmeler; sekme izinin görünümü, seçili düğmede ✓) */
+.gorunum-sec { display: inline-grid; grid-auto-flow: column; gap: 4px; padding: 4px; margin: var(--b-2) 0 0; background: var(--hap-iz); border-radius: var(--r-hap); }
+.gorunum-sec button { min-height: var(--dokunma); min-width: 88px; padding: 0 14px; border: 0; border-radius: var(--r-hap); background: transparent; color: var(--hap-pasif-metin); font-family: var(--font-baslik); font-weight: 700; font-size: .9375rem; letter-spacing: .02em; cursor: pointer; }
+.gorunum-sec button[aria-pressed="true"] { background: var(--hap-aktif-zemin); color: var(--hap-aktif-metin); }
+.gorunum-sec button[aria-pressed="true"]::before { content: "✓ "; }
+.gorunum-sec button:active { opacity: var(--basma-opaklik); }
+
+/* Ay takvimi: 7 sütun (390 px'te hücre ~50 px ≥ 44). Maç günü düğme: iç saha dolu kırmızı + "İ", deplasman çerçeveli + "D". */
+.takvim { margin-top: var(--b-3); }
+.takvim-ust { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; gap: 8px; }
+.takvim-ay { margin: 0; text-align: center; font-size: 1.125rem; text-transform: uppercase; }
+.takvim-gez { color: var(--metin); border: 1px solid var(--kenar-guclu); font-size: 1.5rem; line-height: 1; }
+.takvim-gez[aria-disabled="true"] { opacity: .35; cursor: default; }
+.takvim-izgara { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 2px; margin-top: var(--b-2); }
+.takvim-izgara th { padding: 4px 0; font-size: var(--fs-etiket); font-weight: 700; color: var(--metin-soluk); text-transform: uppercase; letter-spacing: .04em; }
+.takvim-izgara abbr { text-decoration: none; }
+.takvim-izgara td { height: 48px; padding: 0; text-align: center; vertical-align: middle; font-variant-numeric: tabular-nums; }
+.takvim-no { display: inline-grid; place-items: center; min-width: 32px; min-height: 32px; border-radius: 50%; color: var(--metin-soluk); }
+.takvim-no[aria-current="date"] { color: var(--metin); font-weight: 700; box-shadow: inset 0 0 0 2px var(--kenar-guclu); }
+.takvim-gun { position: relative; display: grid; place-items: center; width: 100%; min-width: 44px; height: 48px; padding: 0; border-radius: var(--r-saat); border: 2px solid var(--vurgu); background: transparent; color: var(--metin); font: inherit; font-weight: 700; cursor: pointer; }
+.takvim-gun.ic { background: var(--hap-aktif-zemin); border-color: var(--hap-aktif-zemin); color: var(--hap-aktif-metin); }
+.takvim-gun.oynandi { border-style: dashed; }
+.takvim-gun.ic.oynandi { border-style: solid; }
+.takvim-gun[aria-current="date"] { outline: 2px solid var(--metin); outline-offset: 1px; }
+.takvim-gun .takvim-no { min-width: 0; min-height: 0; color: inherit; line-height: 1; }
+.takvim-isaret { position: absolute; right: 3px; bottom: 2px; font-size: .625rem; font-weight: 700; line-height: 1; }
+.takvim-anahtar { margin: var(--b-2) 0 0; color: var(--metin-soluk); font-size: var(--fs-meta); }
+.takvim-anahtar .takvim-isaret { position: static; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 4px; border: 2px solid var(--vurgu); color: var(--metin); font-size: .6875rem; vertical-align: -4px; }
+.takvim-anahtar .takvim-isaret.ic { background: var(--hap-aktif-zemin); border-color: var(--hap-aktif-zemin); color: var(--hap-aktif-metin); }
+.buyuk-yazi .takvim-izgara td, .buyuk-yazi .takvim-gun { height: auto; min-height: 48px; }
+.buyuk-yazi .takvim-isaret { position: static; }
+/* Önizleme penceresi (alttan açılır; profil çıkış onayıyla aynı bileşen) */
+.onizleme-gun { margin: 0 0 8px; font-size: 1.125rem; }
+.onizleme-mac + .onizleme-mac { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--kenar); }
+.onizleme-eslesme { margin: 0; font-family: var(--font-baslik); font-weight: 700; font-size: 1.25rem; text-transform: uppercase; letter-spacing: .02em; line-height: 1.2; }
+.onizleme-bilgi { margin: 4px 0 0; }
+.onizleme-mac .dugme-satir { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.onizleme-kapat { width: 100%; margin-top: 16px; }
+
+/* Yeni sürüm notu: alt menünün hemen üstünde sabit (yer kaplamaz: kayma yok); otomatik yeniden yükleme yok */
+.surum-notu { position: fixed; left: 8px; right: 8px; bottom: calc(var(--alt-menu-gercek, var(--alt-menu-toplam)) + 8px); z-index: var(--z-yapiskan-filtre); max-width: 520px; margin: 0 auto; display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 16px; border-radius: var(--r-kart); background: var(--ust-zemin); color: var(--ust-metin); box-shadow: var(--golge-2); }
+.surum-notu p { flex: 1; margin: 0; font-weight: 700; }
+.surum-notu .dugme { min-height: var(--dokunma); }
+/* 320 px: 7 sütun × 44 px sığsın diye ızgara sayfa kenar boşluğuna taşar (hücre arası boşluk yok) */
+@media (max-width: 374px) { .takvim-izgara { width: calc(100% + 2 * var(--sayfa-kenar) - 8px); margin-inline: calc(4px - var(--sayfa-kenar)); border-spacing: 0; } }

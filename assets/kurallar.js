@@ -249,28 +249,62 @@ export function oyuncuOzeti(ad, kadro = [], goller = []) {
   };
 }
 /**
- * Maç sayfası olay çizelgesi (yalnız Çorum FK; rakibin olay verisi yok). goller: { dakika, ek_dakika, ... } satırları,
- * kadro: o maçın mac_oyunculari satırları. Dönen olaylar dakika sırasıyla: gol, kırmızı kart (dakikası = çıkış dakikası, 018),
- * oyuncu değişikliği (aynı dakikada çıkan ↔ giren eşlenir; eşi yoksa tek başına). Sarı kartın dakikası kaynakta yok: ayrı "kartlar".
+ * Maç sayfası olay çizelgesi. goller: Çorum FK golleri ({ dakika, ek_dakika, ... }), kadro: o maçın mac_oyunculari satırları,
+ * rakipGoller: 019 rakip_goller satırları ({ dakika, ek_dakika, oyuncu, penalti, kendi_kalesine }). Her olayda taraf: 'biz' | 'rakip'.
+ * Dakika sırasıyla: gol, kırmızı kart (dakikası = çıkış dakikası, 018), oyuncu değişikliği (aynı dakikada çıkan ↔ giren eşlenir;
+ * eşi yoksa tek başına). Rakibin kart / değişiklik verisi yok (yalnız golleri). Sarı kartın dakikası kaynakta yok: ayrı "kartlar".
  */
-export function macOlaylari(goller = [], kadro = []) {
-  const olaylar = goller.map((g) => ({ tur: 'gol', dakika: g.dakika, ek: g.ek_dakika || 0, gol: g }));
+export function macOlaylari(goller = [], kadro = [], rakipGoller = []) {
+  const olaylar = goller.map((g) => ({ tur: 'gol', taraf: 'biz', dakika: g.dakika, ek: g.ek_dakika || 0, gol: g }));
+  for (const g of rakipGoller) olaylar.push({ tur: 'rakip_gol', taraf: 'rakip', dakika: g.dakika, ek: g.ek_dakika || 0, gol: g });
   const girenler = new Map(), cikanlar = new Map();
   const ekle = (m, dk, ad) => m.set(dk, [...(m.get(dk) || []), ad]);
   for (const s of kadro) {
     if (s.giris_dk != null) ekle(girenler, s.giris_dk, s.oyuncu);
     if (s.cikis_dk == null || !macaCikti(s)) continue;
-    if (s.kirmizi) olaylar.push({ tur: 'kirmizi', dakika: s.cikis_dk, ek: 0, oyuncu: s.oyuncu });
+    if (s.kirmizi) olaylar.push({ tur: 'kirmizi', taraf: 'biz', dakika: s.cikis_dk, ek: 0, oyuncu: s.oyuncu });
     else ekle(cikanlar, s.cikis_dk, s.oyuncu);
   }
   const ada = (a, b) => a.localeCompare(b, 'tr');
   for (const dk of new Set([...girenler.keys(), ...cikanlar.keys()])) {
     const g = (girenler.get(dk) || []).sort(ada), c = (cikanlar.get(dk) || []).sort(ada);
-    for (let i = 0; i < Math.max(g.length, c.length); i++) olaylar.push({ tur: 'degisiklik', dakika: dk, ek: 0, giren: g[i] || null, cikan: c[i] || null });
+    for (let i = 0; i < Math.max(g.length, c.length); i++) olaylar.push({ tur: 'degisiklik', taraf: 'biz', dakika: dk, ek: 0, giren: g[i] || null, cikan: c[i] || null });
   }
-  const SIRA = { gol: 0, kirmizi: 1, degisiklik: 2 };
+  const SIRA = { gol: 0, rakip_gol: 0, kirmizi: 1, degisiklik: 2 };
   olaylar.sort((a, b) => a.dakika - b.dakika || a.ek - b.ek || SIRA[a.tur] - SIRA[b.tur]);
   const kartlar = kadro.filter((s) => s.sari > 0 || (s.kirmizi && s.cikis_dk == null))
     .map((s) => ({ oyuncu: s.oyuncu, sari: s.sari || 0, kirmizi: !!s.kirmizi && s.cikis_dk == null })).sort((a, b) => ada(a.oyuncu, b.oyuncu));
   return { olaylar, kartlar };
+}
+
+// ---------------------------------------------------------------------------
+// 019: piyasa değeri (SQL: oyuncular_piyasa_degeri, oyuncu_piyasa_kontrol) ve rakip golleri (rakip_goller)
+// ---------------------------------------------------------------------------
+export const PIYASA_DEGERI_SINIRI = 500000000; // €
+/** Oyuncu sayfasındaki biçim (tr-TR, Transfermarkt'la aynı birimler): 3000000 → "3,00 Mn €", 800000 → "800 Bin €". Değer yoksa null. */
+export function piyasaDegeriMetni(eur) {
+  if (!Number.isInteger(eur) || eur < 0) return null;
+  const sayi = (n, k) => n.toLocaleString('tr-TR', { minimumFractionDigits: k, maximumFractionDigits: k });
+  if (eur >= 1e6) return `${sayi(eur / 1e6, 2)} Mn €`;
+  if (eur >= 1e3) return `${sayi(Math.round(eur / 1e3), 0)} Bin €`;
+  return `${sayi(eur, 0)} €`;
+}
+/** Panel kadro formu: piyasa değeri hataları (Türkçe). eur: tam sayı ya da null; tarih 'YYYY-AA-GG' ya da null. */
+export function piyasaDegeriHatalari({ piyasa_degeri_eur: eur = null, piyasa_degeri_tarih: tarih = null, piyasa_degeri_kaynak: kaynak = null } = {}) {
+  const h = [];
+  const k = typeof kaynak === 'string' ? kaynak.trim() : '';
+  if (eur != null && !(Number.isInteger(eur) && eur >= 0 && eur <= PIYASA_DEGERI_SINIRI)) h.push('Piyasa değeri 0 ile 500 milyon € arasında tam sayı olmalı.');
+  if (k && (k.length < 2 || k.length > 80)) h.push('Kaynak 2-80 karakter olmalı.');
+  if (eur != null && (!tarih || !k)) h.push('Piyasa değeri girildiyse tarihini ve kaynağını da yaz.');
+  return h;
+}
+/** Panel rakip golü formu (SQL: rakip_goller_dakika, rakip_goller_oyuncu, rakip_goller_tur). */
+export function rakipGolHatalari({ dakika = null, ek_dakika: ek = null, oyuncu = '', penalti = false, kendi_kalesine: kk = false } = {}) {
+  const h = [];
+  const ad = String(oyuncu ?? '').trim();
+  if (!(Number.isInteger(dakika) && dakika >= 1 && dakika <= 130)) h.push('Dakika 1-130 arasında olmalı.');
+  if (ek != null && !(Number.isInteger(ek) && ek >= 1 && ek <= 20)) h.push('Uzatma dakikası 1-20 arasında olmalı.');
+  if (ad.length < 2 || ad.length > 80) h.push('Golü atanın adı 2-80 karakter olmalı.');
+  if (penalti && kk) h.push('Gol hem penaltı hem kendi kalesine olamaz.');
+  return h;
 }

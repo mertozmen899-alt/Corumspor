@@ -9,7 +9,7 @@ Bu dosya bu depoda çalışan yapay zekâ ajanları ve geliştiriciler içindir.
 - `supabase-js` **sitenin kendisinden** (KVKK: CDN'e istek yok), sabit sürüm + SRI: `assets/vendor/supabase-js-2.45.4/supabase.js` (npm `@supabase/supabase-js@2.45.4` paketindeki `dist/umd/supabase.js` ile bayt bayt aynı; yanında `591.supabase.js` parçası ve `LICENSE.txt`). Her HTML'de `<script defer src="assets/vendor/supabase-js-2.45.4/supabase.js" integrity="sha384-…">`. Sürüm değişirse: npm tarball'ından al, integrity'yi yenile (`openssl dgst -sha384 -binary dosya | openssl base64 -A`), klasör adını ve testteki SRI'yi güncelle.
 - Tek ayar dosyası: `assets/ayar.js` (SUPABASE_URL, SUPABASE_ANON_KEY, SITE_ADI, TAKIM_ADI, AMBLEM_DOSYASI, SAHIP_ADI, ILETISIM_EPOSTA; son ikisi künye ve gizlilik sayfasında `data-ayar` ile yazılır).
 - Tek supabase istemcisi: `assets/istemci.js` (`import { supabase } from './istemci.js'`). Reklam modülü de bunu kullanır.
-- Migration'lar: `supabase/migrations/NNN_ad.sql`, sırayla: `001_temel_sema` → `002_depolama` → `010_reklamlar` → `011_denetim_duzeltmeleri` → `012_denetim_2` → `013_tasarim` → `014_inceleme_2` → `015_son_tur` → `016_mac_ozeti` → `017_yanit_profil_foto` → `018_gol_ani_asist`. Örnek veri: `supabase/seed.sql`. Uygulanmış dosyalar (001/002/010/011/012/013/014/015/016/017) yeniden yazılmaz: değişiklik = yeni migration. 013 yeniden çalıştırılabilir; testler 010/012'yi yeniden uygular, bu yüzden 013 onların fonksiyonlarının dönüş tipini değiştirmez (yalnız `aktif_reklam`'ı drop/create eder ve 012'den sonra uygulanır). 014 de yeniden çalıştırılabilir; yeniden tanımladığı fonksiyonların gövdesinde `sürüm 014` işareti var ve test (20_rls_testleri.sql, reklam/sql.test.mjs) en son sürümün kurulu olduğunu denetler.
+- Migration'lar: `supabase/migrations/NNN_ad.sql`, sırayla: `001_temel_sema` → `002_depolama` → `010_reklamlar` → `011_denetim_duzeltmeleri` → `012_denetim_2` → `013_tasarim` → `014_inceleme_2` → `015_son_tur` → `016_mac_ozeti` → `017_yanit_profil_foto` → `018_gol_ani_asist` → `019_piyasa_rakip_gol`. Örnek veri: `supabase/seed.sql`. Uygulanmış dosyalar (001/002/010/011/012/013/014/015/016/017) yeniden yazılmaz: değişiklik = yeni migration. 013 yeniden çalıştırılabilir; testler 010/012'yi yeniden uygular, bu yüzden 013 onların fonksiyonlarının dönüş tipini değiştirmez (yalnız `aktif_reklam`'ı drop/create eder ve 012'den sonra uygulanır). 014 de yeniden çalıştırılabilir; yeniden tanımladığı fonksiyonların gövdesinde `sürüm 014` işareti var ve test (20_rls_testleri.sql, reklam/sql.test.mjs) en son sürümün kurulu olduğunu denetler.
 - Saf kurallar (JS = SQL aynası): `assets/kurallar.js` (kullanıcı adı ayrılmış mı, haber kapağı adresi, yorum sınırları, `sezonAdi` Temmuz–Haziran, `SAKATLIK_DURUMLARI`, `sakatlikHatalari`) ↔ `012_denetim_2.sql` + `013_tasarim.sql`; ortak örnekler `testler/kurallar-ornekleri.json`. Reklam kuralları: `assets/reklam/reklam-mantik.js` ↔ `010`/`012`.
 - Görsel yükleme: `assets/gorsel-kucult.js` (yüklemeden önce canvas ile küçült + WebP). Haber/gol kapağı ve oyuncu fotoğrafı: `<uuid>-1600/-800/-480.webp` üç kopya (`kapakKaynagi()` `-1600.webp`'den srcset kurar; sitenin kendi `assets/img/` fotoğraflarında kopya genişlikleri `foto-kaynaklari.js` `genislikler`'den: olmayan dosya istenmez). `kapakKaynagi(url, { kutu })` `sizes`'ı etkin DPR ≤ 2 ile hesaplar; depodaki kapaklar `crossorigin="anonymous"`; `<img>`'i `kapakGorseli()` kurar (kırık görselde yer tutucu). Reklam: 1200 kutu + `-k.webp` küçük kopya (480 / kare 192).
 - Yayın: `node araclar/yayin-hazirla.js` → `yayin/` (yalnız HTML + `assets/` + `_headers` + `robots.txt` + `.nojekyll` + `sw.js` + `manifest.webmanifest`; geliştirici klasörü girerse durur; `ayar.js`'te yer tutucu kaldıysa **çıkış 1** (bilerek taslak: `YAYIN_TASLAK=1`; testler bunu kullanır); gerçek SUPABASE_URL varsa sayfalara `preconnect` ekler: kaynak HTML'de yok, tek ayar kuralı). Yalnız `yayin/` kopyasında: meta CSP `_headers`'a taşınır ve `*.supabase.co` proje adresine daraltılır, iç bağlantılar uzantısız olur (`goller.html` → `goller`, `index.html` → `./`; Cloudflare 308'i yok), `sw.js`'te `SURUM` içerik özeti ve `DOSYALAR` bütün kabuk. Paylaşım görseli: `node araclar/og-olustur.js` → `assets/img/og-1200x630.png`. Ana ekran simgeleri: `node araclar/simge-olustur.js` → `assets/logo/simge-*.png`, `apple-touch-icon-180.png`.
@@ -21,17 +21,24 @@ Bu dosya bu depoda çalışan yapay zekâ ajanları ve geliştiriciler içindir.
 
 ## Klasör haritası
 ```
-index.html        ana sayfa: hero (MAÇ GÜNÜ / maçtan sonraki 36 saat MAÇ SONU skoru / manşet / en yeni haber) → "Sıradaki:" şeridi → Son dakika akışı (sayfalı, sponsor kartları) →
-                  "Gol arşivinden" şeridi → Sıradaki maç kartı → "Kim yok?" kutusu
+index.html        ana sayfa: hero (MAÇ GÜNÜ / maçtan sonraki 36 saat MAÇ SONU skoru / manşet / en yeni haber) → 019: ikili maç kartı
+                  (#mac-ikili: #ikili-son "Son maç" skor + G/B/M | #ikili-siradaki "Sıradaki" gün, saat, geri sayım; hero aynı maçı
+                  gösteriyorsa "Önceki maç" / "Sonraki") → Son dakika akışı (sayfalı, sponsor kartları; son 24 saatteki haberde .yeni-rozet
+                  "Yeni", hero'da da) → "Gol arşivinden" şeridi → "Kim yok?" kutusu. Eski "Sıradaki:" şeridi ve büyük sıradaki maç kartı YOK
 goller.html       gol arşivi: Sezon (Temmuz–Haziran, "2026-27") ve Rakip filtreleri (fieldset/legend + radyo, ?sezon=&rakip=&ac=); 018: her maç
                   TEK satır, açılır düğme (h2 > button.mac-ac aria-expanded + aria-controls="goller-<id>"): "N. Hafta · Ev – Dep skor" + küçük
                   tarih; açılınca goller dakika sırasıyla a.gol-satir.gol-ani "59' Ad · Asist: X ▶" → gol.html?id=; golsüz maç yok, "Özeti izle" yok
 gol.html?id=      gol: video facade (dokununca youtube-nocookie / mp4 preload=none; 018: YouTube'da yalnız gol anı start/end), "Asist: X",
-                  bilgi, WhatsApp paylaş, yorumlar (gol_id)
+                  bilgi, WhatsApp paylaş, yorumlar (gol_id); 019: aralıklı YouTube'da oynatınca altta button#video-tekrar "Golü tekrar izle"
+                  (iframe aynı start/end ile yeniden kurulur; videoFasad ops.tekrar)
 takim.html        Takım: sekmeler #kadro | #sakatlik | #fikstur (paneller id="panel-<ad>": adres parçası öğeye denk gelmez); kadro kartı
-                  a.oyuncu-kart → oyuncu.html?id=
+                  a.oyuncu-kart → oyuncu.html?id=. 019: Fikstür'de #fikstur-gorunum (Liste | Takvim, aria-pressed); #fikstur-takvim ay ızgarası
+                  (table#takvim-izgara, #takvim-onceki/#takvim-sonraki, button.takvim-gun.ic|.dep "İ"/"D"), güne dokununca
+                  dialog#takvim-onizleme (sayfa-alt; Maç sayfası, Takvime ekle, Kapat; arka plan inert). Geri dönüşte kaydırma yeri,
+                  görünüm ve ay geri gelir (ortak.js konumKoru)
 oyuncu.html?id=   018: oyuncu sayfası (oyuncular.id): ad, forma no, mevki; bu sezon Maç, İlk 11, Dakika, Gol, Asist, Gole katkı, Sarı, Kırmızı
-                  ve golleri/asistleri (→ gol.html); alt menüde Takım aria-current="true"; pas/şut/piyasa değeri YOK.
+                  ve golleri/asistleri (→ gol.html); alt menüde Takım aria-current="true"; pas/şut YOK. 019: piyasa değeri yalnız
+                  girilmişse section#piyasa-degeri ("3,00 Mn €" + "Transfermarkt'a göre, 30 Eylül 2026"); kadro kartında hiç yok.
                   Üstte 3 büyük sayı (#one-cikan: Gol, Asist, Maç); sayılar HER ZAMAN çizilir (forma giymemişte 0 + #oyuncu-bos
                   "henüz forma giymedi"); kadro sırasıyla önceki/sonraki (#oyuncu-gezgin), aynı mevkiden #diger-oyuncular şeridi.
                   Kadro listesi tek sorgu (aktif oyuncular); pasif oyuncunun eski bağlantısında kendi satırı ayrıca istenir
@@ -39,10 +46,13 @@ profil.html       misafir: giriş/kayıt; üye: yorumlarım, (yönetici) Yöneti
 haber.html?id=    haber ayrıntısı (geri düğmesi) + haber_sonu reklamı + yorumlar
 mac.html?id=      maç ayrıntısı (geri düğmesi) + mac_sponsoru ("Maçın sponsoru" + "Uygulama sponsoru · Çorum FK'nın sponsoru değildir";
                   sekmelerin ÜSTÜNDE) + sekmeler Özet · Olaylar · Yorumlar (#ozet | #olaylar | #yorumlar, paneller panel-<ad>, Takım deseni):
-                  Özet = maç notu + #ozet maç özeti (016, videoFasad: dokununca) + goller; Olaylar = iki taraflı çizelge (kurallar.js
-                  macOlaylari: gol, değişiklik, kırmızı; Çorum FK iç sahada solda / deplasmanda sağda; rakip verisi yok) + kartlar + İlk 11 /
+                  Özet = maç notu + #ozet maç özeti (016, videoFasad: dokununca) + goller; Olaylar = 019: tam genişlik satırlar
+                  (dakika | simge | olay ve isim | .taraf-rozet; li.olay-biz kırmızı sol çizgi + dolu rozet, li.olay-rakip çerçeveli rozet;
+                  kurallar.js macOlaylari(goller, kadro, rakipGoller): Çorum FK gol, değişiklik, kırmızı + rakip_goller; skor = gol sayısı,
+                  eksikse #olay-not "Çizelgede henüz yok: …") + kartlar + İlk 11 /
                   oyuna girenler (mac_oyunculari, ilk açılışta yüklenir); Yorumlar = yorum bileşeni (ilk açılışta). #skor-cubugu: sabit küçük
-                  skor çubuğu (aria-hidden), büyük başlık görünümden çıkınca .acik. Testler yorum için mac.html?id=…#yorumlar açar
+                  skor çubuğu (aria-hidden), büyük başlık görünümden çıkınca .acik. Testler yorum için mac.html?id=…#yorumlar açar.
+                  019: oynanmamış maçta Paylaş'ın yanında button#takvime-ekle (.ics, assets/takvim.js)
 maclar.html       eski adres: takim.html#fikstur'a yönlendirir (meta refresh)
 giris.html        giriş / kayıt (satır içi alan hataları, şifre göster, Şifremi unuttum, kayıttan sonra hoş geldin)
 sifre.html        yeni şifre (resetPasswordForEmail bağlantısı buraya döner; updateUser)
@@ -64,6 +74,8 @@ assets/
   tema.js           tema: head'de defer'siz; Profil'deki input[name=tema] radyolarını bağlar (data-theme + localStorage 'tema');
                     pagereveal'da sayfa geçişi yönü (view transition türü "ileri" / "geri"; modülde olmaz, ilk çizimden önce gelir)
   onbellek.js       son görülen herkese açık veri (localStorage son-veri-v1)
+  takvim.js         019: saf .ics üretimi (macIcs: UTC, 2 saat, "Çorum FK – Rakip", kaçış, 75 bayt katlama, CRLF; icsDosyaAdi, trGunu,
+                    ayIzgarasi) + takvimIndir (Blob + a[download]; dış istek yok). mac.js ve takim.js statik içe aktarır (modulepreload)
   gol-kart.js       golKarti() (16:9 kapak a.video-kart ya da a.gol-satir → gol.html?id=), golAniSatiri() (018 arşiv satırı), golSuresi(), macEtiketi()
   foto-kaynaklari.js paketli fotoğrafların yazar/lisans/kaynak listesi (atıf yazısı ve kaynaklar.html bundan)
   yorumlar.js       yorum bileşeni (haber_id | mac_id | gol_id; şikâyet; men notu); sayfalar tembel import eder
@@ -296,3 +308,27 @@ Yuvalar boştur; kendi dolgusu, kenarlığı, min-height'ı yoktur. Reklam yoksa
 - Canlı veri: 21 golün gol anı/asisti ve 10 maçın kadrosu ayrı veri SQL'iyle yazılır (depoda değil; kaynak: beIN SPORTS Türkiye YouTube
   kanalı ve kulübün maç sayfalarındaki maç olayları; oyuncu sayfasında "Kaynak: maç olayları (kulübün maç sayfaları)").
 - Bu sütunları okuyan sayfalar (ana, goller, gol, mac, oyuncu) canlıda 018 çalışmadan yayınlanmamalı (PostgREST "column does not exist").
+
+## 019 — piyasa değeri, rakip golleri, takvim, ikili maç kartı (bu tur)
+- Migration `supabase/migrations/019_piyasa_rakip_gol.sql` (yeniden çalıştırılabilir; 014-018 `sürüm` işaretli fonksiyonlara dokunmaz).
+  `oyuncular.piyasa_degeri_eur` (integer, null ya da 0..500000000), `piyasa_degeri_tarih` (date), `piyasa_degeri_kaynak` (2-80);
+  değer varsa tarih ve kaynak zorunlu (kısıt `oyuncular_piyasa_degeri` + tetikleyici `oyuncu_piyasa_kontrol` Türkçe mesaj). Okuma/yazma
+  oyuncular'ın mevcut politikalarıyla (herkes okur, yalnız yönetici yazar). `rakip_goller(id, mac_id → maclar cascade, dakika 1-130,
+  ek_dakika 1-20, oyuncu 2-80, penalti, kendi_kalesine, created_at)`: RLS (herkes okur, yalnız `is_admin()` yazar), TRUNCATE yok;
+  penaltı ve kendi kalesine birlikte olmaz (`rakip_gol_kontrol`). Kendi kalesine: rakibe yazılan gol, oyuncu = atan Çorum FK oyuncusu.
+  JS aynası `kurallar.js piyasaDegeriHatalari / rakipGolHatalari / piyasaDegeriMetni`.
+- Canlı veri: tek seferlik veri SQL'i depoda DEĞİL (oturum dosyası `019-veri.sql`; tek işlem, eşleşme tutmazsa raise). Piyasa değerleri
+  Transfermarkt kadro sayfasından bir kez okundu (kaynak 'Transfermarkt', tarih okunduğu gün: kadro sayfası oyuncu başına güncelleme
+  tarihi göstermiyor); rakip golleri kulübün maç sayfalarındaki maç akışından (her maçta sayı = `maclar.rakip_skor`). Otomatik/tekrarlı
+  çekme kodu YOK: yönetici panelden girer.
+- Ön yüz: oyuncu sayfası piyasa kutusu (yoksa hiç); maç Olaylar tam genişlik + rakip golleri (`rakip_goller` sorgusu hata verirse çizelge
+  yine açılır); Takvime ekle (.ics) maç sayfasında ve takvim önizlemesinde; Fikstür takvim görünümü; ana sayfa ikili maç kartı ve "Yeni"
+  rozeti; gol sayfası "Golü tekrar izle"; Takım ve ana sayfada geri dönüş konumu (`ortak.js konumKoru`: sessionStorage `konum:<yol>`,
+  yalnız `back_forward` gezinmede ve veri çizildikten SONRA; kullanıcı bu arada kaydırdıysa dokunmaz; gizlilik tablosunda).
+- Service worker: atomik sürüm aynı (sayfa + JS aynı kabuktan). Sayfa eski kabuktan açıldıysa ve yeni sürüm etkinleşirse (`controllerchange`)
+  altta görünür `#surum-notu` "Yeni sürüm hazır" + `#surum-yenile` "Yenile" (otomatik yeniden yükleme YOK; duyuru #durum). Uygulama öne
+  gelince en çok 30 dakikada bir `registration.update()`. Bundan sonraki her gezinme yeni sürümü alır.
+- Panel: Kadro formunda fieldset#o-piyasa (`#o-piyasa-deger`, `#o-piyasa-tarih`, `#o-piyasa-kaynak`); maç düzenlerken
+  `section#rakip-gol-bolumu` (Maç kadrosu deseni: ekle/düzenle/sil; gol sayısı rakip skoruyla tutmazsa uyarı).
+- Sahte istemci: `rakip_goller` (M1'de 55' "Rakip Golcü"; M2 bilerek boş), Ali Örnek'te piyasa değeri 3000000 / 2026-09-30 / Transfermarkt.
+- Bu sütunları okuyan sayfalar (oyuncu, mac, yönetim) canlıda 019 çalışmadan yayınlanmamalı (oyuncu sayfası "column does not exist" verir).
