@@ -1,7 +1,7 @@
 // Ortak yardımcılar: DOM üretimi (innerHTML yok), tarih, oturum, üst bar, alt menü, duyurular, video kapağı.
 import { supabase, sahteMod, ayarEksik } from './istemci.js';
 import { TAKIM_ADI, AMBLEM_DOSYASI, SAHIP_ADI, ILETISIM_EPOSTA } from './ayar.js';
-import { kapakAdresiGecerli, SAKATLIK_DURUMLARI, profilFotoGecerli } from './kurallar.js';
+import { kapakAdresiGecerli, SAKATLIK_DURUMLARI, profilFotoGecerli, sayarakMetin, sayilabilir } from './kurallar.js';
 import { fotoKaynagi, FOTO_KAYNAKLARI } from './foto-kaynaklari.js';
 
 export { supabase, sahteMod, TAKIM_ADI };
@@ -152,13 +152,31 @@ export function kapakGorseli(k, { sinif = null, alt = '', width = null, height =
 }
 
 /**
- * Kırık görsel (silinmiş dosya, ağ hatası) boş ya da kırık simgeli bir kutu bırakmaz: yerine aynı sınıflı desenli yer tutucu
- * (span.kapak-yok) konur; kutu en-boy oranını korur (kayma yok).
+ * Kapağı olmayan (ya da açılmayan) görselin yer tutucusu: span.kapak-yok + sinif (kutu boyutu sınıftan gelir: kayma yok).
+ * 021: açık zeminde ortalı resmî amblem (ayar.js AMBLEM_DOSYASI; span.kapak-amblem > img.amblem-isaret). Ayar boşsa ya da amblem
+ * açılmazsa eski desenli yer tutucu kalır (stil.css .kapak-yok).
+ */
+export function kapakYerTutucu(sinif = '') {
+  const el = h('span', { class: (sinif + ' kapak-yok').trim(), 'aria-hidden': 'true' });
+  const amblem = amblemAdresi();
+  if (!amblem) return el;
+  const img = h('img', { class: 'amblem-isaret', src: amblem, alt: '', decoding: 'async' });
+  img.addEventListener('error', () => { img.remove(); el.classList.remove('kapak-amblem'); }, { once: true });
+  el.classList.add('kapak-amblem');
+  el.append(img);
+  return el;
+}
+
+/**
+ * Kırık görsel (silinmiş dosya, ağ hatası) boş ya da kırık simgeli bir kutu bırakmaz: yerine aynı sınıflı yer tutucu
+ * (kapakYerTutucu) konur; kutu en-boy oranını korur (kayma yok).
  */
 export function gorselYedek(img, sinif = '') {
   img.addEventListener('error', () => {
     if (!img.isConnected) return;
-    img.replaceWith(h('span', { class: ((sinif || img.className || '') + ' kapak-yok').trim(), 'aria-hidden': 'true', 'data-gorsel-hata': '' }));
+    const yedek = kapakYerTutucu(sinif || img.className || '');
+    yedek.dataset.gorselHata = '';
+    img.replaceWith(yedek);
   }, { once: true });
   return img;
 }
@@ -346,7 +364,7 @@ export function mp4Mu(url) {
 
 /**
  * Video kapağı (facade): sayfa açılınca YouTube'a / video sunucusuna HİÇ istek gitmez. Kapak sitenin kendi görseli
- * (goller.kapak_url) ya da kırmızı-siyah desen. Dokununca nocookie iframe ya da <video controls preload=none> yerleşir
+ * (goller.kapak_url) ya da kapakYerTutucu (açık zeminde amblem). Dokununca nocookie iframe ya da <video controls preload=none> yerleşir
  * ve odak oynatıcıya taşınır. baslik: "Gol videosu: Ali Örnek, 23. dakika, Örnekköy Spor maçı".
  */
 /** Altyazı dosyası yalnız projenin kendi deposundan (.vtt): https://<proje>.supabase.co/storage/v1/object/public/…vtt */
@@ -367,7 +385,7 @@ export function videoFasad(url, { baslik = 'Gol', tur = 'Gol videosu', kapak = n
   const k = kapakKaynagi(kapak, { varsayilan: 800, kutu: tamGenislik() });
   const kap = h('div', { class: 'video tam-genis', 'data-video': id ? 'youtube' : 'mp4' });
   const dugme = h('button', { type: 'button', class: 'video-baslat', 'aria-describedby': 'video-not' },
-    k ? kapakGorseli(k, { width: '800', height: '450', fetchpriority: oncelik }) : h('span', { class: 'kapak-yok', 'aria-hidden': 'true' }),
+    k ? kapakGorseli(k, { width: '800', height: '450', fetchpriority: oncelik }) : kapakYerTutucu(),
     h('span', { class: 'oynat', 'aria-hidden': 'true' }, simge(OYNAT_YOLU, { dolu: true })),
     h('span', { class: 'yazi', 'aria-hidden': 'true' }, 'Oynat', sure ? ` · ${sure}` : ''),
     // Odak halkası kapak görselinin ÜSTÜNDE çizilir (düğmenin kendi outline'ı görselin altında kalıyordu; 2.4.7)
@@ -548,8 +566,12 @@ export function sekmeKlavyesi(liste, sec) {
 // AMBLEM_DOSYASI verilmişse (kulüpten yazılı izin alındıktan sonra) önce o denenir.
 // Sıra: AMBLEM_DOSYASI → amblem-yedek.svg → "ÇT" yazı işareti. Sayfa hiçbir durumda bozulmaz.
 const AMBLEM_YEDEK = 'assets/logo/amblem-yedek.svg';
+/** ayar.js AMBLEM_DOSYASI (yalnız assets/logo/ altındaki svg/png/webp) ya da null. */
+function amblemAdresi() {
+  return typeof AMBLEM_DOSYASI === 'string' && /^assets\/logo\/[\w.-]+\.(svg|png|webp)$/.test(AMBLEM_DOSYASI) ? AMBLEM_DOSYASI : null;
+}
 export function amblemKur(kok = document) {
-  const istenen = typeof AMBLEM_DOSYASI === 'string' && /^assets\/logo\/[\w.-]+\.(svg|png|webp)$/.test(AMBLEM_DOSYASI) ? AMBLEM_DOSYASI : null;
+  const istenen = amblemAdresi();
   kok.querySelectorAll('img[data-amblem]').forEach((img) => {
     const adaylar = [istenen, AMBLEM_YEDEK].filter(Boolean);
     let i = 0;
@@ -773,8 +795,95 @@ function altMenuIzle() {
   });
 }
 
+// ---------------------------------------------------------------- 022: belirme, sayma, sekme yönü, paylaşılan başlık
+// (stil.css 34. bölüm; docs/TASARIM.md 9.13). Hareket azaltmada ya da IntersectionObserver / MutationObserver yoksa hiçbir şey yapmaz:
+// içerik doğrudan son hâlinde. Satır içi stil yok: yalnız sınıf, data-* ve CSSOM (--i).
+// Kaydırdıkça belirenler: DOM'a giren öğe .belir (CSS: duraklatılmış animasyon, ilk kare 28 px aşağıda + saydam), görünür alana girince
+// .belirdi (aynı anda girenler --i ile sırayla). Bir öğe bir kez; aynı içerik yeniden çizilirse (önbellek → ağ) yeniden oynamaz.
+const BELIR = '.akis > li:not(.akis-sponsor), .video-kaydir > li, .ikili-kart, .kim-yok, .arsiv-mac, .gol-ani-listesi > li, .fikstur-listesi > li, '
+  + '.kadro-izgara > li, .sakatlik-listesi > li, .olay-cizelge > li, .one-cikan > li, .istatistik-izgara > li, .bolum-baslik'; // yorumlar yok: sık yeniden çizilir, düzenleme formu açılır
+// Sayarak gelen sayılar (yalnız rakam + ayraç metni; kurallar.js sayilabilir): görünen kare ::after'da (alt metni boş), gerçek metin yerinde
+const SAY = '#skor, .ikili-buyuk .skor-blok, .one-cikan .sayi, .istatistik-izgara .sayi, .puan-tablo .puan';
+export function belirmeIzle(kok = document.body) {
+  if (!kok || hareketAzalt() || typeof IntersectionObserver !== 'function' || typeof MutationObserver !== 'function') return;
+  let sayma = 0; // --sure-sayma, ilk saymada bir kez okunur (her sayıda stil hesabı zorlanmasın)
+  const goruldu = new Set(), anahtarlar = new WeakMap(); // belirmiş içerik (bağlantı / metin) yeniden çizilirse yeniden oynamaz
+  const anahtar = (el) => el.tagName + (el.querySelector('a[href]') || el).getAttribute('href') + el.textContent.trim().slice(0, 60);
+  const say = (el) => {
+    const bas = performance.now(), ms = sayma || (sayma = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sure-sayma')) || 700);
+    const adim = (t) => {
+      const x = Math.min(1, (t - bas) / ms);
+      if (x < 1) { el.dataset.say = sayarakMetin(el.textContent, 1 - (1 - x) ** 3); requestAnimationFrame(adim); }
+      else { el.classList.remove('sayiyor'); delete el.dataset.say; }
+    };
+    requestAnimationFrame(adim);
+  };
+  const io = new IntersectionObserver((girisler) => {
+    let i = 0;
+    for (const g of girisler.filter((x) => x.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top || a.boundingClientRect.left - b.boundingClientRect.left)) {
+      io.unobserve(g.target);
+      if (g.target.classList.contains('sayiyor')) say(g.target);
+      else { goruldu.add(anahtarlar.get(g.target)); g.target.style.setProperty('--i', String(Math.min(i++, 6))); g.target.classList.add('belirdi'); }
+    }
+  }, { rootMargin: '0px 0px -6% 0px' });
+  const tara = (dugum) => {
+    if (dugum.nodeType !== 1) return;
+    for (const el of [dugum, ...dugum.querySelectorAll(BELIR)]) {
+      if (!el.matches(BELIR) || el.classList.contains('belir') || el.closest('.sirayla') || el.querySelector('.iskelet') || el.matches('.iskelet-kart')) continue;
+      const k = anahtar(el);
+      if (goruldu.has(k)) continue;
+      anahtarlar.set(el, k);
+      el.classList.add('belir');
+      io.observe(el);
+    }
+    for (const el of [dugum, ...dugum.querySelectorAll(SAY)]) {
+      if (!el.matches(SAY) || el.children.length || !sayilabilir(el.textContent) || el.classList.contains('sayiyor')) continue;
+      el.dataset.say = sayarakMetin(el.textContent, 0);
+      el.classList.add('sayiyor');
+      io.observe(el);
+    }
+  };
+  // Sekme yönü: seçilen sekme öncekinin sağındaysa panel sağdan, solundaysa soldan kayar (Takım, Maç: aria-selected değişimi)
+  const secili = new WeakMap();
+  const sekmeSirasi = (t) => [...t.parentElement.querySelectorAll(':scope > [role="tab"]')].indexOf(t);
+  document.querySelectorAll('[role="tab"][aria-selected="true"]').forEach((t) => secili.set(t.parentElement, sekmeSirasi(t)));
+  const sekmeDegisti = (t) => {
+    const yeni = sekmeSirasi(t), eski = secili.get(t.parentElement);
+    secili.set(t.parentElement, yeni);
+    const panel = document.getElementById(t.getAttribute('aria-controls') || '');
+    if (eski === undefined || eski === yeni || !panel) return;
+    panel.classList.remove('sekme-sagdan', 'sekme-soldan');
+    void panel.offsetWidth; // aynı sınıfla animasyonu yeniden başlat
+    panel.classList.add(yeni > eski ? 'sekme-sagdan' : 'sekme-soldan');
+  };
+  new MutationObserver((kayitlar) => {
+    for (const m of kayitlar) {
+      if (m.type === 'childList') m.addedNodes.forEach(tara);
+      else if (m.target.getAttribute('role') === 'tab' && m.target.getAttribute('aria-selected') === 'true') sekmeDegisti(m.target);
+    }
+  }).observe(kok, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-selected'] });
+  tara(kok);
+  // Klavye odağı henüz belirmemiş öğeye gelirse anında son hâli (odak kayan bir öğede aranmaz)
+  kok.addEventListener('focusin', (e) => {
+    const el = e.target.closest && e.target.closest('.belir:not(.belirdi)');
+    if (el) { io.unobserve(el); el.classList.add('belirdi', 'anlik'); }
+  });
+  // Paylaşılan öğe: akıştaki haber başlığı (ya da hero başlığı) haber sayfasının başlığına dönüşür (view-transition-name; CSSOM)
+  let adli = null;
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest && e.target.closest('a.haber-satir, .hero-baslik a');
+    if (!a || !/(^|\/)haber(\.html)?\?/.test(a.getAttribute('href') || '')) return;
+    if (adli) adli.style.removeProperty('view-transition-name');
+    adli = a.matches('.haber-satir') ? a.querySelector('h3') : a.closest('.hero-baslik');
+    if (adli) adli.style.setProperty('view-transition-name', 'haber-baslik');
+  });
+  // Geri dönüşte (bfcache) ad kalmasın: sonraki geçişte bu başlık sayfayla birlikte kaysın, yerinde solmasın
+  addEventListener('pageshow', () => { if (adli) { adli.style.removeProperty('view-transition-name'); adli = null; } });
+}
+
 export function sayfaBaslat() {
   yaziBoyuIzle();
+  belirmeIzle();
   cubukIzle();
   yapiskanIzle();
   ustBarIzle();

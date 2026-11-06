@@ -274,6 +274,19 @@ async function tasarimTestleri() {
         });
         kontrol(`${url.split('?')[0]} (${hareket}): sonsuz animasyon yok (canlı rozeti ve iskeletler dahil) (T-11/T-124)`, !d.sonsuz.length, d.sonsuz.join(','));
         if (hareket === 'reduce') kontrol(`${url.split('?')[0]} (reduce): yüklendikten sonra çalışan animasyon yok (T-11/T-109)`, d.calisan === 0, d.calisan);
+        // 022 (docs/TASARIM.md 9.13): kaydırdıkça belirme / sayarak gelen sayılar. Hareket azaltmada hiçbir öğe bekleme hâlinde değil
+        // (sınıf yok, saydam liste satırı yok); hareket açıkken sayfa sonuna kaydırınca bekleyen öğe kalmaz (bir öğe bir kez belirir)
+        const b = await p.evaluate(async () => {
+          const bekleyen = () => document.querySelectorAll('.belir:not(.belirdi), .sayiyor').length;
+          const ilk = { belir: document.querySelectorAll('.belir').length, bekleyen: bekleyen(), saydam: [...document.querySelectorAll('.akis > li, .kadro-izgara > li, .olay-cizelge > li, .arsiv-mac')].filter((e) => getComputedStyle(e).opacity !== '1').length };
+          for (let y = 0; y <= document.documentElement.scrollHeight; y += 300) { scrollTo({ top: y, behavior: 'instant' }); await new Promise((c) => requestAnimationFrame(() => setTimeout(c, 60))); }
+          await new Promise((c) => setTimeout(c, 1500));
+          const son = { bekleyen: [...document.querySelectorAll('.belir:not(.belirdi), .sayiyor')].filter((e) => e.getClientRects().length).length };
+          scrollTo({ top: 0, behavior: 'instant' });
+          return { ...ilk, son };
+        });
+        if (hareket === 'reduce') kontrol(`${url.split('?')[0]} (reduce): belirme/sayma bekleyen öğe yok, liste satırları tam görünür (022)`, b.belir === 0 && b.bekleyen === 0 && b.saydam === 0, JSON.stringify(b));
+        else kontrol(`${url.split('?')[0]} (no-preference): kaydırınca bekleyen belirme/sayma kalmaz (022)`, b.son.bekleyen === 0, JSON.stringify(b));
       }
       await ctx.close();
     }
@@ -628,7 +641,7 @@ async function tasarimTestleri() {
     // 2. tur (tasarımcı 4): iskelet sonsuza kadar kalmaz; hero etiketi "Manşet" değil "Bağlantı yok"
     await p.waitForTimeout(500);
     const iskelet = await p.evaluate(() => ({ kalan: [...document.querySelectorAll('main .iskelet')].filter((e) => e.getClientRects().length && !e.closest('[hidden]')).map((e) => e.parentElement.id || e.parentElement.className), etiket: document.querySelector('#hero-etiket').textContent, serit: document.querySelector('#siradaki-serit').textContent }));
-    kontrol('çevrimdışı (2. tur): ana sayfada görünür iskelet kalmaz (gol şeridi, maç kartı gizli; şerit fikstür bağlantısı), hero etiketi "Bağlantı yok"', !iskelet.kalan.length && iskelet.etiket === 'Bağlantı yok' && /Fikstür/.test(iskelet.serit), JSON.stringify(iskelet));
+    kontrol('çevrimdışı (2. tur): ana sayfada görünür iskelet kalmaz (maç kartı gizli; şerit fikstür bağlantısı), hero etiketi "Bağlantı yok"', !iskelet.kalan.length && iskelet.etiket === 'Bağlantı yok' && /Fikstür/.test(iskelet.serit), JSON.stringify(iskelet));
     await git(p, 'goller.html', '#arsiv[data-durum="hata"]');
     const gi = await p.evaluate(() => [...document.querySelectorAll('main .iskelet')].filter((e) => e.getClientRects().length && !e.closest('[hidden]')).length);
     kontrol('çevrimdışı (2. tur): gol arşivinde filtre iskeletleri kalmaz', gi === 0, gi);
@@ -753,7 +766,9 @@ async function tasarimTestleri() {
     await git(p, 'index.html', '#akis[data-durum="tamam"]');
     const kurallar = () => p.evaluate(() => {
       const hepsi = [];
-      const gez = (l, medya) => { for (const r of l) { if (r.cssRules && r.media) gez(r.cssRules, r.media.mediaText); else if (r.cssRules && r.conditionText) gez(r.cssRules, r.conditionText); else hepsi.push({ t: r.cssText, medya: medya || '' }); } };
+      // İç içe koşullar birleşir (ör. no-preference içinde (hover: hover))
+      const ust = (medya, k) => (medya ? medya + ' and ' : '') + k;
+      const gez = (l, medya) => { for (const r of l) { if (r.cssRules && r.media) gez(r.cssRules, ust(medya, r.media.mediaText)); else if (r.cssRules && r.conditionText) gez(r.cssRules, ust(medya, r.conditionText)); else hepsi.push({ t: r.cssText, medya: medya || '' }); } };
       for (const s of document.styleSheets) { try { gez(s.cssRules, ''); } catch (e) {} }
       return hepsi;
     });

@@ -99,6 +99,92 @@ export const FOTO_KAYNAKLARI = Object.freeze({
     "atif": "Fotoğraf: Dosseman, CC BY-SA 4.0, Wikimedia Commons",
     "degisiklik": "Yeniden boyutlandırıldı.",
     "gosterdigi": "Çorum şehir içi, akşamüstü ışığında kırmızı-beyaz cepheli apartmanlar ve cami minaresi (2004), insan yok"
+  },
+  // Oyuncu fotoğrafları (6 Kasım 2026, Wikidata P18 / Commons): yüz kare kırpıldı. Kadro kartında atıf satırı (takim.js); veritabanında
+  // oyuncular.foto_url = 'assets/img/<kök>-480.webp'. Eski kulüp formasıyla çekilmiştir (Çorum FK formalı özgür lisanslı fotoğraf yok).
+  "oyuncu-caglar-soyuncu": {
+    "genislikler": [480, 800],
+    "baslik": "Çağlar Söyüncü 4 Fenerbahçe 20260805 (1) (cropped).JPG",
+    "kaynak": "https://commons.wikimedia.org/wiki/File:%C3%87a%C4%9Flar_S%C3%B6y%C3%BCnc%C3%BC_4_Fenerbah%C3%A7e_20260805_(1)_(cropped).JPG",
+    "yazar": "Zafer",
+    "lisans": "CC BY-SA 4.0",
+    "lisans_url": "https://creativecommons.org/licenses/by-sa/4.0/deed.tr",
+    "tarih": "2026-08-05",
+    "atif": "Fotoğraf: Zafer, CC BY-SA 4.0, Wikimedia Commons",
+    "degisiklik": "Yüz kare kırpıldı, yeniden boyutlandırıldı.",
+    "gosterdigi": "Çağlar Söyüncü (Fenerbahçe forması, 2026)"
+  },
+  "oyuncu-cengiz-under": {
+    "genislikler": [480],
+    "baslik": "Cengiz Ünder 2018.jpg",
+    "kaynak": "https://commons.wikimedia.org/wiki/File:Cengiz_%C3%9Cnder_2018.jpg",
+    "yazar": "Антон Зайцев",
+    "lisans": "CC BY-SA 3.0",
+    "lisans_url": "https://creativecommons.org/licenses/by-sa/3.0/deed.tr",
+    "tarih": "2018-06-06",
+    "atif": "Fotoğraf: Антон Зайцев, CC BY-SA 3.0, Wikimedia Commons",
+    "degisiklik": "Yüz kare kırpıldı, yeniden boyutlandırıldı.",
+    "gosterdigi": "Cengiz Ünder (Türkiye milli takımı eşofmanı, 2018)"
+  },
+  "oyuncu-fredy": {
+    "genislikler": [480],
+    "baslik": "Fredy at Antalyaspor vs Alanyaspor 20211127 (2) (cropped).jpg",
+    "kaynak": "https://commons.wikimedia.org/wiki/File:Fredy_at_Antalyaspor_vs_Alanyaspor_20211127_(2)_(cropped).jpg",
+    "yazar": "Antalyaspor A.Ş.",
+    "lisans": "CC BY 2.0",
+    "lisans_url": "https://creativecommons.org/licenses/by/2.0/deed.tr",
+    "tarih": "2021-11-27",
+    "atif": "Fotoğraf: Antalyaspor A.Ş., CC BY 2.0, Wikimedia Commons",
+    "degisiklik": "Yüz kare kırpıldı, yeniden boyutlandırıldı.",
+    "gosterdigi": "Fredy (Antalyaspor forması, 2021)"
+  },
+  "oyuncu-goktan-gurpuz": {
+    "genislikler": [480, 800],
+    "baslik": "2022-11-11 Borussia Dortund II gegen FC Erzgebirge Aue (3. Liga 2022-23) by Sandro Halank–074.jpg",
+    "kaynak": "https://commons.wikimedia.org/wiki/File:2022-11-11_Borussia_Dortund_II_gegen_FC_Erzgebirge_Aue_(3._Liga_2022-23)_by_Sandro_Halank%E2%80%93074.jpg",
+    "yazar": "Sandro Halank",
+    "lisans": "CC BY-SA 4.0",
+    "lisans_url": "https://creativecommons.org/licenses/by-sa/4.0/deed.tr",
+    "tarih": "2022-11-11",
+    "atif": "Fotoğraf: Sandro Halank, CC BY-SA 4.0, Wikimedia Commons",
+    "degisiklik": "Yüz kare kırpıldı, yeniden boyutlandırıldı.",
+    "gosterdigi": "Göktan Gürpüz (Borussia Dortmund II forması, 2022)"
+  },
+  "oyuncu-ermin-mahmic": {
+    "genislikler": [480],
+    "baslik": "FC Liefering gegen SV Lafnitz (2024-05-25) 25 (Ermin Mahmić).jpg",
+    "kaynak": "https://commons.wikimedia.org/wiki/File:FC_Liefering_gegen_SV_Lafnitz_(2024-05-25)_25_(Ermin_Mahmi%C4%87).jpg",
+    "yazar": "Werner100359",
+    "lisans": "CC BY-SA 4.0",
+    "lisans_url": "https://creativecommons.org/licenses/by-sa/4.0/deed.tr",
+    "tarih": "2024-05-25",
+    "atif": "Fotoğraf: Werner100359, CC BY-SA 4.0, Wikimedia Commons",
+    "degisiklik": "Yüz kare kırpıldı, yeniden boyutlandırıldı.",
+    "gosterdigi": "Ermin Mahmić (SV Lafnitz forması, 2024)"
+  },
+  "oyuncu-youssoufa-moukoko": {
+    "genislikler": [480, 800],
+    "baslik": "2023-08-12 TSV Schott Mainz gegen Borussia Dortmund (DFB-Pokal 2023-24) by Sandro Halank–066.jpg",
+    "kaynak": "https://commons.wikimedia.org/wiki/File:2023-08-12_TSV_Schott_Mainz_gegen_Borussia_Dortmund_(DFB-Pokal_2023-24)_by_Sandro_Halank%E2%80%93066.jpg",
+    "yazar": "Sandro Halank",
+    "lisans": "CC BY-SA 4.0",
+    "lisans_url": "https://creativecommons.org/licenses/by-sa/4.0/deed.tr",
+    "tarih": "2023-08-12",
+    "atif": "Fotoğraf: Sandro Halank, CC BY-SA 4.0, Wikimedia Commons",
+    "degisiklik": "Yüz kare kırpıldı, yeniden boyutlandırıldı.",
+    "gosterdigi": "Youssoufa Moukoko (Borussia Dortmund ısınma forması, 2023)"
+  },
+  "oyuncu-alexandre-penetra": {
+    "genislikler": [480],
+    "baslik": "Alexandre Penetra (cropped).jpg",
+    "kaynak": "https://commons.wikimedia.org/wiki/File:Alexandre_Penetra_(cropped).jpg",
+    "yazar": "Carlo Bruil Fotografie",
+    "lisans": "CC BY 2.0",
+    "lisans_url": "https://creativecommons.org/licenses/by/2.0/deed.tr",
+    "tarih": "2024-05-12",
+    "atif": "Fotoğraf: Carlo Bruil Fotografie, CC BY 2.0, Wikimedia Commons",
+    "degisiklik": "Yüz kare kırpıldı, 420 pikselden 480'e büyütüldü.",
+    "gosterdigi": "Alexandre Penetra (AZ Alkmaar forması, 2024)"
   }
 });
 

@@ -421,7 +421,7 @@ metni kullanılmadı. Ekran görüntüleri: `docs/ekran/onizleme-ana-360.png`, `
   başlık 8.45:1), kırmızı "MANŞET" etiketi, büyük harf Oswald başlık, tarih · "Habere git →". Yükseklik bir **alt sınırdır**
   (`min-height: clamp(420px, 125vw, 60svh)`): %200 yazıda hero uzar, yazı kırpılmaz. Sağ üstte foto atfı
   ("Fotoğraf: yazar, lisans, Wikimedia Commons"). Maç günü varyantı: "MAÇ GÜNÜ", saat ve stat.
-- **Son dakika satırı** (`.haber-satir`): solda tarih + başlık (Oswald), sağda 96×72 küçük kapak (srcset 480; yoksa "ÇT" yer tutucu).
+- **Son dakika satırı** (`.haber-satir`): solda tarih + başlık (Oswald), sağda 96×72 küçük kapak (srcset 480; yoksa amblemli yer tutucu, aşağıda).
   Satırın tamamı tek bağlantı. "Daha fazla haber": 6'şar, `aria-disabled` ile, odak ilk yeni habere.
 - **Sponsor kartı** (akışta): kesikli altın kenar, ilan sarısı zemin, ilk öğe DOM metni "● SPONSOR" (nokta `aria-hidden`), solda
   144 px görsel + firma adı, altında kartın tam genişliğinde metin (bağlantılı kartta en çok 3 satır, bağlantısızda kırpılmaz), yalnız düğme bağlantı ("Ayrıntılar" ya da firmanın
@@ -463,7 +463,7 @@ metni kullanılmadı. Ekran görüntüleri: `docs/ekran/onizleme-ana-360.png`, `
 
 | Ekran | Sıra |
 |---|---|
-| Ana Sayfa | hero → ikili maç kartı (Son maç · Sıradaki) → Son dakika (+ sponsor, "Yeni" rozeti) → Gol arşivinden şeridi → Kim yok? |
+| Ana Sayfa | hero → ikili maç kartı (Son maç · Sıradaki) → Son dakika (+ sponsor, "Yeni" rozeti) → Puan durumu → Kim yok? (021: gol şeridi yok) |
 | Gol Arşivi | başlık + alt yazı → yapışkan filtreler (Sezon, Rakip) → sonuç sayısı (duyurulur) → maç grupları (tarih · iç saha/deplasman, maç adı, "Maç →", goller) → Daha fazla gol |
 | Gol | facade video (+ atıf) → dakika + oyuncu (`h1`) → anlatım → maç bağlantısı → WhatsApp'ta paylaş → Bu maçın diğer golleri → Yorumlar |
 | Takım | `h1` Takım → sekmeler → Kadro (mevkiye göre) / Sakatlık (KVKK notu + kayıtlar) / Fikstür (sıradaki maçlar, sonuçlar) |
@@ -500,13 +500,14 @@ seçili hapta ayrıca ✓ var). Tasarım testi betiği çalıştırır, 0 başar
 ### 9.8 2. tur düzeltmeleri (5 Kasım 2026)
 
 - **Haber kapağı** `.makale .kapak-buyuk { height: auto }` (+ genel `img, video { height: auto }`): `height="900"` özniteliği kapağı
-  900 px yapıyordu; artık 16:9, başlık 360/430 px'te ilk ekranda (test). Kırık kapak `gorselYedek()` ile desenli yer tutucuya döner.
+  900 px yapıyordu; artık 16:9, başlık 360/430 px'te ilk ekranda (test). Kırık kapak `gorselYedek()` ile yer tutucuya döner.
+- **Kapak yer tutucusu (021)** `kapakYerTutucu()`: açık zemin `--amblem-zemin` (açık #FFFFFF, koyu #EEECE8; koyu temada da açık kalır), ince iç kenar + alttan hafif iç gölge, ortalı resmî amblem (`AMBLEM_DOSYASI`, kutu yüksekliğinin %58'i, oran korunur). Video kartında oynat düğmesi 40 px sol alta, gol sayfasında 44 px sol alta ("Oynat · süre" yanında, `--amblem-metin`; amblem burada %52 ve optik merkezde, %44); ortada kalsa amblemin göbeğini örterdi. Karartma perdesi kapalı (açık zemini grileştirirdi); dakika (sol üst) ve süre (sağ alt) rozetleri kendi koyu zeminlerinde. Ayar null / amblem açılmazsa eski desen (gol: kırmızı-siyah şerit, haber: gri + "ÇT").
   Sitenin fotoğraflarında srcset yalnız VAR olan kopyalardan kurulur (`foto-kaynaklari.js` `genislikler`); testler aynı kökenden
   her 404'ü hata sayar.
 - **Ana sayfa:** maç bittikten sonra 36 saat hero "MAÇ SONU · <skor>" (+ Galibiyet/Beraberlik/Mağlubiyet, "Golleri izle →");
   hero'nun hemen altında tek satır **"SIRADAKİ · Çorum FK – Deneme FK · Salı 19:00 · 4 gün 16 saat kaldı"** (`#siradaki-serit`, 52 px,
   ilk ekranda); "Daha fazla haber" bitince görünür "Hepsi bu kadar · Tüm haberler okundu". Bağlantı yok + önbellek yoksa iskelet
-  kalmaz: hero etiketi "BAĞLANTI YOK", gol şeridi ve maç bölümü gizlenir, şerit fikstür bağlantısı olur.
+  kalmaz: hero etiketi "BAĞLANTI YOK", maç bölümü gizlenir, şerit fikstür bağlantısı olur.
 - **Tek skor biçimi** `skorYaz()`: "2 – 1" (kısa çizgi, iki yanında bölünmez ince boşluk) kartlarda, maç başlığında, fikstürde.
   **Tek tarih biçimi** kartlarda "29 Ekim". Gol arşivinde kart maç satırını tekrar etmez; fikstür meta satırı "Sal · İç saha · Lig"
   (tarih kutuda); kadro kartında fotoğraf yoksa meta satırı yok (forma no kartın büyük rakamı).
@@ -559,8 +560,8 @@ Hepsi yalnız CSS + küçük JS; yeni ağ isteği, bağımlılık, satır içi s
 
 | Ne | Nasıl | Hareket azaltma (`reduce`) |
 |---|---|---|
-| Dokunma geri bildirimi | `-webkit-tap-highlight-color: transparent` (odak halkası kalır). Tek tip `:active`: küçük denetim (düğme, sekme, hap/çip, alt menü) `--basma-opaklik` + `scale(--basma-olcek)`; satır `--yuzey`; kart `scale(--basma-olcek-kart)`; `--sure-hizli`, `--egri-standart` (27. bölüm) | Küçülme yok, yalnız renk / saydamlık |
-| Sayfa geçişi | Çapraz belge View Transitions: `@view-transition { navigation: auto }` yalnız `no-preference` içinde. Üst bar (`ust-bar`) ve alt menü (`alt-menu`) ayrı katman, yerinde kalır; içerik 120 ms solar, 200 ms gelir. Ayrıntı sayfasına (haber, maç, gol, oyuncu) girişte sağdan, geçmişte geri dönüşte soldan `--gecis-kayma` (yön: `tema.js` `pagereveal` → `ileri` / `geri`, `:active-view-transition-type`). Desteklemeyen tarayıcı yok sayar (28. bölüm) | Kapalı |
+| Dokunma geri bildirimi | `-webkit-tap-highlight-color: transparent` (odak halkası kalır). Tek tip `:active`: küçük denetim (düğme, sekme, hap/çip, alt menü) `--basma-opaklik` + `scale(--basma-olcek)`; satır `--yuzey`; kart `scale(--basma-olcek-kart)` (022: ölçek, yay eğrisi ve üzerine gelme 9.13'te) (27. bölüm) | Küçülme yok, yalnız renk / saydamlık |
+| Sayfa geçişi | Çapraz belge View Transitions: `@view-transition { navigation: auto }` yalnız `no-preference` içinde. Üst bar (`ust-bar`) ve alt menü (`alt-menu`) ayrı katman, yerinde kalır; içerik 120 ms solar, 200 ms gelir. Yön `tema.js` `pagereveal` → `ileri` / `geri` / `bolum-ileri` / `bolum-geri` (`:active-view-transition-type`); 022'den beri itme ve kayma ölçüleri 9.13'te. Desteklemeyen tarayıcı yok sayar (28. bölüm) | Kapalı |
 | Üst bar | Aşağı kaydırınca `html.ust-gizli` (`translate`, kayma yok), yukarı kaydırınca gelir; eşik 8 px, sayfa başında hep görünür, odak üst bardaysa gizlenmez, yapışkan değilse (kısa ekran) hiç gizlenmez. Yapışkan sekme/filtre çubuğu ve maç skor çubuğu aynı mesafe yukarı kayar (29. bölüm; `ortak.js` `ustBarIzle`) | Davranış kalır, animasyonsuz (anlık). Gerekçe: kazanılan alan en çok büyük yazı / yakınlaştırma kullananlara yarar; kayan animasyon yok, tek anlık değişim |
 | Alt menü aynı sekme | Açık sekmeye (`aria-current="page"`) dokununca yeniden yükleme yok: başa yumuşak kayar, odak `#icerik`. Ayrıntı sayfasındaki bölüm bağlantısı (`aria-current="true"`) normal bağlantı | Başa anında |
 | Maç skor çubuğu | `#skor-cubugu` sabit (`fixed`, yer kaplamaz), büyük başlık üst barın altına girince `.acik` (IntersectionObserver), `aria-hidden` (bilgi h1'de). Sabit alan %25'i aşarsa çıkmaz (`yapiskanIzle`) | Belirme animasyonsuz |
@@ -590,16 +591,16 @@ Belirteçler (`stil.css` `:root`): `--sira-adim 50ms`, `--sure-cubuk 360ms`, `--
 
 | Ne | Hareket | Süre | `reduce` |
 |---|---|---|---|
-| Sırayla belirme (form rozetleri, oran satırları, oy kartları, puan satırları, paket kutuları) | `opacity` + `translateY(6px)`, öğe başı `--sira-adim`, en çok 8 adım | 200 ms + ≤ 400 ms gecikme (≤ 600) | Yok, anında |
+| Sırayla belirme (form rozetleri, oran satırları, oy kartları, puan satırları, paket kutuları) | 022: 9.13'teki belirmeyle aynı kare (`belir-kalk`, 28 px), öğe başı `--sira-adim`, en çok 8 adım | 560 ms + ≤ 400 ms gecikme | Yok, anında |
 | Oran çubukları (tahmin dağılımı, oy sonucu) | `scaleX(0 → oran)`, soldan | 360 ms | Dolu çizilir |
 | Sayılar (yüzdeler) | Görününce 0'dan sayar (rAF, yavaşlayarak); ekran okuyucu gizli metinden gerçek değeri okur | 400 ms | Anında son değer |
 | Tahmin sayacı, beğeni sayısı | Rakam yukarı / aşağı kayarak değişir | 200 ms | Yalnız metin |
 | Beğeni | Kalp `scale 1 → 1.35 → 1` + çevresinde halka açılır; dolu kalp + `aria-pressed` | 320 ms | Anında dolu |
 | Maçın oyuncusu | Seçilen kart `translateY(-3px) scale(1.03)` + kırmızı çerçeve + ✓; sonuçta kazanan altın zeminde taç rozeti belirir, satırdan bir kez parıltı geçer | 200 / 320 / 400 ms | Anında son hâl |
 | İlk 11 sahası | Rozetler kaleciden forvete sahaya yerleşir (`scale .6 → 1`, aşağıdan) | 11 × 35 ms + 200 ms ≤ 600 | Anında |
-| Sekme göstergesi (Takım, Maç: `.kayan-gosterge`) | Kırmızı hap seçili sekmeye kayar (`:has`) | 200 ms | Anında |
+| Sekme göstergesi (Takım, Maç: `.kayan-gosterge`) | Kırmızı hap seçili sekmeye kayar (`:has`); 022: yay eğrisi, panel yönlü kayar (9.13) | 340 ms | Anında |
 | Tahmin kaydedildi | Düğme bir kez "nefes alır" | 320 ms | Yok |
-| Ana sayfa hero | Etiket / alt satır yukarıdan belirir, başlık yalnız kayar (LCP metni saydam başlamaz), amblem büyüyerek gelir, zemin %4'ten oturur | ≤ 400 ms | Yok |
+| Ana sayfa hero | 022'de yenilendi: 9.13 | — | Yok |
 
 Kurallar: bölüm görünür alana girene kadar hareket bekler (`gorununceOynat`: `animation-play-state: paused`); sonsuz animasyon yok;
 yalnız `transform` / `opacity` (yerleşim kaymaz). Maç sayfasında yeni bölümler başlamış maçta gollerin ALTINA eklenir; maç öncesi tahmin
@@ -608,3 +609,32 @@ A / Y sütunlarını gizler (Puan sütunu kaydırmadan görünür); Çorum FK sa
 Hero (020, sahibin kararı): zemin sabit kırmızı-siyah çapraz şerit (`hero-zemin-genis/-dikey.svg`, `<picture>`), resmî amblem; 700 px ve
 üstünde iki kolon (solda başlık, sağda amblem; içerik 1120 px'te ortalı, yükseklik ≤ 560 px, soldan koyulaşan perde). Haber kapağı hero'ya
 geçmez. Stadyum fotoğrafı (açık lisanslı uygun aday bulunamadı) gelince yalnız `<picture>` değişir.
+
+### 9.13 022: belirgin hareketler (6 Kasım 2026; sahibin "uygulama normal geldi" geri bildirimi, LFC / RM / City ayarı)
+
+Amaç: ilk açılışta ve kaydırırken "uğraşılmış" his. Hepsi tek seferlik (sonsuz yok), yalnız `transform` / `opacity` (yerleşim değişmez:
+CLS'ye katkı yok), hepsi `prefers-reduced-motion: no-preference` içinde; `reduce`'da `ortak.js belirmeIzle` hiç çalışmaz, CSS kuralları
+etkin değil: her şey ilk karede son hâlinde. Belirteçler `stil.css` `:root` (022 satırı), kurallar 34. bölüm (hero 10., dokunma 27.,
+geçiş 28.). JS tek yardımcı: `ortak.js belirmeIzle()` (`sayfaBaslat` çağırır; IntersectionObserver + MutationObserver; satır içi stil yok,
+yalnız sınıf, `data-say` ve CSSOM `--i`). Saf yardımcı `kurallar.js sayarakMetin / sayilabilir` (birim testli).
+
+| Hareket | Nerede | Tetik | Nasıl görünür | Süre / eğri | `reduce` |
+|---|---|---|---|---|---|
+| Çubukların gelişi | Her sayfa, siteye dışarıdan ilk giriş (`tema.js` `.ilk-acilis`; site içi gezinmede yok) | Açılış | Üst barın içeriği (logo, simgeler) 24 px yukarıdan, alt menü simgeleri aşağıdan 50 ms arayla solarak gelir; çubukların kendisi ve yazılar yerinde (yapışkan ölçüler değişmez) | `--sure-acilis` 520 ms, `--egri-cikis` / `--egri-yay` | Yok |
+| Hero açılışı | Ana sayfa (`.hero-geldi`) | İlk çizim | Zemin %14 büyükten oturur; amblem 56 px yukarıdan, %50 boyda, −16° dönük "iner" (yay); etiket soldan; başlık 1.1 em aşağıdan kalkar (iç kutu `.hero-baslik-ic`, yalnız transform: LCP metni saydam başlamaz; başlığın kendisi dönüşseydi hero'yu kaplayan bağlantı alanı daralıp kayma sayılırdı); alt satır en son | Zemin 900 ms; amblem 700 +120 ms; etiket 520 +260; başlık 700 +300; alt 520 +480 (≤ 1 sn) | Yok |
+| Kaydırma derinliği | Ana sayfa hero | Kaydırma (`animation-timeline: scroll(root)`, ilk 80vh) | Zemin %22 aşağı kayar (yavaş), amblem 70 px yukarı kayıp %78'e küçülür (hızlı). `translate` / `scale` ayrı özellik: açılış `transform`'uyla birleşir | Kaydırmaya bağlı, doğrusal; kullanıcının elinde (sonsuz değil) | Yok; desteklemeyen tarayıcıda (`@supports`) yok |
+| Kaydırdıkça belirme | Akış satırları, ikili maç kartı, "Kim yok?", gol arşivi maçları ve açılan goller, fikstür, kadro, sakatlık, olay çizelgesi, oyuncu sayıları, bölüm başlıkları (`ortak.js` `BELIR`) | Öğe görünür alana girince (alt %6 payla) | 28 px aşağıdan kalkarak solar; aynı anda girenler 70 ms arayla sırayla (en çok 6 adım). Bir öğe bir kez; aynı içerik yeniden çizilirse (önbellek → ağ) yeniden oynamaz; klavye odağı gelirse anında son hâl. Sponsor kartı, iskelet, yorumlar ve `.sirayla` içi hariç | `--sure-belir` 560 ms, `--sira-adim-belir` 70 ms, `--egri-cikis` (≤ 980 ms) | Yok, anında |
+| Sayarak gelen sayılar | Maç skoru (`#skor`), ikili kart skoru, oyuncu sayfası sayıları, puan tablosu puanı (`SAY`) | Görününce | 0'dan gerçek değere yavaşlayarak sayar. Gerçek metin yerinde ve saydam (`-webkit-text-fill-color`; ekran okuyucu ve testler gerçek değeri okur), sayan kare `::after`'da (`content: attr(data-say) / ""`, alt metni boş); kutu boyu gerçek metinden, kayma yok. Yalnız rakam + ayraç (`sayilabilir`: "16:00", "5 g 15 sa", "3,00 Mn €" sayılmaz) | `--sure-sayma` 700 ms, kübik yavaşlama | Anında son değer |
+| Kart basma / üzerine gelme | Gol kartı, oyuncu kartı, oyuncu şeridi, ikili maç kartı, hero | Dokunma / fare | Basınca hızla .96'ya çöker, bırakınca yayla geri gelir (hero .985). Masaüstünde (`hover: hover`) 5 px yükselir + gölge büyür (`--golge-havada`); gol kartında kapak %4 yakınlaşır | Basma `--sure-hizli` 120 ms; bırakma `--sure-yavas` 320 ms `--egri-yay` | Küçülme / yükselme yok (renk / saydamlık kalır) |
+| Düğme ve alt menü | Düğme, sekme, hap/çip, alt menü | Dokunma; açılış | Küçük denetim .92'ye çöker, yayla döner; alt menü simgesi .78'e küçülür; açık sekmenin simgesi sayfa açılınca bir kez sıçrar (`pat`) | 120 / 320 ms, `--egri-yay` | Yok |
+| Gol kartı | Gol şeritleri, gol sayfası video kapağı | Kart belirince / sayfa açılınca; basınca | Oynat düğmesi %30'dan yayla büyür (`scale`; ortalama artık `translate` ile, birleşir); kapağa basınca görsel %8 yakınlaşır | 520 +220 ms; yakınlaşma 400 ms | Yok |
+| Sekme geçişi | Takım (Kadro · Sakatlık · Fikstür · Puan), Maç (Özet · Olaylar · Yorumlar) | `aria-selected` değişimi (MutationObserver; sayfa kodu değişmedi) | Sağdaki sekme seçilince panel 40 px sağdan, soldaki seçilince soldan solarak gelir; kırmızı gösterge yayla kayar; paneldeki satırlar ilk kez görünüyorsa sırayla belirir | `--sure-sekme` 340 ms | Anında |
+| Gol arşivi açılır | `.mac-ac` | Dokunma | Ok yayla döner; goller sırayla belirir | 320 ms | Anında |
+| Maç başlığı | `mac.html` `.mac-basi` | İlk çizim | İki takım adı iki yandan 48 px kayar, skor %45'ten yayla oturur ve sayar (LCP metni: yalnız transform), üst satır ve meta belirir | 520 / 700 ms | Yok |
+| Sayfa geçişi | Bütün sayfalar (çapraz belge View Transitions) | Gezinme | Ayrıntıya giriş: yeni sayfa sağdan tam iter, eski %30 sola kayıp yarı kararır; geri: tersi (eski sayfa üstte sağa çekilir); alt menü bölümleri arasında sıraya göre %8 kayma + solma; yönsüz: solma. Üst bar ve alt menü yerinde; alt menünün kırmızı göstergesi yeni sekmeye kayar (`alt-gosterge`); akıştaki / hero'daki haber başlığı haber sayfasının başlığına dönüşür (`haber-baslik`: tıklanan satıra ad verilir, geri dönüşte silinir) | `--sure-gecis` 380 ms, `--egri-gecis` | Kapalı |
+
+Ölçüm (6 Kasım 2026, sahte veri, 390×844): CLS 0.00; 4× CPU + Slow 4G'de 0.011 (hero iskeletinden başlığa geçiş: `reduce`'da da
+var, 022 öncesinden); 4× CPU'da açılışta tek uzun görev 67 ms (`reduce`'da yok). Dar ekranda yatay kayan panel sayfayı yana
+kaydırmasın diye `main` `overflow-x: clip` (body'de değil: body'nin overflow'u görünüm alanına geçer). Yazdırmada bekleyen öğe saydam
+kalmaz. Testler: `tasarim-testleri.js` "animasyon" (reduce'da bekleyen öğe / saydam satır yok; hareket açıkken sona kaydırınca bekleyen
+kalmaz; sonsuz yok), `uygulama.test.mjs` "hareket (022)" (sayarakMetin, kuralların no-preference içinde olması).

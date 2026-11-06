@@ -117,6 +117,10 @@
   --kapak-karartma: linear-gradient(180deg, rgb(0 0 0 / 0) 45%, rgb(0 0 0 / .65) 100%);
   --oynat-boyut: 56px;
   --sure-zemin: rgb(0 0 0 / .72);
+  /* 021: kapağı olmayan görselin yer tutucusu (açık zeminde resmî amblem; koyu temada da açık kalır, amblemin siyah halkası öne çıkar) */
+  --amblem-zemin: #FFFFFF;
+  --amblem-metin: #141414;
+  --amblem-golge: inset 0 0 0 1px rgb(0 0 0 / .08), inset 0 -24px 40px -28px rgb(0 0 0 / .22);
   --kaydirma-kart-w: min(77vw, 320px);
 
   /* Alt menü */
@@ -147,9 +151,16 @@
   --egri-cikis: cubic-bezier(.2, 0, 0, 1);
   --egri-standart: cubic-bezier(.4, 0, .2, 1);
   /* Dokunma geri bildirimi (27. bölüm): küçük denetim / kart ölçeği, basılıyken saydamlık (hareket azaltmada yalnız saydamlık/renk) */
-  --basma-olcek: .97; --basma-olcek-kart: .98; --basma-opaklik: .72;
-  /* Sayfa geçişi (28. bölüm): ayrıntıya girişte/geri dönüşte içeriğin kayma mesafesi */
-  --gecis-kayma: 24px;
+  --basma-olcek: .92; --basma-olcek-kart: .96; --basma-olcek-hero: .985; --basma-opaklik: .72;
+  /* Sayfa geçişi (28. bölüm): ayrıntıda eski sayfanın itilme payı, bölümler arası kayma */
+  --gecis-itme: 30%; --gecis-bolum: 8%;
+  /* 022 (34. bölüm, docs/TASARIM.md 9.13): belirgin hareketler. Belirme (kaydırdıkça, sırayla), açılış (üst bar, hero), sayfa geçişi,
+     sekme kayması, sayarak gelen sayılar; üzerine gelince kart yükselmesi ve gölgesi */
+  --sure-belir: 560ms; --sira-adim-belir: 70ms; --belir-kayma: 28px;
+  --sure-acilis: 520ms; --sure-acilis-uzun: 700ms; --sure-hero: 900ms;
+  --sure-gecis: 380ms; --egri-gecis: cubic-bezier(.22, .9, .24, 1);
+  --sure-sekme: 340ms; --sekme-kayma: 40px; --sure-sayma: 700ms;
+  --kart-yuksel: -5px; --golge-havada: 0 14px 28px rgb(0 0 0 / .22), 0 4px 8px rgb(0 0 0 / .12);
   /* Maç sayfası yapışkan skor çubuğu (assets/sayfa/mac.js) */
   --skor-cubugu-h: 44px;
   /* 020 (33. bölüm): sırayla belirmede öğe başı gecikme (en çok 8 adım: toplam ≤ 600 ms), çubuk dolması, en uzun tek hareket (400 ms),
@@ -185,7 +196,7 @@
     --hap-iz: var(--yuzey); --hap-pasif-metin: var(--metin-soluk); --hap-cip-metin: var(--metin);
     --saat-zemin: var(--yuzey-2);
     --iskelet-parilti: rgb(255 255 255 / .06);
-    --parilti: rgb(255 255 255 / .12); --saha-zemin: #14542D; --saha-serit: #185C32;
+    --parilti: rgb(255 255 255 / .12); --saha-zemin: #14542D; --saha-serit: #185C32; --amblem-zemin: #EEECE8;
   }
 }
 :root[data-theme="dark"] {
@@ -205,7 +216,7 @@
   --hap-iz: var(--yuzey); --hap-pasif-metin: var(--metin-soluk); --hap-cip-metin: var(--metin);
   --saat-zemin: var(--yuzey-2);
   --iskelet-parilti: rgb(255 255 255 / .06);
-  --parilti: rgb(255 255 255 / .12); --saha-zemin: #14542D; --saha-serit: #185C32;
+  --parilti: rgb(255 255 255 / .12); --saha-zemin: #14542D; --saha-serit: #185C32; --amblem-zemin: #EEECE8;
 }
 
 /* ---------- 3. Temel ---------- */
@@ -419,6 +430,7 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
    overflow-wrap yalnız tek kelime satıra hiç sığmazsa devreye girer (yatay taşma olmasın). */
 .hero-baslik { font-size: min(var(--fs-hero), 11vw); line-height: var(--lh-hero); letter-spacing: .005em; text-transform: uppercase; margin: 0; max-width: 16ch; overflow-wrap: break-word; hyphens: manual; color: var(--hero-metin); }
 .hero-baslik a { color: inherit; text-decoration: none; border-radius: 4px; }
+.hero-baslik-ic { display: inline-block; } /* 022: açılışta kayan iç kutu (transform satır içi öğede çalışmaz) */
 .hero-baslik a::after { content: ""; position: absolute; inset: 0; z-index: 2; }
 /* Odak halkası bağlantı metninin çevresinde (fotoğrafın/perdenin altında kalmaz; 2.4.7) */
 .hero-baslik a:focus-visible { outline: 3px solid var(--odak-koyu-zemin); outline-offset: 4px; }
@@ -454,19 +466,22 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
   .hero-baslik { font-size: clamp(2.75rem, 1rem + 2.8vw, 4.5rem); max-width: 18ch; }
   .hero-alt { margin-top: 16px; font-size: 1.125rem; }
 }
-/* Tek seferlik giriş (ana.js ilk çizimde .hero-geldi): etiket ve alt satır hafif yukarıdan belirir, başlık yalnız kayar (LCP metni
-   saydam başlamaz), amblem hafif büyüyerek gelir, zemin %4 büyükten yerine oturur. ≤ 400 ms; hareket azaltmada yok. */
+/* 022: açılış koreografisi (ana.js ilk çizimde .hero-geldi; tek seferlik, docs/TASARIM.md 9.13). Zemin %14 büyükten yerine oturur,
+   amblem yukarıdan dönerek "iner" (yay eğrisi), etiket soldan, başlık alttan kalkarak oturur (yalnız transform: LCP metni saydam
+   başlamaz; clip-path başlığın tüm hero'yu kaplayan bağlantı alanını daraltıp kayma yapıyordu), alt satır en son. Toplam ≤ 900 ms. Kaydırma derinliği (parallax) 34. bölümde: translate / scale ayrı özellik, bunlarla
+   birleşir. Hareket azaltmada hiçbiri yok. */
 @media (prefers-reduced-motion: no-preference) {
-  .hero-geldi .hero-etiket, .hero-geldi .hero-alt { animation: hero-gir var(--sure-yavas) var(--egri-cikis) both; }
-  .hero-geldi .hero-alt { animation-delay: 120ms; }
-  .hero-geldi .hero-baslik { animation: hero-gir-baslik var(--sure-yavas) var(--egri-cikis) 60ms both; }
-  .hero-geldi .hero-amblem { animation: hero-amblem var(--sure-uzun) var(--egri-yay) 80ms both; }
-  .hero-geldi .hero-gorsel { animation: hero-olcek var(--sure-uzun) var(--egri-cikis) both; }
+  .hero-geldi .hero-gorsel { animation: hero-olcek var(--sure-hero) var(--egri-cikis) backwards; }
+  .hero-geldi .hero-amblem { animation: hero-amblem var(--sure-acilis-uzun) var(--egri-yay) 120ms backwards; }
+  .hero-geldi .hero-etiket { animation: hero-etiket var(--sure-acilis) var(--egri-cikis) 260ms backwards; }
+  .hero-geldi .hero-baslik-ic { animation: hero-baslik var(--sure-acilis-uzun) var(--egri-cikis) 300ms backwards; }
+  .hero-geldi .hero-alt { animation: hero-gir var(--sure-acilis) var(--egri-cikis) 480ms backwards; }
 }
-@keyframes hero-gir { from { opacity: 0; transform: translateY(-10px); } }
-@keyframes hero-gir-baslik { from { transform: translateY(-10px); } }
-@keyframes hero-amblem { from { opacity: 0; transform: scale(.86); } }
-@keyframes hero-olcek { from { transform: scale(1.04); } }
+@keyframes hero-olcek { from { transform: scale(1.14); } }
+@keyframes hero-amblem { from { opacity: 0; transform: translateY(-56px) scale(.5) rotate(-16deg); } }
+@keyframes hero-etiket { from { opacity: 0; transform: translateX(-28px); } }
+@keyframes hero-baslik { from { transform: translateY(1.1em) scale(.94); } }
+@keyframes hero-gir { from { opacity: 0; transform: translateY(16px); } }
 
 /* ---------- 11. Son dakika haber satırı ---------- */
 .akis { list-style: none; margin: 0; padding: 0; }
@@ -500,14 +515,13 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
 .kapak { position: relative; display: block; aspect-ratio: var(--kapak-oran); border-radius: var(--r-kapak); overflow: hidden; background: var(--kulup-siyah); isolation: isolate; }
 .kapak img, .kapak .kapak-yok { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .kapak::after { content: ""; position: absolute; inset: 0; background: var(--kapak-karartma); z-index: 1; }
-.oynat { position: absolute; z-index: 2; left: 50%; top: 50%; width: var(--oynat-boyut); height: var(--oynat-boyut); transform: translate(-50%, -50%); border-radius: 50%; background: var(--kulup-kirmizi); border: 2px solid #fff; box-shadow: var(--golge-2); display: grid; place-items: center; color: #fff; }
+.oynat { position: absolute; z-index: 2; left: 50%; top: 50%; width: var(--oynat-boyut); height: var(--oynat-boyut); translate: -50% -50%; border-radius: 50%; background: var(--kulup-kirmizi); border: 2px solid #fff; box-shadow: var(--golge-2); display: grid; place-items: center; color: #fff; }
 .oynat svg { width: 40%; height: 40%; margin-left: 8%; }
 .dakika-rozet, .sure-rozet { position: absolute; z-index: 2; font-size: .8125rem; font-weight: 700; color: #fff; border-radius: var(--r-rozet); line-height: 1.4; font-variant-numeric: tabular-nums; }
 .dakika-rozet { left: 12px; top: 12px; background: var(--kulup-siyah); border: 1px solid #3A3A40; padding: 2px 8px; }
 .sure-rozet { right: 10px; bottom: 10px; background: var(--sure-zemin); padding: 2px 6px; }
 .video-kart .baslik { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 10px 0 0; font-family: var(--font-baslik); font-weight: 700; font-size: var(--fs-kart); line-height: var(--lh-kart); text-transform: uppercase; letter-spacing: .01em; }
 .video-kart .meta { display: block; color: var(--metin-soluk); font-size: var(--fs-meta); line-height: var(--lh-meta); margin-top: 2px; }
-.iskelet-video { display: block; aspect-ratio: 16 / 9; border-radius: var(--r-kapak); }
 
 .takimlar { display: grid; grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1fr); align-items: center; gap: 8px; margin-top: 12px; text-align: center; }
 .takim { display: grid; justify-items: center; gap: 8px; font-family: var(--font-baslik); font-weight: 700; font-size: .875rem; text-transform: uppercase; letter-spacing: .02em; line-height: 1.15; text-wrap: balance; min-width: 0; }
@@ -744,6 +758,10 @@ img.avatar { display: block; object-fit: cover; background: var(--yuzey-2); }
 .oyuncu-govde { padding: 12px; }
 .oyuncu-govde .ad { display: block; font-family: var(--font-baslik); font-weight: 700; font-size: 1rem; text-transform: uppercase; letter-spacing: .02em; line-height: 1.2; }
 .oyuncu-govde .mevki { display: block; color: var(--metin-soluk); font-size: var(--fs-meta); }
+/* Fotoğraf atfı (CC BY / BY-SA): kartta tek küçük satır, sığmazsa üç nokta; tam metin title'da ve ekran okuyucuda (aria-describedby).
+   soluk / yüzey ≥ 4.5:1 (docs/kontrast.py "maç notu kaynak satırı" çifti). Büyük yazıda (%200) kısaltma yok, sarar (1.4.4). */
+.oyuncu-govde .kart-atif { display: block; margin-top: 2px; color: var(--metin-soluk); font-size: .6875rem; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.buyuk-yazi .oyuncu-govde .kart-atif { white-space: normal; }
 .oyuncu-isaret { position: absolute; right: 8px; top: 8px; z-index: 1; }
 .durum-cip { display: inline-flex; align-items: center; gap: 4px; height: 24px; border-radius: var(--r-hap); padding: 0 10px; font-size: var(--fs-etiket); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
 .durum-cip svg { width: 12px; height: 12px; }
@@ -929,15 +947,31 @@ html { -webkit-tap-highlight-color: transparent; }
 .sekme-iz [role="tab"]:active, .sekme-dugmeleri button:active, .hap-iz label:active, .cip-satir label:active, .oyuncu-gezgin a:active { opacity: var(--basma-opaklik); }
 .haber-satir:active, .fikstur-satir:active, .gol-satir:active, .ikili-kart:active, .mac-kadro a:active, a.olay-metin:active { background-color: var(--yuzey); }
 .mac-ac:active, a.oyuncu-kart:active, .oyuncu-mini:active { background-color: var(--yuzey-2); }
+/* 022: basınca hızlı çöker (--sure-hizli), bırakınca yayla geri gelir (--egri-yay, --sure-yavas). Kartlar belirgin (.96), masaüstünde
+   üzerine gelince 5 px yükselir + gölge büyür; alt menü simgesi basınca küçülür, açık sekmenin simgesi sayfa açılınca bir kez sıçrar;
+   gol kartında kapak yakınlaşır. */
 @media (prefers-reduced-motion: no-preference) {
   .dugme, .paylas, .hayalet, .dugme-metin, .ikon-dugme, .mac-baglanti-kucuk, .alt-nav a, .sekme-iz [role="tab"], .sekme-dugmeleri button,
-  .hap-iz label, .cip-satir label, .oyuncu-gezgin a, .video-kart, a.oyuncu-kart, .oyuncu-mini, .hero {
-    transition: transform var(--sure-hizli) var(--egri-standart), opacity var(--sure-hizli) var(--egri-standart),
+  .hap-iz label, .cip-satir label, .oyuncu-gezgin a, .video-kart, a.oyuncu-kart, .oyuncu-mini, a.ikili-kart, .hero {
+    transition: transform var(--sure-yavas) var(--egri-yay), opacity var(--sure-hizli) var(--egri-standart), box-shadow var(--sure-orta) var(--egri-standart),
       background-color var(--sure-hizli) var(--egri-standart), color var(--sure-hizli) var(--egri-standart), border-color var(--sure-hizli) var(--egri-standart);
   }
   .dugme:active, .paylas:active, .hayalet:active, .dugme-metin:active, .ikon-dugme:active, .mac-baglanti-kucuk:active, .alt-nav a:active,
-  .sekme-iz [role="tab"]:active, .sekme-dugmeleri button:active, .hap-iz label:active, .cip-satir label:active, .oyuncu-gezgin a:active { transform: scale(var(--basma-olcek)); }
-  .video-kart:active, a.oyuncu-kart:active, .oyuncu-mini:active, .hero:active { transform: scale(var(--basma-olcek-kart)); }
+  .sekme-iz [role="tab"]:active, .sekme-dugmeleri button:active, .hap-iz label:active, .cip-satir label:active, .oyuncu-gezgin a:active { transform: scale(var(--basma-olcek)); transition-duration: var(--sure-hizli); transition-timing-function: var(--egri-standart); }
+  .video-kart:active, a.oyuncu-kart:active, .oyuncu-mini:active, a.ikili-kart:active { transform: scale(var(--basma-olcek-kart)); transition-duration: var(--sure-hizli); transition-timing-function: var(--egri-standart); }
+  .hero:active { transform: scale(var(--basma-olcek-hero)); transition-duration: var(--sure-hizli); }
+  .alt-nav svg { transition: scale var(--sure-yavas) var(--egri-yay); }
+  .alt-nav a:active svg { scale: .78; transition-duration: var(--sure-hizli); }
+  .alt-nav a[aria-current] svg { animation: pat var(--sure-yavas) var(--egri-yay) 160ms backwards; }
+  .kapak img, .video-baslat img { transition: scale var(--sure-yavas) var(--egri-yay); }
+  .video-kart:active .kapak img, .video-baslat:active img { scale: 1.08; transition: scale var(--sure-uzun) var(--egri-cikis); }
+  @media (hover: hover) {
+    .video-kart:hover, a.oyuncu-kart:hover, .oyuncu-mini:hover, a.ikili-kart:hover { transform: translateY(var(--kart-yuksel)); }
+    a.oyuncu-kart:hover, a.ikili-kart:hover, .video-kart:hover .kapak { box-shadow: var(--golge-havada); }
+    .video-kart .kapak { transition: box-shadow var(--sure-orta) var(--egri-standart); }
+    .video-kart:hover .kapak img { scale: 1.04; }
+    .video-kart:hover:active, a.oyuncu-kart:hover:active, .oyuncu-mini:hover:active, a.ikili-kart:hover:active { transform: translateY(var(--kart-yuksel)) scale(var(--basma-olcek-kart)); }
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .video-kart:active, .hero:active { opacity: var(--basma-opaklik); }
@@ -954,14 +988,34 @@ html { -webkit-tap-highlight-color: transparent; }
 .alt-nav { view-transition-name: alt-menu; }
 ::view-transition-group(ust-bar), ::view-transition-group(alt-menu), ::view-transition-new(ust-bar), ::view-transition-new(alt-menu) { animation: none; }
 ::view-transition-old(ust-bar), ::view-transition-old(alt-menu) { display: none; }
+/* 022: belirgin, yön bilinçli geçiş. Ayrıntıya giriş ("ileri"): yeni sayfa sağdan tam iter, eski %30 sola kayıp kararır (telefon
+   uygulaması "push"); geri dönüş ("geri"): tersi, eski sayfa üstte sağa çekilir. Alt menü bölümleri arasında ("bolum-ileri/-geri") kısa
+   kayma + solma. Haber başlığı akıştan haber sayfasına paylaşılan öğe olarak taşınır (haber-baslik; ortak.js belirmeIzle tıklanan
+   satıra ad verir). Alt menünün kırmızı göstergesi yeni sekmeye kayar (alt-gosterge). Yönsüz geçiş yalnız solma. */
 ::view-transition-old(root) { animation: var(--sure-hizli) var(--egri-standart) both gecis-sol; }
 ::view-transition-new(root) { animation: var(--sure-orta) var(--egri-cikis) both gecis-gel; }
-html:active-view-transition-type(ileri)::view-transition-new(root) { animation-name: gecis-sagdan; }
-html:active-view-transition-type(geri)::view-transition-new(root) { animation-name: gecis-soldan; }
+html:active-view-transition-type(ileri)::view-transition-old(root) { animation: var(--sure-gecis) var(--egri-gecis) both gecis-sola-it; }
+html:active-view-transition-type(ileri)::view-transition-new(root) { animation: var(--sure-gecis) var(--egri-gecis) both gecis-sagdan; }
+html:active-view-transition-type(geri)::view-transition-old(root) { z-index: 1; animation: var(--sure-gecis) var(--egri-gecis) both gecis-saga-cek; }
+html:active-view-transition-type(geri)::view-transition-new(root) { animation: var(--sure-gecis) var(--egri-gecis) both gecis-soldan; }
+html:active-view-transition-type(bolum-ileri)::view-transition-old(root) { animation: var(--sure-gecis) var(--egri-gecis) both gecis-bolum-sola; }
+html:active-view-transition-type(bolum-ileri)::view-transition-new(root) { animation: var(--sure-gecis) var(--egri-gecis) both gecis-bolum-sagdan; }
+html:active-view-transition-type(bolum-geri)::view-transition-old(root) { animation: var(--sure-gecis) var(--egri-gecis) both gecis-bolum-saga; }
+html:active-view-transition-type(bolum-geri)::view-transition-new(root) { animation: var(--sure-gecis) var(--egri-gecis) both gecis-bolum-soldan; }
+html:active-view-transition-type(ileri) .makale h1 { view-transition-name: haber-baslik; }
+::view-transition-group(haber-baslik) { animation-duration: var(--sure-gecis); animation-timing-function: var(--egri-gecis); }
+.alt-nav a[aria-current]::before { view-transition-name: alt-gosterge; }
+::view-transition-group(alt-gosterge) { animation-duration: var(--sure-gecis); animation-timing-function: var(--egri-gecis); }
 @keyframes gecis-sol { to { opacity: 0; } }
 @keyframes gecis-gel { from { opacity: 0; } }
-@keyframes gecis-sagdan { from { opacity: 0; transform: translateX(var(--gecis-kayma)); } }
-@keyframes gecis-soldan { from { opacity: 0; transform: translateX(calc(-1 * var(--gecis-kayma))); } }
+@keyframes gecis-sagdan { from { transform: translateX(100%); } }
+@keyframes gecis-sola-it { to { transform: translateX(calc(-1 * var(--gecis-itme))); opacity: .5; } }
+@keyframes gecis-saga-cek { to { transform: translateX(100%); } }
+@keyframes gecis-soldan { from { transform: translateX(calc(-1 * var(--gecis-itme))); opacity: .5; } }
+@keyframes gecis-bolum-sola { to { opacity: 0; transform: translateX(calc(-1 * var(--gecis-bolum))); } }
+@keyframes gecis-bolum-sagdan { from { opacity: 0; transform: translateX(var(--gecis-bolum)); } }
+@keyframes gecis-bolum-saga { to { opacity: 0; transform: translateX(var(--gecis-bolum)); } }
+@keyframes gecis-bolum-soldan { from { opacity: 0; transform: translateX(calc(-1 * var(--gecis-bolum))); } }
 
 /* ---------- 29. Üst bar: aşağı kaydırınca gizlenir, yukarı kaydırınca gelir (assets/ortak.js ustBarIzle) ----------
    translate (yer kaplaması değişmez: kayma/CLS yok). Güvenli alan (çentik) payı kadar çubuk görünür kalır, durum çubuğunun altı açılmaz.
@@ -1133,7 +1187,7 @@ a.ikili-kart:hover { border-color: var(--kenar-guclu); color: var(--metin); }
    yalnız transform / opacity (yerleşim kaymaz). Hepsi prefers-reduced-motion: no-preference içinde; reduce'da öğe doğrudan son hâlinde. */
 @media (prefers-reduced-motion: no-preference) {
   /* Sırayla belirme (kapsayıcı .sirayla, öğede --i; assets/mac-gunu.js sirayla) */
-  .sirayla > * { animation: belir var(--sure-orta) var(--egri-cikis) both; animation-delay: calc(min(var(--i, 0), 8) * var(--sira-adim)); }
+  .sirayla > * { animation: belir-kalk var(--sure-belir) var(--egri-cikis) both; animation-delay: calc(min(var(--i, 0), 8) * var(--sira-adim)); }
   /* Oran çubuğu soldan dolar (scaleX; satırın --i'siyle aynı sırada) */
   .cubuk-dolgu { animation: doldur var(--sure-cubuk) var(--egri-cikis) both; animation-delay: calc(min(var(--i, 0), 8) * var(--sira-adim) + var(--sure-hizli)); }
   /* Rakam kayarak değişir (tahmin sayacı, beğeni sayısı; ortak.js rakamDegistir) */
@@ -1156,7 +1210,6 @@ a.ikili-kart:hover { border-color: var(--kenar-guclu); color: var(--metin); }
 }
 /* Bölüm görünür alana girene kadar hareket bekler (mac-gunu.js gorununceOynat); ilk kare başlangıç hâli */
 .hareket-bekle, .hareket-bekle *, .hareket-bekle *::before, .hareket-bekle *::after { animation-play-state: paused !important; }
-@keyframes belir { from { opacity: 0; transform: translateY(6px); } }
 @keyframes doldur { from { transform: scaleX(0); } }
 @keyframes kay-yukari { from { opacity: 0; transform: translateY(60%); } }
 @keyframes kay-asagi { from { opacity: 0; transform: translateY(-60%); } }
@@ -1346,3 +1399,77 @@ a.saha-oyuncu:focus-visible { outline: 3px solid var(--odak-koyu-zemin); outline
 .begeni-not { margin: 8px 0 0; font-size: var(--fs-meta); }
 .begeni-mini { margin-left: 6px; color: var(--metin-soluk); font-size: var(--fs-meta); font-weight: 400; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .begeni-mini.benim { color: var(--vurgu-guclu); }
+
+/* ---------- 021. Kapak yer tutucusu: açık zeminde ortalı resmî amblem (ortak.js kapakYerTutucu; ayar.js AMBLEM_DOSYASI) ----------
+   Kutu boyutu kapsayan sınıftan (kayma yok). Amblem kutu yüksekliğinin %58'i (büyük oynatıcıda %52), oran korunur. Oynat düğmesi ortada amblemin üstüne
+   binerdi: yer tutucuda sol alta küçülür (amblem tam görünür; dakika sol üst, süre sağ alt). Karartma perdesi açık zeminde kapalı. */
+.kapak-yok.kapak-amblem { background: radial-gradient(ellipse at 50% 42%, rgb(0 0 0 / 0) 55%, rgb(0 0 0 / .05) 100%), var(--amblem-zemin); box-shadow: var(--amblem-golge); }
+.kucuk-kapak.kapak-amblem, .makale .kapak-buyuk.kapak-amblem { position: relative; overflow: hidden; }
+.oyuncu-gorsel .kapak-yok { position: absolute; inset: 0; }
+.kapak-amblem > img.amblem-isaret { position: absolute; inset: auto; left: 50%; top: 50%; width: auto; height: 58%; max-width: 86%; transform: translate(-50%, -50%); object-fit: contain; filter: drop-shadow(0 1px 2px rgb(0 0 0 / .16)); }
+.kapak:has(> .kapak-amblem)::after, .video-baslat:has(> .kapak-amblem)::after { content: none; }
+.kapak:has(> .kapak-amblem) .oynat { --oynat-boyut: 40px; left: 10px; top: auto; bottom: 10px; translate: none; }
+.video-baslat:has(> .kapak-amblem) .oynat { left: 12px; top: auto; bottom: 12px; translate: none; }
+/* Büyük oynatıcıda "Oynat · süre" yazısı da altta: amblem biraz küçülüp optik merkeze (üste) çıkar, yazıyla arası açılır */
+.video-baslat .kapak-amblem > img.amblem-isaret { height: 52%; top: 44%; }
+.video-baslat:has(> .kapak-amblem) .oynat { --oynat-boyut: 44px; }
+.video-baslat:has(> .kapak-amblem) .yazi { left: 66px; bottom: 23px; color: var(--amblem-metin); }
+
+/* ---------- 34. 022: belirgin hareketler (docs/TASARIM.md 9.13) ----------
+   Hepsi tek seferlik, yalnız transform / opacity (yerleşim kaymaz: CLS yok), sonsuz yok. Hareket azaltmada hiçbiri yok:
+   ortak.js belirmeIzle sınıf koymaz, kurallar no-preference içinde; öğe doğrudan son hâlinde. */
+@media (prefers-reduced-motion: no-preference) {
+  /* Siteye dışarıdan ilk girişte (tema.js .ilk-acilis) üst barın içeriği (logo, simgeler) yukarıdan, alt menünün simgeleri aşağıdan
+     sırayla gelir (yazılar yerinde); çubukların kendisi yerinde (yapışkan çubuk ve örtme ölçüleri değişmez). Site içinde gelmez. */
+  .ilk-acilis .ust-bar > * { animation: ust-in var(--sure-acilis) var(--egri-cikis) backwards; }
+  .ilk-acilis .ust-bar > :last-child { animation-delay: 80ms; }
+  .ilk-acilis .alt-nav svg { animation: alt-in var(--sure-acilis) var(--egri-yay) backwards; }
+  .ilk-acilis .alt-nav li:nth-child(2) svg { animation-delay: 50ms; } .ilk-acilis .alt-nav li:nth-child(3) svg { animation-delay: 100ms; } .ilk-acilis .alt-nav li:nth-child(4) svg { animation-delay: 150ms; }
+  /* Kaydırdıkça belirme: DOM'a girince duraklatılmış ilk kare (28 px aşağıda, saydam), görünür alana girince oynar; aynı anda girenler
+     --i × 70 ms sırayla (en çok 6 adım: ≤ 980 ms). fill backwards: bitince hiçbir şeyi ezmez (kart :hover / :active çalışır). */
+  .belir { animation: belir-kalk var(--sure-belir) var(--egri-cikis) backwards paused; animation-delay: calc(var(--i, 0) * var(--sira-adim-belir)); }
+  .belir.belirdi { animation-play-state: running; }
+  .belir.anlik { animation: none; }
+  /* Gol kartı: kart belirirken oynat düğmesi ölçekle gelir (yay); gol sayfasında büyük oynat düğmesi de */
+  .belirdi .oynat, .video-baslat .oynat { animation: oynat-gel var(--sure-acilis) var(--egri-yay) backwards; animation-delay: calc(var(--i, 0) * var(--sira-adim-belir) + 220ms); }
+  /* Sekme değişimi yönlü (ortak.js belirmeIzle): sağdaki sekme sağdan, soldaki soldan; gösterge yayla kayar */
+  .sekme-sagdan { animation: sekme-sagdan var(--sure-sekme) var(--egri-cikis); }
+  .sekme-soldan { animation: sekme-soldan var(--sure-sekme) var(--egri-cikis); }
+  .sekme-iz.kayan-gosterge::before { transition: transform var(--sure-sekme) var(--egri-yay); }
+  /* Gol arşivi: açılır maçın oku yayla döner (goller yukarıdaki belirmeyle sırayla gelir) */
+  .mac-ac-ok { transition: transform var(--sure-yavas) var(--egri-yay); }
+  /* Maç sayfası başlığı: takımlar iki yandan kayar, skor büyüyerek oturur (LCP metni: yalnız transform), üst satır ve meta belirir */
+  .takimlar > .takim-ad:first-child { animation: takim-soldan var(--sure-acilis) var(--egri-cikis) 60ms backwards; }
+  .takimlar > .takim-ad:last-child { animation: takim-sagdan var(--sure-acilis) var(--egri-cikis) 60ms backwards; }
+  .mac-basi #skor { animation: skor-otur var(--sure-acilis-uzun) var(--egri-yay) 140ms backwards; }
+  .mac-basi .ust-satir, .mac-basi .meta { animation: hero-gir var(--sure-acilis) var(--egri-cikis) 260ms backwards; }
+}
+/* Sayarak gelen sayılar: gerçek metin yerinde ve saydam (ekran okuyucu gerçek değeri okur), sayan kare ::after'da (alt metni boş).
+   Kutunun boyu gerçek metinden: kayma yok. */
+.sayiyor { position: relative; -webkit-text-fill-color: transparent; }
+.sayiyor::after { content: attr(data-say) / ""; position: absolute; inset: 0; -webkit-text-fill-color: currentColor; white-space: nowrap; pointer-events: none; }
+/* Kaydırma derinliği (yalnız kaydırmaya bağlı animasyonu destekleyen tarayıcıda): ana sayfada aşağı kaydırınca hero zemini yavaş, amblem
+   daha hızlı kayar ve küçülür. translate / scale ayrı özellik (açılış transform'uyla birleşir). Kaydırma kullanıcının elinde: sonsuz değil. */
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .hero-gorsel, .hero-amblem { animation-timeline: scroll(root block); animation-range: 0 80vh; animation-fill-mode: both; animation-timing-function: linear; }
+    .hero-gorsel { animation-name: hero-derin-zemin; }
+    .hero-amblem { animation-name: hero-derin-amblem; }
+    .hero-geldi .hero-gorsel { animation: hero-olcek var(--sure-hero) var(--egri-cikis) backwards, hero-derin-zemin linear both; animation-timeline: auto, scroll(root block); animation-range: normal, 0 80vh; }
+    .hero-geldi .hero-amblem { animation: hero-amblem var(--sure-acilis-uzun) var(--egri-yay) 120ms backwards, hero-derin-amblem linear both; animation-timeline: auto, scroll(root block); animation-range: normal, 0 80vh; }
+  }
+}
+/* Yazdırırken bekleyen öğe saydam kalmasın; dar ekranda yatay kayan panel sayfayı yana kaydırmasın */
+@media print { .belir, .sayiyor { animation: none !important; -webkit-text-fill-color: currentColor; } .sayiyor::after { content: none; } }
+main { overflow-x: clip; } /* body'de değil: body'nin overflow'u görünüm alanına geçer ve kaydırmayı kapatır */
+@keyframes ust-in { from { opacity: 0; transform: translateY(-24px); } }
+@keyframes alt-in { from { opacity: 0; transform: translateY(24px); } }
+@keyframes belir-kalk { from { opacity: 0; transform: translateY(var(--belir-kayma)); } }
+@keyframes oynat-gel { from { opacity: 0; scale: .3; } }
+@keyframes sekme-sagdan { from { opacity: 0; transform: translateX(var(--sekme-kayma)); } }
+@keyframes sekme-soldan { from { opacity: 0; transform: translateX(calc(-1 * var(--sekme-kayma))); } }
+@keyframes takim-soldan { from { transform: translateX(-48px); } }
+@keyframes takim-sagdan { from { transform: translateX(48px); } }
+@keyframes skor-otur { from { transform: scale(.45); } }
+@keyframes hero-derin-zemin { to { translate: 0 22%; } }
+@keyframes hero-derin-amblem { to { translate: 0 -70px; scale: .78; } }

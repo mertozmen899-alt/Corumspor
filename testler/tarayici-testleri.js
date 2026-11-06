@@ -122,6 +122,8 @@ async function tarayiciTestleri() {
     await p.waitForSelector('#akis[data-sponsor-durum="tamam"]');
     const yuva = await p.evaluate(() => {
       const l = document.querySelector('#akis');
+      // 022: belirme animasyonu (transform) ölçüyü kaydırmasın: boşluk yerleşimden ölçülür
+      l.querySelectorAll('.belir').forEach((e) => e.getAnimations().forEach((a) => a.finish()));
       const satirlar = [...l.querySelectorAll(':scope > li > .haber-satir')].map((a) => a.getBoundingClientRect());
       return { yuva: l.querySelectorAll('[data-reklam-alan], .akis-sponsor, .reklam-kart').length, li: l.children.length, haber: satirlar.length, sponsor: /Sponsor/.test(l.textContent),
         aralik: Math.round(satirlar[3].top - satirlar[2].bottom), normal: Math.round(satirlar[1].top - satirlar[0].bottom) };
@@ -1065,9 +1067,10 @@ async function tarayiciTestleri() {
     await p.waitForSelector(AKIS);
     const yeni = await p.evaluate(() => [...document.querySelectorAll('#akis .haber-satir')].map((a) => ({ b: a.querySelector('h3').textContent, yeni: a.querySelector('.yeni-rozet')?.textContent || null })));
     kontrol('ana (019): son 24 saatteki haberde görünür "Yeni" rozeti, eski haberlerde yok', yeni.some((x) => x.b.startsWith('Test haberi 4') && x.yeni === 'Yeni') && yeni.filter((x) => /Test haberi [5-7]/.test(x.b)).every((x) => !x.yeni), JSON.stringify(yeni));
-    // ---- gol şeridi kapakları tembel (ilk ekranın altında)
-    const golYukleme = await p.$$eval('#son-goller img', (l) => l.map((i) => i.getAttribute('loading')));
-    kontrol('ana (2. tur): gol şeridindeki kapaklar loading=lazy', golYukleme.length >= 1 && golYukleme.every((x) => x === 'lazy'), JSON.stringify(golYukleme));
+    // ---- 021: "Gol arşivinden" şeridi kaldırıldı (alt menüde Gol Arşivi var); gol sorgusu ve gol-kart.js ana sayfada yok
+    const serit = await p.evaluate(() => ({ bolum: !!document.querySelector('#goller-bolumu, #son-goller'), baslik: /Gol arşivinden/.test(document.querySelector('main').textContent),
+      onYukleme: [...document.querySelectorAll('link[rel=modulepreload]')].some((l) => /gol-kart\.js$/.test(l.href)), kayit: 'goller' in ((JSON.parse(localStorage.getItem('son-veri-v1-sahte') || '{}').ana || {}).veri || {}) }));
+    kontrol('ana (021): "Gol arşivinden" şeridi yok (bölüm, başlık, gol-kart.js modulepreload, önbellekte goller alanı)', !serit.bolum && !serit.baslik && !serit.onYukleme && !serit.kayit, JSON.stringify(serit));
     // ---- "Daha fazla" bitince görünür "Hepsi bu kadar"
     await p.click('#daha-fazla');
     await p.waitForFunction(() => document.querySelectorAll('#akis .haber-satir').length > 6);
@@ -1108,6 +1111,34 @@ async function tarayiciTestleri() {
     await p.waitForSelector('#makale .kapak-buyuk.kapak-yok');
     const kk = await p.$eval('#makale .kapak-buyuk', (e) => { const r = e.getBoundingClientRect(); return { etiket: e.tagName, w: Math.round(r.width), h: Math.round(r.height) }; });
     kontrol('haber (2. tur): açılmayan kapak desenli yer tutucuya döner, 16:9 korunur', kk.etiket === 'SPAN' && Math.abs(kk.h - (kk.w * 9) / 16) <= 2, JSON.stringify(kk));
+    // 021: yer tutucu = açık zeminde ortalı resmî amblem (ayar.js AMBLEM_DOSYASI), kutu yüksekliğinin ~%58'i, oran bozulmadan
+    const amblemOlc = (sec) => p.$eval(sec, async (e) => {
+      const i = e.querySelector('img.amblem-isaret'); if (!i) return null;
+      if (!i.complete) await new Promise((r) => { i.onload = i.onerror = r; });
+      const k = e.getBoundingClientRect(), r = i.getBoundingClientRect();
+      return { sinif: e.classList.contains('kapak-amblem'), src: i.getAttribute('src'), alt: i.getAttribute('alt'), yuklendi: i.naturalWidth > 0, oran: +(r.height / k.height).toFixed(2),
+        orta: Math.abs((r.left + r.width / 2) - (k.left + k.width / 2)) <= 2 && Math.abs((r.top + r.height / 2) - (k.top + k.height / 2)) <= 2, kare: Math.abs(r.width - r.height) <= 2, zemin: getComputedStyle(e).backgroundColor };
+    });
+    const amblemDosyasi = /AMBLEM_DOSYASI = '([^']+)'/.exec(fs.readFileSync(path.join(KOK, 'assets/ayar.js'), 'utf8'))[1];
+    const ya = await amblemOlc('#makale .kapak-buyuk.kapak-yok');
+    kontrol('haber (021): kırık kapağın yer tutucusunda ortalı resmî amblem (AMBLEM_DOSYASI, alt="", %55-60, oran korunur)',
+      ya && ya.sinif && ya.src === amblemDosyasi && ya.alt === '' && ya.yuklendi && ya.oran >= 0.55 && ya.oran <= 0.6 && ya.orta && ya.kare, JSON.stringify(ya));
+    // 021: kapaksız haberde de 16:9 amblemli kutu (iskeletin ayırdığı yer kalır, başlık kaymaz)
+    await dbYaz(p, (db, id) => { db.haberler.find((x) => x.id === id).kapak_url = null; }, H1);
+    await git(p, 'haber.html?sahte=1&id=' + H1);
+    await p.waitForSelector('#haber[data-durum="tamam"] #makale .kapak-buyuk.kapak-amblem');
+    const kz = await p.$eval('#makale .kapak-buyuk', (e) => { const r = e.getBoundingClientRect(); return { etiket: e.tagName, w: Math.round(r.width), h: Math.round(r.height), atif: !!document.querySelector('#makale .foto-atif') }; });
+    kontrol('haber (021): kapaksız haberde 16:9 amblemli yer tutucu, fotoğraf atfı yok', kz.etiket === 'SPAN' && Math.abs(kz.h - (kz.w * 9) / 16) <= 2 && !kz.atif, JSON.stringify(kz));
+    // 021: kapaksız gol videosu: amblemli yer tutucu, oynat düğmesi amblemin üstüne binmez (sol alt), karartma perdesi yok
+    await dbYaz(p, (db) => { db.goller.find((x) => x.id.endsWith('0001')).kapak_url = null; });
+    await git(p, 'gol.html?sahte=1&id=22222222-0000-4000-8000-000000000001');
+    await p.waitForSelector('#gol[data-durum="tamam"] .video-baslat .kapak-amblem');
+    const gy = await amblemOlc('.video-baslat .kapak-amblem');
+    const gu = await p.evaluate(() => { const b = document.querySelector('.video-baslat'), a = b.querySelector('img.amblem-isaret').getBoundingClientRect(), o = b.querySelector('.oynat').getBoundingClientRect();
+      const y = b.querySelector('.yazi').getBoundingClientRect(), k = b.getBoundingClientRect(), ust = (x) => !(x.right <= a.left || x.left >= a.right || x.bottom <= a.top || x.top >= a.bottom);
+      return { ust: ust(o) || ust(y), yatayOrta: Math.abs((a.left + a.width / 2) - (k.left + k.width / 2)) <= 2, perde: getComputedStyle(b, '::after').content }; });
+    kontrol('gol (021): kapaksız videoda amblemli yer tutucu; oynat düğmesi ve "Oynat" yazısı amblemin üstünde değil; karartma yok', gy && gy.yuklendi && gy.kare && gu.yatayOrta && !gu.ust && gu.perde === 'none', JSON.stringify({ gy, gu }));
+    await dbYaz(p, (db) => { db.goller.find((x) => x.id.endsWith('0001')).kapak_url = 'assets/img/siklik-kapilari-tabiat-parki-1600.webp'; });
     // navigator.share varsa önce o
     await p.evaluate(() => { window.__paylasilan = null; });
     await ctx.addInitScript(() => { navigator.share = async (v) => { window.__paylasilan = v; }; });
@@ -1418,10 +1449,12 @@ async function tarayiciTestleri() {
     await p.waitForSelector('#haber[data-durum="tamam"] #haber-metni p');
     const ikinci = await p.evaluate(() => ({ durumlar: window.__durumlar, kayit: (JSON.parse(localStorage.getItem('son-veri-v1-sahte')).haber || {}).veri.map((x) => x.id) }));
     kontrol('son tur (performans 2): açılan haber son görülen kayda yazılır, tekrar açılışta önce o çizilir', JSON.stringify(ikinci.durumlar.slice(-2)) === '["onbellek","tamam"]' && ikinci.kayit[0] === '33333333-0000-4000-8000-000000000005', JSON.stringify(ikinci));
+    await git(p, 'goller.html?sahte=1'); // 021: ana sayfada gol şeridi yok; satır gol arşivinin son görülen kaydından gelir
+    await p.waitForSelector('#arsiv[data-durum="tamam"]');
     await git(p, 'gol.html?sahte=1&id=22222222-0000-4000-8000-000000000003');
     await p.waitForSelector('#gol[data-durum="tamam"] #video-not');
     const gc = await p.evaluate(() => ({ durumlar: window.__durumlar, ayni: window.__ilkKapak === document.querySelector('#gol .video-baslat img'), not: document.querySelector('#video-not').textContent }));
-    kontrol('son tur (performans 2): gol ana sayfa şeridindeki satırdan anında çizilir (onbellek → tamam), kapak aynı düğüm, video notu ağdan', JSON.stringify(gc.durumlar.slice(-2)) === '["onbellek","tamam"]' && gc.ayni && /Video: /.test(gc.not), JSON.stringify(gc));
+    kontrol('son tur (performans 2): gol, gol arşivindeki satırdan anında çizilir (onbellek → tamam), kapak aynı düğüm, video notu ağdan', JSON.stringify(gc.durumlar.slice(-2)) === '["onbellek","tamam"]' && gc.ayni && /Video: /.test(gc.not), JSON.stringify(gc));
 
     // ---- başkan 3: düzeltme kutusunda tarih "Düzeltme (5 Kasım 2026, 14:20): …"
     await dbYaz(p, (db, id) => Object.assign(db.haberler.find((x) => x.id === id), { duzeltme_notu: 'Skor yanlış yazılmıştı.', duzeltme_tarihi: '2026-11-05T11:20:00Z' }), H1);

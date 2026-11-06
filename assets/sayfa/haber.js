@@ -4,7 +4,7 @@
 // Önce son görülen kayıt (onbellek.js: bu haber daha önce açıldıysa tamamı, yoksa ana sayfa listesindeki başlık + kapak) ANINDA çizilir
 // (data-durum="onbellek"; kapak görseli ağ sorgusunu beklemeden iner: performans 3. tur 2), sonra ağdan tazelenir; kapak <img>'i
 // aynı adresse yeniden kurulmaz (titreme yok).
-import { supabase, hazir, h, $, sayfaBaslat, param, kimlikGecerli, tarihYaz, saatYaz, kapakKaynagi, kapakGorseli, tamGenislik, fotoAtfi, paragraflar, cevrimdisiKutusu, paylasDugmesi } from '../ortak.js';
+import { supabase, hazir, h, $, sayfaBaslat, param, kimlikGecerli, tarihYaz, saatYaz, kapakKaynagi, kapakGorseli, kapakYerTutucu, tamGenislik, fotoAtfi, paragraflar, cevrimdisiKutusu, paylasDugmesi } from '../ortak.js';
 import { reklamYuvalariniDoldur } from '../reklam-yukle.js';
 import { sonVeri, sonKayit, sonKayitYaz } from '../onbellek.js';
 import { begeniDugmesi } from '../begeni.js';
@@ -67,13 +67,14 @@ function haberCiz(haber, { kismi = false } = {}) {
   const k = kapakKaynagi(haber.kapak_url, { varsayilan: 800, kutu: tamGenislik() });
   const atif = k ? fotoAtfi(haber.kapak_url, haber.kapak_kaynak) : null;
   const alt = metinMi(haber.kapak_alt) ? haber.kapak_alt.trim() : '';
-  let kapak = k ? kapakGorseli(k, { sinif: 'kapak-buyuk', alt, width: '1600', height: '900', fetchpriority: 'high' }) : null;
+  // 021: kapaksız haberde de 16:9 kutu (amblemli yer tutucu): iskeletin ayırdığı yer boşa düşmez, başlık kaymaz
+  let kapak = k ? kapakGorseli(k, { sinif: 'kapak-buyuk', alt, width: '1600', height: '900', fetchpriority: 'high' }) : kapakYerTutucu('kapak-buyuk');
   // Önbellekten çizilmiş aynı kapak varsa o <img> kullanılır (yeniden indirme / çözme titremesi yok)
   const onceki = kok.querySelector('#makale img.kapak-buyuk');
   if (kapak && onceki && onceki.getAttribute('src') === kapak.getAttribute('src')) { onceki.alt = alt; kapak = onceki; }
   const govde = typeof haber.govde === 'string' ? haber.govde : null;
   kok.replaceChildren(h('article', { class: 'makale', id: 'makale' },
-    kapak ? h('div', { class: 'kapak-cerceve' }, kapak, atif ? h('p', { class: 'foto-atif' }, atif) : null) : null,
+    h('div', { class: 'kapak-cerceve' }, kapak, atif ? h('p', { class: 'foto-atif' }, atif) : null),
     haber.yayinda === false ? h('p', { class: 'mesaj bilgi' }, 'Bu haber taslak: sadece yöneticiler görebilir.') : null,
     h('h1', null, haber.baslik),
     h('time', { class: 'tarih', datetime: haber.yayin_tarihi || haber.created_at }, tarihYaz(haber.yayin_tarihi || haber.created_at)),

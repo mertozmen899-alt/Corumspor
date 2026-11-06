@@ -9,7 +9,7 @@
 //  alttan açılan önizleme (dialog; profil.html çıkış penceresi deseni: arka plan inert, Esc kapatır, odak geri döner): maç, saat,
 //  stadyum, "Maç sayfası" ve (oynanmamışsa) "Takvime ekle" (.ics, assets/takvim.js). Oyuncu / maç sayfasından geri dönünce kaydırma
 //  yeri, seçili görünüm ve takvim ayı geri gelir (ortak.js konumKoru; çizimden SONRA).
-import { supabase, hazir, h, $, sayfaBaslat, tarihYaz, saatYaz, goreceZaman, hataMetni, evSahibiDeplasman, skorMetni, sonucBilgisi, durumRozeti, sekmeKlavyesi, kapakKaynagi, kapakGorseli, cevrimdisiKutusu, duyur, konumKoru, SAKATLIK_ETIKETI } from '../ortak.js';
+import { supabase, hazir, h, $, sayfaBaslat, tarihYaz, saatYaz, goreceZaman, hataMetni, evSahibiDeplasman, skorMetni, sonucBilgisi, durumRozeti, sekmeKlavyesi, kapakKaynagi, kapakGorseli, fotoAtfi, cevrimdisiKutusu, duyur, konumKoru, SAKATLIK_ETIKETI } from '../ortak.js';
 import { sonVeri, sonVeriYaz } from '../onbellek.js';
 import { takvimIndir, trGunu, ayIzgarasi } from '../takvim.js';
 import { sezonAdi } from '../kurallar.js';
@@ -66,17 +66,22 @@ sekmeAc(location.hash.slice(1), { adres: false });
 // ------------------------------------------------------------ kadro
 function oyuncuKarti(o, sakatlik) {
   const k = kapakKaynagi(o.foto_url, { varsayilan: 480, kutu: 180 });
+  const atif = k ? fotoAtfi(o.foto_url) : null;
   const durum = sakatlik && sakatlik.durum !== 'dondu' ? sakatlik.durum : null;
   // Mevki başlığı (DEFANS…) zaten grubun adı; fotoğraf yoksa forma no kartın büyük rakamı: meta satırı tekrar etmez (tasarımcı 5)
   // 018: kart oyuncu sayfasına giden TEK bağlantı (bu sezonun maç, dakika, gol, asist ve kart sayıları)
   const ad = [o.ad, o.forma_no != null ? `forma numarası ${o.forma_no}` : null, durum ? SAKATLIK_ETIKETI[durum] || durum : null].filter(Boolean).join(', ');
-  return h('li', null, h('a', { class: 'oyuncu-kart', href: 'oyuncu.html?id=' + encodeURIComponent(o.id), 'data-oyuncu-id': o.id, 'aria-label': `${ad}: oyuncu sayfası` },
+  // Kartın aria-label'ı içeriği gölgeler: atıf (görünürde tek satır, kısaltılmış) ekran okuyucuya açıklama olarak tam gider
+  const atifId = atif ? 'atif-' + o.id : null;
+  return h('li', null, h('a', { class: 'oyuncu-kart', href: 'oyuncu.html?id=' + encodeURIComponent(o.id), 'data-oyuncu-id': o.id, 'aria-label': `${ad}: oyuncu sayfası`, 'aria-describedby': atifId },
     durum ? h('span', { class: 'oyuncu-isaret durum-cip ' + durum }, SAKATLIK_ETIKETI[durum] || durum) : null,
     h('div', { class: 'oyuncu-gorsel gunes-motif', 'aria-hidden': k ? null : 'true' },
       k ? kapakGorseli(k, { width: '320', height: '240', loading: 'lazy' }) : h('span', { class: 'no' }, o.forma_no ?? '–')),
     h('div', { class: 'oyuncu-govde' },
       h('span', { class: 'ad' }, o.ad),
-      o.forma_no != null ? h('span', { class: k ? 'mevki' : 'gorunmez' }, h('span', { class: 'gorunmez' }, 'Forma numarası '), k ? 'No ' : '', String(o.forma_no)) : null)));
+      o.forma_no != null ? h('span', { class: k ? 'mevki' : 'gorunmez' }, h('span', { class: 'gorunmez' }, 'Forma numarası '), k ? 'No ' : '', String(o.forma_no)) : null,
+      // Özgür lisanslı fotoğrafta (CC BY / BY-SA) atıf her gösterimde zorunlu (assets/foto-kaynaklari.js)
+      atif ? h('span', { class: 'kart-atif', id: atifId, title: atif }, atif) : null)));
 }
 
 function kadroCiz(oyuncular, sakatliklar) {

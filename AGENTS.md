@@ -11,7 +11,7 @@ Bu dosya bu depoda çalışan yapay zekâ ajanları ve geliştiriciler içindir.
 - Tek supabase istemcisi: `assets/istemci.js` (`import { supabase } from './istemci.js'`). Reklam modülü de bunu kullanır.
 - Migration'lar: `supabase/migrations/NNN_ad.sql`, sırayla: `001_temel_sema` → `002_depolama` → `010_reklamlar` → `011_denetim_duzeltmeleri` → `012_denetim_2` → `013_tasarim` → `014_inceleme_2` → `015_son_tur` → `016_mac_ozeti` → `017_yanit_profil_foto` → `018_gol_ani_asist` → `019_piyasa_rakip_gol` → `020_mac_gunu` → `021_bildirim` → `022_bildirim_vault`. Örnek veri: `supabase/seed.sql`. Uygulanmış dosyalar (001/002/010/011/012/013/014/015/016/017) yeniden yazılmaz: değişiklik = yeni migration. 013 yeniden çalıştırılabilir; testler 010/012'yi yeniden uygular, bu yüzden 013 onların fonksiyonlarının dönüş tipini değiştirmez (yalnız `aktif_reklam`'ı drop/create eder ve 012'den sonra uygulanır). 014 de yeniden çalıştırılabilir; yeniden tanımladığı fonksiyonların gövdesinde `sürüm 014` işareti var ve test (20_rls_testleri.sql, reklam/sql.test.mjs) en son sürümün kurulu olduğunu denetler.
 - Saf kurallar (JS = SQL aynası): `assets/kurallar.js` (kullanıcı adı ayrılmış mı, haber kapağı adresi, yorum sınırları, `sezonAdi` Temmuz–Haziran, `SAKATLIK_DURUMLARI`, `sakatlikHatalari`) ↔ `012_denetim_2.sql` + `013_tasarim.sql`; ortak örnekler `testler/kurallar-ornekleri.json`. Reklam kuralları: `assets/reklam/reklam-mantik.js` ↔ `010`/`012`.
-- Görsel yükleme: `assets/gorsel-kucult.js` (yüklemeden önce canvas ile küçült + WebP). Haber/gol kapağı ve oyuncu fotoğrafı: `<uuid>-1600/-800/-480.webp` üç kopya (`kapakKaynagi()` `-1600.webp`'den srcset kurar; sitenin kendi `assets/img/` fotoğraflarında kopya genişlikleri `foto-kaynaklari.js` `genislikler`'den: olmayan dosya istenmez). `kapakKaynagi(url, { kutu })` `sizes`'ı etkin DPR ≤ 2 ile hesaplar; depodaki kapaklar `crossorigin="anonymous"`; `<img>`'i `kapakGorseli()` kurar (kırık görselde yer tutucu). Reklam: 1200 kutu + `-k.webp` küçük kopya (480 / kare 192).
+- Görsel yükleme: `assets/gorsel-kucult.js` (yüklemeden önce canvas ile küçült + WebP). Haber/gol kapağı ve oyuncu fotoğrafı: `<uuid>-1600/-800/-480.webp` üç kopya (`kapakKaynagi()` `-1600.webp`'den srcset kurar; sitenin kendi `assets/img/` fotoğraflarında kopya genişlikleri `foto-kaynaklari.js` `genislikler`'den: olmayan dosya istenmez). `kapakKaynagi(url, { kutu })` `sizes`'ı etkin DPR ≤ 2 ile hesaplar; depodaki kapaklar `crossorigin="anonymous"`; `<img>`'i `kapakGorseli()` kurar (kırık görselde yer tutucu). 021: kapaksız / kırık görselin yer tutucusu `ortak.js kapakYerTutucu(sinif)`: açık zeminde (`--amblem-zemin`, koyu temada da açık) ortalı resmî amblem (`AMBLEM_DOSYASI`; span.kapak-yok.kapak-amblem > img.amblem-isaret, kutu yüksekliğinin %58'i, büyük oynatıcıda %52); ayar null ya da amblem açılmazsa eski desen. Video kartında ve gol videosunda oynat düğmesi yer tutucuda sol alta küçülür (amblemin üstüne binmez), karartma perdesi kapalı. Kapaksız haber sayfası da 16:9 yer tutucu gösterir. Reklam: 1200 kutu + `-k.webp` küçük kopya (480 / kare 192).
 - Yayın: `node araclar/yayin-hazirla.js` → `yayin/` (yalnız HTML + `assets/` + `_headers` + `robots.txt` + `.nojekyll` + `sw.js` + `manifest.webmanifest`; geliştirici klasörü girerse durur; `ayar.js`'te yer tutucu kaldıysa **çıkış 1** (bilerek taslak: `YAYIN_TASLAK=1`; testler bunu kullanır); gerçek SUPABASE_URL varsa sayfalara `preconnect` ekler: kaynak HTML'de yok, tek ayar kuralı). Yalnız `yayin/` kopyasında: meta CSP `_headers`'a taşınır ve `*.supabase.co` proje adresine daraltılır, iç bağlantılar uzantısız olur (`goller.html` → `goller`, `index.html` → `./`; Cloudflare 308'i yok), `sw.js`'te `SURUM` içerik özeti ve `DOSYALAR` bütün kabuk. Paylaşım görseli: `node araclar/og-olustur.js` → `assets/img/og-1200x630.png`. Ana ekran simgeleri: `node araclar/simge-olustur.js` → `assets/logo/simge-*.png`, `apple-touch-icon-180.png`.
 - Yazı tipleri sitede: **3 dosya** `assets/fonts/oswald-700-tr.woff2`, `source-sans-3-400-tr.woff2`, `source-sans-3-700-tr.woff2` (latin + Türkçe alt küme, toplam ~37 KB, SIL OFL). `@font-face` `stil.css` başında, `font-display: optional` + metrik eşlenmiş yedek yüzler (`Oswald Yedek`, `Source Sans Yedek`). Yalnız Oswald 700 ve Source Sans 400 `<link rel=preload>` (kalın gövde preload edilmez: 3. tur performans 1; en çok 3 dosya / 60 KB; test denetler). Dış font isteği yok. "→" alt kümede yok (sistem yazı tipine düşer).
 - Service worker `sw.js` (kök): kabuk + son herkese açık veri; auth, rpc, POST, yönetim ve YouTube asla önbelleğe alınmaz; opak yanıt saklanmaz; localhost ve `?sahte=1`'de kaydedilmez (`ortak.js swKaydet`). Sürüm `SURUM`: depoda `'gelistirme'` (sayfa ağdan), yayında içerik özeti (sayfa + JS aynı sürümün önbelleğinden: atomik). Kurulum `cache: 'no-cache'` (fonts/vendor/logo varsayılan önbellek); güncellemede bir önceki kabuk bir sürüm daha kalır ve etkinleşme anında açık sekmeler (`surum-meta`) dosyalarını ondan alır (karışık sürüm yok; test eder); sayfa anahtarı uzantısız/sorgusuz (Cloudflare 308'e dayanıklı; test 308 yapan sunucuyla çevrimdışı dener); veri 40, görsel 60 kayıtla sınırlı.
@@ -24,7 +24,8 @@ Bu dosya bu depoda çalışan yapay zekâ ajanları ve geliştiriciler içindir.
 index.html        ana sayfa: hero (MAÇ GÜNÜ / maçtan sonraki 36 saat MAÇ SONU skoru / manşet / en yeni haber) → 019: ikili maç kartı
                   (#mac-ikili: #ikili-son "Son maç" skor + G/B/M | #ikili-siradaki "Sıradaki" gün, saat, geri sayım; hero aynı maçı
                   gösteriyorsa "Önceki maç" / "Sonraki") → Son dakika akışı (sayfalı, sponsor kartları; son 24 saatteki haberde .yeni-rozet
-                  "Yeni", hero'da da) → "Gol arşivinden" şeridi → "Kim yok?" kutusu. Eski "Sıradaki:" şeridi ve büyük sıradaki maç kartı YOK
+                  "Yeni", hero'da da) → mini puan durumu → "Kim yok?" kutusu. Eski "Sıradaki:" şeridi, büyük sıradaki maç kartı ve
+                  (021) "Gol arşivinden" şeridi YOK (alt menüde Gol Arşivi var; ana sayfa gol sorgusu ve gol-kart.js yüklemez)
 goller.html       gol arşivi: Sezon (Temmuz–Haziran, "2026-27") ve Rakip filtreleri (fieldset/legend + radyo, ?sezon=&rakip=&ac=); 018: her maç
                   TEK satır, açılır düğme (h2 > button.mac-ac aria-expanded + aria-controls="goller-<id>"): "N. Hafta · Ev – Dep skor" + küçük
                   tarih; açılınca goller dakika sırasıyla a.gol-satir.gol-ani "59' Ad · Asist: X ▶" → gol.html?id=; golsüz maç yok, "Özeti izle" yok
@@ -70,7 +71,8 @@ assets/
                     yapışkan çubuk scroll-padding (.filtreler / .sekme-yapiskan / .skor-cubugu), üst barı kaydırınca gizle
                     (ustBarIzle → html.ust-gizli, eşik UST_ESIK 8 px), alt menüde açık sekmeye dokununca başa kay + odak #icerik
                     (altMenuIzle), SW), duyur()/uyar() (kalıcı #durum / #uyari), videoFasad(), kapakKaynagi(),
-                    fotoAtfi(), cevrimdisiKutusu(), hata metinleri ("sen" dili)
+                    fotoAtfi(), cevrimdisiKutusu(), hata metinleri ("sen" dili); 022: belirmeIzle() (kaydırdıkça belirme, sayarak
+                    gelen sayılar, yönlü sekme geçişi, haber başlığı paylaşılan geçiş; reduce'da hiçbir şey yapmaz; docs/TASARIM.md 9.13)
   tema.js           tema: head'de defer'siz; Profil'deki input[name=tema] radyolarını bağlar (data-theme + localStorage 'tema');
                     pagereveal'da sayfa geçişi yönü (view transition türü "ileri" / "geri"; modülde olmaz, ilk çizimden önce gelir)
   onbellek.js       son görülen herkese açık veri (localStorage son-veri-v1)
@@ -349,7 +351,7 @@ Yuvalar boştur; kendi dolgusu, kenarlığı, min-height'ı yoktur. Reklam yoksa
   `ortak.js` `begeniSayilariniYaz` (akış / gol arşivi, tek RPC), `hareketAzalt`, `rakamDegistir`. mac.html Özet: `#ozet-tahmin` (en üstte;
   yeri iskeletle ayrılır), `#ozet-oylama`, `#ozet-tahmin-sonuc`, `#ozet-dizilis`, `#ozet-paket`, `#ozet-form` (başlamış maçta gollerin
   ALTINDA). Takım: 4. sekme `#puan` (ilk açılışta yüklenir). Ana sayfa: ikili kartın altında form, hero'da "Skor tahminin?" /
-  "Maçın oyuncusunu seç" çağrısı, gol şeridinin altında mini puan tablosu (`#puan-bolumu`). Sekmelerde kayan gösterge `.kayan-gosterge`.
+  "Maçın oyuncusunu seç" çağrısı, akışın altında mini puan tablosu (`#puan-bolumu`). Sekmelerde kayan gösterge `.kayan-gosterge`.
   Panel: maç formunda hakem / yayın / diziliş / kaynak / "İlk 11 açıklandı"; kadroda "Sahadaki yeri" ve forma no; "Puan" sekmesi
   (yapıştır → önizle → sezonu değiştir; ekleme başarısızsa eski tablo geri yazılır; tek satır düzelt / sil).
 - Sahte istemci: yeni tablolar + RPC'ler, `ilike`; test kolu `localStorage.sahte_mac_gunu = '1'` (veri kurulmadan) → M6 3 saat önce
@@ -367,3 +369,11 @@ Yuvalar boştur; kendi dolgusu, kenarlığı, min-height'ı yoktur. Reklam yoksa
 - Edge Function `supabase/functions/bildirim-gonder/` (`index.ts` + saf `mantik.js`, test `testler/bildirim.test.mjs`), `verify_jwt = false`:
   yetki `x-bildirim-anahtari` başlığı (sabit süreli karşılaştırma). Ön yüz `assets/bildirim.js` (Profil › Bildirimler), `sw.js` push.
   Kurulum ve deneme: README "Bildirimler". Canlıda (6 Kasım 2026) pg_cron + pg_net açık, 020-022 uygulanmış, fonksiyon dağıtılmış.
+
+## 022 (ön yüz): belirgin hareketler
+- `docs/TASARIM.md` 9.13 (her hareket: tetik, süre, eğri, reduce). Belirteçler `stil.css` `:root` (`--sure-belir`, `--sure-gecis`, `--sure-sekme`,
+  `--sure-sayma`, `--egri-gecis`…), kurallar 34. bölüm. JS yalnız `ortak.js belirmeIzle()` (sayfaBaslat; seçiciler `BELIR` / `SAY`); saf
+  `kurallar.js sayarakMetin / sayilabilir`. Hero başlığı `.hero-baslik-ic` iç kutusuyla kayar (h1 dönüşmez: bağlantı alanı / CLS).
+  `.oynat` ortalaması `translate` (transform değil: ölçek animasyonuyla birleşir). Yeni listeye belirme = `BELIR`e seçici; testte
+  geometri ölçülecekse önce `.belir` animasyonları `finish()` edilir. Kadro kartı fotoğraf atfı `.kart-atif` (tek satır, `title` +
+  `aria-describedby`).

@@ -85,7 +85,11 @@ y013=[("Açık","alt menü edilgin / zemin","#5C5A57","#FFFFFF",4.5),("Açık","
 ("Koyu","mevki kenarı kaleci / yüzey (UI ≥3)","#E3BE55","#161618",3.0),("Koyu","mevki kenarı defans / yüzey (UI ≥3)","#4CC074","#161618",3.0),
 ("Koyu","mevki kenarı orta saha / yüzey (UI ≥3)","#74747E","#161618",3.0),("Koyu","mevki kenarı forvet / yüzey (UI ≥3)","#FF6B66","#161618",3.0),
 ("Açık","oran çubuğu (vurgu) / çubuk izi (UI ≥3)","#CC0000","#ECE8E1",3.0),("Koyu","oran çubuğu (vurgu) / çubuk izi (UI ≥3)","#FF6B66","#202024",3.0),
-("Açık","beğeni sayısı (benim): koyu kırmızı / zemin","#A80000","#FFFFFF",4.5),("Koyu","beğeni sayısı (benim): --vurgu-guclu / zemin","#FF8A85","#0B0B0B",4.5)]
+("Açık","beğeni sayısı (benim): koyu kırmızı / zemin","#A80000","#FFFFFF",4.5),("Koyu","beğeni sayısı (benim): --vurgu-guclu / zemin","#FF8A85","#0B0B0B",4.5),
+# 021: kapak yer tutucusu (amblem zemini açıkta #FFFFFF, koyuda #EEECE8): "Oynat" yazısı, oynat düğmesi ve dakika rozeti (UI ≥3)
+("Açık","yer tutucu Oynat yazısı / amblem zemini","#141414","#FFFFFF",4.5),("Koyu","yer tutucu Oynat yazısı / amblem zemini","#141414","#EEECE8",4.5),
+("Açık","yer tutucu oynat düğmesi / amblem zemini (UI ≥3)","#CC0000","#FFFFFF",3.0),("Koyu","yer tutucu oynat düğmesi / amblem zemini (UI ≥3)","#CC0000","#EEECE8",3.0),
+("Koyu","yer tutucu dakika rozeti / amblem zemini (UI ≥3)","#0B0B0B","#EEECE8",3.0)]
 bad013=0
 print("\n**013 çiftleri**\n\n| Tema | Kullanım | Ön plan | Arka plan | Oran | Eşik | Sonuç |\n|---|---|---|---|---|---|---|")
 for m,r,a,b,need in y013:

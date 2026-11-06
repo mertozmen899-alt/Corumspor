@@ -53,3 +53,41 @@ panelden haber kapağı olarak yüklenir. Stadyum inşaat fotoğrafı (2018) her
   Kaynak: https://commons.wikimedia.org/wiki/File:%C3%87orum_View_in_town_3428.jpg
   Lisans: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/deed.tr)
   Yapılan değişiklik: Yeniden boyutlandırıldı.
+
+Oyuncu fotoğrafları (oyuncu-*.webp, 6 Kasım 2026): Wikidata/Commons'ta özgür lisanslı olanlar; yüz kare kırpıldı. Oyuncunun
+eski kulübünün formasıyla çekilmiştir (formadaki arma tesadüfidir, kırpımda kenarda kalır). Atıf kadro kartında da yazar.
+- oyuncu-caglar-soyuncu-*.webp
+  Fotoğraf: Zafer, CC BY-SA 4.0, Wikimedia Commons
+  Kaynak: https://commons.wikimedia.org/wiki/File:%C3%87a%C4%9Flar_S%C3%B6y%C3%BCnc%C3%BC_4_Fenerbah%C3%A7e_20260805_(1)_(cropped).JPG
+  Lisans: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/deed.tr)
+  Yapılan değişiklik: Yüz kare kırpıldı, yeniden boyutlandırıldı.
+- oyuncu-cengiz-under-*.webp
+  Fotoğraf: Антон Зайцев, CC BY-SA 3.0, Wikimedia Commons
+  Kaynak: https://commons.wikimedia.org/wiki/File:Cengiz_%C3%9Cnder_2018.jpg
+  Lisans: CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0/deed.tr)
+  Yapılan değişiklik: Yüz kare kırpıldı, yeniden boyutlandırıldı.
+- oyuncu-fredy-*.webp
+  Fotoğraf: Antalyaspor A.Ş., CC BY 2.0, Wikimedia Commons
+  Kaynak: https://commons.wikimedia.org/wiki/File:Fredy_at_Antalyaspor_vs_Alanyaspor_20211127_(2)_(cropped).jpg
+  Lisans: CC BY 2.0 (https://creativecommons.org/licenses/by/2.0/deed.tr)
+  Yapılan değişiklik: Yüz kare kırpıldı, yeniden boyutlandırıldı.
+- oyuncu-goktan-gurpuz-*.webp
+  Fotoğraf: Sandro Halank, CC BY-SA 4.0, Wikimedia Commons
+  Kaynak: https://commons.wikimedia.org/wiki/File:2022-11-11_Borussia_Dortund_II_gegen_FC_Erzgebirge_Aue_(3._Liga_2022-23)_by_Sandro_Halank%E2%80%93074.jpg
+  Lisans: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/deed.tr)
+  Yapılan değişiklik: Yüz kare kırpıldı, yeniden boyutlandırıldı.
+- oyuncu-ermin-mahmic-*.webp
+  Fotoğraf: Werner100359, CC BY-SA 4.0, Wikimedia Commons
+  Kaynak: https://commons.wikimedia.org/wiki/File:FC_Liefering_gegen_SV_Lafnitz_(2024-05-25)_25_(Ermin_Mahmi%C4%87).jpg
+  Lisans: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/deed.tr)
+  Yapılan değişiklik: Yüz kare kırpıldı, yeniden boyutlandırıldı.
+- oyuncu-youssoufa-moukoko-*.webp
+  Fotoğraf: Sandro Halank, CC BY-SA 4.0, Wikimedia Commons
+  Kaynak: https://commons.wikimedia.org/wiki/File:2023-08-12_TSV_Schott_Mainz_gegen_Borussia_Dortmund_(DFB-Pokal_2023-24)_by_Sandro_Halank%E2%80%93066.jpg
+  Lisans: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/deed.tr)
+  Yapılan değişiklik: Yüz kare kırpıldı, yeniden boyutlandırıldı.
+- oyuncu-alexandre-penetra-*.webp
+  Fotoğraf: Carlo Bruil Fotografie, CC BY 2.0, Wikimedia Commons
+  Kaynak: https://commons.wikimedia.org/wiki/File:Alexandre_Penetra_(cropped).jpg
+  Lisans: CC BY 2.0 (https://creativecommons.org/licenses/by/2.0/deed.tr)
+  Yapılan değişiklik: Yüz kare kırpıldı, 420 pikselden 480'e büyütüldü.

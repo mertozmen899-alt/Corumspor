@@ -591,3 +591,25 @@ test('maç günü (020): puan durumu (Çorum FK satırı, çevresi, yapıştır�
   assert.deepEqual(r.satirlar.map((s) => `${s.sira}.${s.takim}:${s.oynanan}/${s.atilan}-${s.yenen}/${s.puan}`), ['1.Örnekköy Spor:10/19-7/23', '2.Çorum FK:10/16-12/17']);
   assert.equal(r.hatalar.length, 2);
 });
+
+test('hareket (022): sayarak gelen sayılar (sayarakMetin / sayilabilir)', () => {
+  const skor = `3 – 1`;
+  assert.equal(K.sayarakMetin(skor, 0), `0 – 0`);
+  assert.equal(K.sayarakMetin(skor, 0.5), `2 – 1`);
+  assert.equal(K.sayarakMetin(skor, 1), skor);
+  assert.equal(K.sayarakMetin('17', 2), '17');
+  assert.equal(K.sayarakMetin('%45', -1), '%0');
+  assert.equal(K.sayarakMetin(null, 0.3), '');
+  assert.ok(K.sayilabilir(skor) && K.sayilabilir('17') && K.sayilabilir(' %45 '));
+  // Hareket kuralları yalnız prefers-reduced-motion: no-preference içinde (reduce'da öğe doğrudan son hâlinde)
+  const css = readFileSync(path.join(KOK, 'assets', 'stil.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  for (const sec of ['.belir { animation', '.ilk-acilis .ust-bar > * {', '.sekme-sagdan {', '.hero-geldi .hero-baslik-ic {', 'animation-timeline: scroll(root block); animation-range']) {
+    const i = css.indexOf(sec);
+    assert.ok(i > 0, sec);
+    const once = css.slice(0, i);
+    assert.match(once.slice(once.lastIndexOf('@media')), /^@media \(prefers-reduced-motion: no-preference\)/, sec);
+  }
+  const ortak = readFileSync(path.join(KOK, 'assets', 'ortak.js'), 'utf8');
+  assert.match(ortak, /export function belirmeIzle\(kok = document\.body\) \{\r?\n\s+if \(!kok \|\| hareketAzalt\(\)/, 'hareket azaltmada belirmeIzle hiçbir şey yapmaz');
+  assert.ok(!K.sayilabilir('0 – 0') && !K.sayilabilir('5 g 15 sa') && !K.sayilabilir('3,00 Mn €') && !K.sayilabilir('') && !K.sayilabilir('16:00'));
+});

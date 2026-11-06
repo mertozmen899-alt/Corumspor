@@ -1,7 +1,7 @@
 // Gol ayrıntısı (gol.html?id=): video (kapak + oynat; iframe/video YALNIZ dokununca), "Video: <kaynak>" (hak sahibi),
 // golün anlatımı, maç bağlantısı, Paylaş (telefonun menüsü ya da WhatsApp), bu maçın diğer golleri, taraftar yorumları
 // (yorumlar.js, gol_id). DOM'da h1 videodan ÖNCE (başlıkla gezen video düğmesini atlamasın); görsel sırada video üstte (CSS order).
-// Önce son görülen kayıt (onbellek.js: bu gol daha önce açıldıysa, yoksa ana sayfa / gol arşivi listesindeki satırı) ANINDA çizilir
+// Önce son görülen kayıt (onbellek.js: bu gol daha önce açıldıysa, yoksa gol arşivi listesindeki satırı) ANINDA çizilir
 // (data-durum="onbellek"; video kapağı ağ sorgusunu beklemeden iner, fetchpriority=high: performans 3. tur 2), sonra ağdan tazelenir.
 // 019: YouTube gol anında oynatma başlayınca videonun altında "Golü tekrar izle" (iframe aynı start/end ile yeniden kurulur; YouTube'un
 // kendi tekrar düğmesi videoyu 0:00'dan başlatıyordu).
@@ -66,15 +66,12 @@ function golCiz(gol, { kismi = false } = {}) {
   if (video && video === onceki && oncekiTekrar) video.after(oncekiTekrar);
 }
 
-/** Son görülen kayıt: bu gol daha önce açıldıysa, yoksa ana sayfa şeridi ya da gol arşivi listesindeki satır. */
+/** Son görülen kayıt: bu gol daha önce açıldıysa, yoksa gol arşivi listesindeki satır. */
 function onbellektenCiz() {
   const tam = sonKayit('gol', id);
   if (tam) { golCiz(tam); kok.dataset.durum = 'onbellek'; return; }
-  const ana = sonVeri('ana'), arsiv = sonVeri('goller');
-  const adaylar = [
-    ...((ana && ana.veri && Array.isArray(ana.veri.goller)) ? ana.veri.goller : []),
-    ...((arsiv && Array.isArray(arsiv.veri)) ? arsiv.veri.flatMap((m) => (m.goller || []).map((g) => ({ ...g, maclar: { ...m, goller: undefined } }))) : []),
-  ];
+  const arsiv = sonVeri('goller');
+  const adaylar = (arsiv && Array.isArray(arsiv.veri)) ? arsiv.veri.flatMap((m) => (m.goller || []).map((g) => ({ ...g, maclar: { ...m, goller: undefined } }))) : [];
   const satir = adaylar.find((g) => g && g.id === id);
   if (!satir) return;
   golCiz(satir, { kismi: true });

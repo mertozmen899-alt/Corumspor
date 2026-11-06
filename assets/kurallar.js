@@ -406,3 +406,16 @@ export function puanTablosuAyristir(metin) {
   });
   return { satirlar, hatalar };
 }
+
+/**
+ * 022: sayarak gelen sayılar (ortak.js belirmeIzle). Metindeki her tam sayıyı x (0..1) oranına indirir, gerisini (ayraç, %, boşluk)
+ * aynen bırakır: '3 – 1', 0.5 → '2 – 1' (yuvarlanır); x ≥ 1 metnin kendisi. Görünen kare içindir; ekran okuyucu gerçek metni okur.
+ */
+export function sayarakMetin(metin, x) {
+  const s = String(metin ?? '');
+  if (!(x < 1)) return s;
+  const o = Math.max(0, x);
+  return s.replace(/\d+/g, (n) => String(Math.round(Number(n) * o)));
+}
+/** Sayarak gelmeye uygun mu: yalnız rakam ve ayraçlar ('2 – 1', '17', '%45'), en az bir sıfırdan büyük sayı; harfli metin ('5 g 15 sa', '3,00 Mn €') değil. */
+export const sayilabilir = (metin) => /^[\d\s –—%+.-]+$/.test(String(metin ?? '').trim()) && /[1-9]/.test(String(metin));

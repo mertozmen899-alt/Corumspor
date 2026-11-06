@@ -1,4 +1,4 @@
-// Son görülen herkese açık veri (haber başlıkları, sıradaki maç, son goller, son açılan 3 haber ve 5 gol) tarayıcıda: sayfa önce bunu ANINDA çizer, sonra
+// Son görülen herkese açık veri (haber başlıkları, maçlar, gol arşivindeki son maçlar, son açılan 3 haber ve 5 gol) tarayıcıda: sayfa önce bunu ANINDA çizer, sonra
 // ağdan tazeler. İnternet yokken ya da stadyumda yavaşken ekran boş kalmaz ("son güncelleme" ile). Kişisel veri YOK.
 // Tek anahtar: localStorage 'son-veri-v1' (gizlilik.html tablosunda). En çok ~30 KB; sığmazsa eski kayıt silinir.
 import { sahteMod } from './istemci.js';

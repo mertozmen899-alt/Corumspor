@@ -1,8 +1,8 @@
-// Gol kartları (ana sayfa şeridi, gol arşivi, maç ve gol sayfası): her gol TEK bağlantı → gol.html?id=
+// Gol kartları (gol arşivi, maç ve gol sayfası): her gol TEK bağlantı → gol.html?id=
 // Videolu gol: 16:9 kapak (sitenin kendi görseli; YouTube küçük resmi İSTENMEZ), oynat simgesi, dakika ve süre rozeti.
 // Videosuz gol: kompakt satır. Bağlantının adı TEK cümle (aria-label): "Ali Örnek, 67. dakika · Kurgu Gençlik 1 – 1 Çorum FK,
 // 29 Ekim · Kafa golü · video 0:38" (rakip bir kez, başıboş virgül yok). Tarih her yerde aynı biçim: "29 Ekim".
-import { h, simge, OYNAT_YOLU, dakikaMetni, dakikaOkunus, sureMetni, kapakKaynagi, kapakGorseli, tarihYaz, evSahibiDeplasman, skorMetni, eslesmeOgeleri, youtubeKimlik, mp4Mu } from './ortak.js';
+import { h, simge, OYNAT_YOLU, dakikaMetni, dakikaOkunus, sureMetni, kapakKaynagi, kapakGorseli, kapakYerTutucu, tarihYaz, evSahibiDeplasman, skorMetni, eslesmeOgeleri, youtubeKimlik, mp4Mu } from './ortak.js';
 
 /** 018: gol anının süresi (sn): YouTube aralığı varsa onun uzunluğu, yoksa sure_sn. */
 export const golSuresi = (gol) => (Number.isInteger(gol.video_baslangic_sn) && Number.isInteger(gol.video_bitis_sn) && gol.video_bitis_sn > gol.video_baslangic_sn
@@ -29,7 +29,7 @@ function golAdi(gol, mac, { video, sure }) {
 
 /**
  * ops.ilk: ilk ekrandaki kart (eager + fetchpriority=high: gol arşivinde LCP görseli; performans 3. tur 2). ops.macSatiri: false ise maç satırı yazılmaz (gol arşivinde grup başlığı zaten maçı
- * söylüyor: tekrar yok). ops.kutu: kartın CSS genişliği (sizes; varsayılan şeritteki kart genişliği).
+ * söylüyor: tekrar yok). ops.kutu: kartın CSS genişliği (sizes; varsayılan yatay şeritteki kart genişliği).
  */
 export function golKarti(gol, mac, { ilk = false, macSatiri = true, kutu = null } = {}) {
   const href = 'gol.html?id=' + encodeURIComponent(gol.id);
@@ -45,7 +45,7 @@ export function golKarti(gol, mac, { ilk = false, macSatiri = true, kutu = null 
   return h('a', { class: 'video-kart', href, 'data-gol-id': gol.id, 'aria-label': golAdi(gol, mac, { video: true, sure }) },
     h('span', { class: 'kapak' },
       k ? kapakGorseli(k, { width: '480', height: '270', loading: ilk ? 'eager' : 'lazy', fetchpriority: ilk ? 'high' : null })
-        : h('span', { class: 'kapak-yok', 'aria-hidden': 'true' }),
+        : kapakYerTutucu(),
       h('span', { class: 'dakika-rozet', 'aria-hidden': 'true' }, dakikaMetni(gol)),
       h('span', { class: 'oynat', 'aria-hidden': 'true' }, simge(OYNAT_YOLU, { dolu: true })),
       sure ? h('span', { class: 'sure-rozet', 'aria-hidden': 'true' }, sure) : null),
