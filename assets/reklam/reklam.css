@@ -1,3 +1,6 @@
 /* Çorumspor reklam kartının stili, performans bütçesi gereği (render'ı bloklayan tek CSS) uygulamanın assets/stil.css
    dosyasındadır: "17. Reklam / sponsor kartı". Bu dosya, modülü sitenin dışında kullanacaklar için yer tutucudur;
-   uygulama sayfaları bunu YÜKLEMEZ. Kural: kart position static, z-index yok, kulüp kırmızısı ve Oswald yok. */
+   uygulama sayfaları bunu YÜKLEMEZ. Kural: kart position static, z-index yok, kulüp kırmızısı ve Oswald yok.
+   014 (başkan 1): maç alanındaki "Uygulama sponsoru · Çorum FK'nın sponsoru değildir" notu (.reklam-alt-etiket) başlık satırıyla
+   (.reklam-etiket) AYNI yazı boyunda ve AYNI renkte (tam kontrast) olmalı; küçük/gri not KULLANILMAZ. Akış kartı aside değil
+   div[role=group] (liste öğesinin içinde tamamlayıcı yer işareti olmaz). */

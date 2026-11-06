@@ -82,5 +82,14 @@
     ["https://abc.supabase.co/storage/v1/object/public/reklam-gorselleri/a b.png", false],
     ["https://abc.supabase.co/storage/v1/object/public/reklam-gorselleri/a\"onerror=x.png", false],
     ["", false]
+  ],
+  "firma_anahtari": [
+    ["Narçil Cafe", "narcil cafe"],
+    ["  NARÇIL   Cafe ", "narcil cafe"],
+    ["NARÇİL CAFE", "narcil cafe"],
+    ["narcıl\tcafe", "narcil cafe"],
+    ["Şükrü Usta Pide", "sukru usta pide"],
+    ["İskilip Sigorta", "iskilip sigorta"],
+    ["Kale Oto Galeri", "kale oto galeri"]
   ]
 }

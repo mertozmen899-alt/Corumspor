@@ -175,9 +175,9 @@ select test.hata_bekle('maç: "bitti" durumunda skor zorunlu',
 select test.esit('yönetici: skoru ve durumu güncelleyebilir',
   test.satir($q$update public.maclar set durum = 'bitti', corum_skor = 3, rakip_skor = 0 where id = '11111111-0000-4000-8000-000000000009'$q$)::text, '1');
 select test.esit('yönetici: gol ekleyebilir',
-  test.satir($q$insert into public.goller (id, mac_id, oyuncu, dakika, video_url) values ('22222222-0000-4000-8000-000000000009', '11111111-0000-4000-8000-000000000009', 'Test Golcü', 12, 'https://youtu.be/aqz-KE-bpKQ')$q$)::text, '1');
+  test.satir($q$insert into public.goller (id, mac_id, oyuncu, dakika, video_url, video_kaynak) values ('22222222-0000-4000-8000-000000000009', '11111111-0000-4000-8000-000000000009', 'Test Golcü', 12, 'https://youtu.be/aqz-KE-bpKQ', 'Kulübün resmî YouTube kanalı')$q$)::text, '1');
 select test.hata_bekle('gol: javascript: video adresi reddedilir',
-  $q$insert into public.goller (mac_id, oyuncu, dakika, video_url) values ('11111111-0000-4000-8000-000000000009', 'X Y', 5, 'javascript:alert(1)')$q$, 'check');
+  $q$insert into public.goller (mac_id, oyuncu, dakika, video_url, video_kaynak) values ('11111111-0000-4000-8000-000000000009', 'X Y', 5, 'javascript:alert(1)', 'Kaynak')$q$, 'check');
 select test.hata_bekle('gol: dakika 0 reddedilir',
   $q$insert into public.goller (mac_id, oyuncu, dakika) values ('11111111-0000-4000-8000-000000000009', 'X Y', 0)$q$, 'check');
 select test.esit('yönetici: gol düzenleyebilir',
@@ -262,7 +262,7 @@ select test.dogru('kullanıcı adı (012): ayrılmış adlar büyük/küçük ha
   and public.kullanici_adi_ayrilmis('resmi') and public.kullanici_adi_ayrilmis('resmî') and public.kullanici_adi_ayrilmis('kulup')
   and public.kullanici_adi_ayrilmis('Kulüp') and public.kullanici_adi_ayrilmis('destek') and public.kullanici_adi_ayrilmis('DESTEK.2'));
 select test.dogru('kullanıcı adı (012): sıradan adlar ayrılmış sayılmaz',
-  not (public.kullanici_adi_ayrilmis('ayse_19') or public.kullanici_adi_ayrilmis('emre') or public.kullanici_adi_ayrilmis('kirmizi_simsek')
+  not (public.kullanici_adi_ayrilmis('ayse_19') or public.kullanici_adi_ayrilmis('emre') or public.kullanici_adi_ayrilmis('tribun_editor')
        or public.kullanici_adi_ayrilmis('destekci_ali') or public.kullanici_adi_ayrilmis('corumlu')));
 
 -- ---------------------------------------------------------------- profiller: role sütunu herkese kapalı (012)
@@ -496,7 +496,7 @@ select test.hata_bekle('yönetici (013): kaynaksız sakatlık reddedilir',
 select test.hata_bekle('yönetici (013): kaynak bağlantısı https olmalı',
   $q$insert into public.sakatliklar (oyuncu_id, durum, kaynak, kaynak_url) values ('55555555-0000-4000-8000-000000000005', 'sakat', 'Kulüp', 'http://ornek.com')$q$, 'check');
 select test.hata_bekle('yönetici (013): açıklama en çok 200 karakter',
-  $q$insert into public.sakatliklar (oyuncu_id, durum, kaynak, aciklama) values ('55555555-0000-4000-8000-000000000005', 'sakat', 'Kulüp', repeat('x', 201))$q$, 'check');
+  $q$insert into public.sakatliklar (oyuncu_id, durum, kaynak, aciklama) values ('55555555-0000-4000-8000-000000000005', 'cezali', 'Kulüp', repeat('x', 201))$q$, 'check');
 select test.hata_bekle('yönetici (013): oyuncu fotoğrafı başka siteden olamaz',
   $q$insert into public.oyuncular (ad, mevki, foto_url) values ('Dış Foto', 'forvet', 'https://baska-site.com/a.jpg')$q$, 'oyuncular_foto_kaynagi');
 select test.hata_bekle('yönetici (013): gol kapağı başka siteden olamaz',
@@ -517,3 +517,255 @@ select test.hata_bekle('engellenen (013): kendi yasağını kaldıramaz',
 reset role;
 update public.profiles set engelli = false where id = 'bbbbbbbb-0000-4000-8000-000000000002';
 update public.haberler set manset = false where id = '33333333-0000-4000-8000-000000000001';
+
+-- ================================================================ 014: 2. tur inceleme (sunucu)
+select set_config('request.jwt.claim.sub', '', false);
+insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at) values
+  ('bbbbbbbb-0000-4000-8000-0000000000c1', 'deniz@ornek.test', '{"kullanici_adi":"deniz"}', now()),
+  ('bbbbbbbb-0000-4000-8000-0000000000c2', 'ece@ornek.test', '{"kullanici_adi":"ece"}', now()),
+  ('bbbbbbbb-0000-4000-8000-0000000000c3', 'fatma@ornek.test', '{"kullanici_adi":"fatma"}', now()),
+  ('bbbbbbbb-0000-4000-8000-0000000000c4', 'gul@ornek.test', '{"kullanici_adi":"Adm1n"}', now());
+select test.dogru('kayıt (014): rakamlı benzer ad "Adm1n" kullanılmaz, taraftar… adı verilir',
+  (select kullanici_adi ~ '^taraftar[0-9a-f]{6}' from public.profiles where id = 'bbbbbbbb-0000-4000-8000-0000000000c4'));
+select test.dogru('ayrılmış ad (014): rakam/simge benzerleri ve "kirmizisimsek" ayrılmış',
+  public.kullanici_adi_ayrilmis('Y0netici') and public.kullanici_adi_ayrilmis('Adm1n') and public.kullanici_adi_ayrilmis('C0rumFK_Resml')
+  and public.kullanici_adi_ayrilmis('Bask4n_Resm1') and public.kullanici_adi_ayrilmis('kirmizi_simsek') and public.kullanici_adi_ayrilmis('KIRMIZI.SIMSEK_19')
+  and public.kullanici_adi_ayrilmis('m0d') and public.kullanici_adi_ayrilmis('r00t') and public.kullanici_adi_ayrilmis('ku1up') and public.kullanici_adi_ayrilmis('5istem'));
+select test.dogru('ayrılmış ad (014): sıradan adlar yine serbest',
+  not (public.kullanici_adi_ayrilmis('ayse_19') or public.kullanici_adi_ayrilmis('tribun_editor') or public.kullanici_adi_ayrilmis('kral_10')
+       or public.kullanici_adi_ayrilmis('taraftar1a2b3c') or public.kullanici_adi_ayrilmis('baskentli') or public.kullanici_adi_ayrilmis('Çorumlu_Mert')));
+
+-- yasaklı hesap: yorumunu düzenleyemez, şikâyet edemez (denetçi 3)
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.esit('yönetici (014): burak yorumdan men edildi', test.satir($q$update public.profiles set engelli = true where id = 'bbbbbbbb-0000-4000-8000-000000000002'$q$)::text, '1');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000000002', false);
+set role authenticated;
+select test.hata_bekle('engellenen (014): kendi yorumunu düzenleyemez',
+  $q$update public.yorumlar set metin = 'hakaret eklenmiş metin' where metin = 'Ne gol ama!'$q$, 'düzenleyemezsin');
+select test.hata_bekle('engellenen (014): şikâyet edemez',
+  $q$insert into public.yorum_sikayetleri (yorum_id) select id from public.yorumlar where metin = 'Tribünler muhteşemdi.' or haber_id is not null limit 1$q$, 'şikâyet gönderemezsin|row-level security');
+select test.esit('engellenen (014): kendi yorumunu silebilir',
+  test.satir($q$delete from public.yorumlar where metin = 'Ne gol ama!'$q$)::text, '1');
+reset role;
+update public.profiles set engelli = false where id = 'bbbbbbbb-0000-4000-8000-000000000002';
+
+-- moderasyon: farklı 3 hesaptan şikâyet → kendiliğinden gizlenir (başkan 4)
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000c1', false);
+set role authenticated;
+select test.esit('moderasyon (014): deniz habere yorum yazar',
+  test.satir($q$insert into public.yorumlar (haber_id, metin) values ('33333333-0000-4000-8000-000000000001', 'Tartışmalı bir yorum')$q$)::text, '1');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000000002', false);
+set role authenticated;
+select test.esit('moderasyon (014): 1. şikâyet', test.satir($q$insert into public.yorum_sikayetleri (yorum_id, neden) select id, 'hakaret' from public.yorumlar where metin = 'Tartışmalı bir yorum'$q$)::text, '1');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.esit('moderasyon (014): 2. şikâyet', test.satir($q$insert into public.yorum_sikayetleri (yorum_id, neden) select id, 'spam' from public.yorumlar where metin = 'Tartışmalı bir yorum'$q$)::text, '1');
+reset role;
+select test.esit('moderasyon (014): 2 şikâyette yorum hâlâ görünür', (select gizli::text from public.yorumlar where metin = 'Tartışmalı bir yorum'), 'false');
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000c2', false);
+set role authenticated;
+select test.esit('moderasyon (014): 3. şikâyet (farklı hesap)', test.satir($q$insert into public.yorum_sikayetleri (yorum_id, neden) select id, 'hakaret' from public.yorumlar where metin = 'Tartışmalı bir yorum'$q$)::text, '1');
+select test.esit('moderasyon (014): 3 farklı hesaptan şikâyet alan yorum başkasına görünmez', (select count(*) from public.yorumlar where metin = 'Tartışmalı bir yorum')::text, '0');
+reset role;
+select test.esit('moderasyon (014): kendiliğinden gizlendi, nedeni "sikayet"',
+  (select gizli::text || ':' || gizleme_nedeni from public.yorumlar where metin = 'Tartışmalı bir yorum'), 'true:sikayet');
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000c1', false);
+set role authenticated;
+select test.esit('moderasyon (014): yazan kendi gizlenen yorumunu görür', (select count(*) from public.yorumlar where metin = 'Tartışmalı bir yorum')::text, '1');
+select test.hata_bekle('moderasyon (014): yazan gizlemeyi kaldıramaz', $q$update public.yorumlar set gizli = false where metin = 'Tartışmalı bir yorum'$q$, 'sadece metni');
+reset role;
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.esit('moderasyon (014): yönetici geri açar', test.satir($q$update public.yorumlar set gizli = false where metin = 'Tartışmalı bir yorum'$q$)::text, '1');
+reset role;
+select test.dogru('moderasyon (014): geri açınca moderasyon zamanı yazılır, neden boşalır',
+  (select not gizli and gizleme_nedeni is null and moderasyon_zamani is not null from public.yorumlar where metin = 'Tartışmalı bir yorum'));
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000c3', false);
+set role authenticated;
+select test.esit('moderasyon (014): yönetici kararından sonra tek yeni şikâyet gizlemez',
+  test.satir($q$insert into public.yorum_sikayetleri (yorum_id) select id from public.yorumlar where metin = 'Tartışmalı bir yorum'$q$)::text, '1');
+select test.esit('moderasyon (014): yönetici kararından sonra tek yeni şikâyet gizlemez (sonuç)', (select count(*) from public.yorumlar where metin = 'Tartışmalı bir yorum')::text, '1');
+reset role;
+
+-- moderasyon: kelime listesi → onay bekler
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.esit('kelime listesi (014): yönetici kelime ekler', test.satir($q$insert into public.yorum_kelimeleri (kelime) values ('SALAK')$q$)::text, '1');
+select test.esit('kelime listesi (014): kelime katlanmış saklanır', (select string_agg(kelime, ',') from public.yorum_kelimeleri), 'salak');
+select test.hata_bekle('kelime listesi (014): 3 harften kısa kelime eklenemez', $q$insert into public.yorum_kelimeleri (kelime) values ('am')$q$, 'check');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000c2', false);
+set role authenticated;
+select test.esit('kelime listesi (014): taraftar listeyi okuyamaz', (select count(*) from public.yorum_kelimeleri)::text, '0');
+select test.hata_bekle('kelime listesi (014): taraftar kelime ekleyemez', $q$insert into public.yorum_kelimeleri (kelime) values ('masum')$q$, 'row-level security');
+select test.hata_bekle('kelime listesi (014): taraftar onay fonksiyonunu çağıramaz (liste sorgulanamaz)',
+  $q$select public.yorum_onay_gerekli('salak', null, null)$q$, 'permission denied');
+select test.esit('kelime listesi (014): listedeki kelimeyle başlayan sözcük (rakam benzeriyle) onay bekler', test.satir($q$insert into public.yorumlar (mac_id, metin) values ('11111111-0000-4000-8000-000000000001', 'Bu ne SAL4KÇA pozisyon')$q$)::text, '1');
+select test.esit('kelime listesi (014): listedeki kelimeyle başlayan sözcük (rakam benzeriyle) onay bekler (sonuç)', (select onay_bekliyor::text from public.yorumlar where metin = 'Bu ne SAL4KÇA pozisyon'), 'true');
+select test.esit('kelime listesi (014): temiz yorum hemen yayında', test.satir($q$insert into public.yorumlar (mac_id, metin) values ('11111111-0000-4000-8000-000000000001', 'Harika bir galibiyet')$q$)::text, '1');
+select test.esit('kelime listesi (014): temiz yorum hemen yayında (sonuç)', (select onay_bekliyor::text from public.yorumlar where metin = 'Harika bir galibiyet'), 'false');
+select test.hata_bekle('moderasyon (014): taraftar kendi yorumunu onaylayamaz', $q$update public.yorumlar set onay_bekliyor = false where metin = 'Bu ne SAL4KÇA pozisyon'$q$, 'sadece metni');
+select test.esit('moderasyon (014): düzenlemede listedeki kelime eklenirse onay bekler', test.satir($q$update public.yorumlar set metin = 'Harika bir galibiyet, rakip salaktı' where metin = 'Harika bir galibiyet'$q$)::text, '1');
+select test.esit('moderasyon (014): düzenlemede listedeki kelime eklenirse onay bekler (sonuç)', (select onay_bekliyor::text from public.yorumlar where metin like 'Harika bir galibiyet,%'), 'true');
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+set role anon;
+select test.esit('moderasyon (014): onay bekleyen yorum ziyaretçiye görünmez',
+  (select count(*) from public.yorumlar where metin in ('Bu ne SAL4KÇA pozisyon', 'Harika bir galibiyet, rakip salaktı'))::text, '0');
+reset role;
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.esit('moderasyon (014): yönetici onay kuyruğunu görür ve onaylar',
+  (select count(*) from public.yorumlar where onay_bekliyor)::text || ':' ||
+  test.satir($q$update public.yorumlar set onay_bekliyor = false where metin = 'Bu ne SAL4KÇA pozisyon'$q$)::text, '2:1');
+select test.esit('moderasyon (014): yönetici yorumu da kelimeye takılmaz', test.satir($q$insert into public.yorumlar (mac_id, metin) values ('11111111-0000-4000-8000-000000000001', 'Yönetici: salak sözü yasak')$q$)::text, '1');
+select test.esit('moderasyon (014): yönetici yorumu da kelimeye takılmaz (sonuç)', (select onay_bekliyor::text from public.yorumlar where metin = 'Yönetici: salak sözü yasak'), 'false');
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+set role anon;
+select test.esit('moderasyon (014): onaylanan yorum herkese görünür', (select count(*) from public.yorumlar where metin = 'Bu ne SAL4KÇA pozisyon')::text, '1');
+reset role;
+
+-- moderasyon: maç başına ön onay penceresi (maçtan 2 saat önce → 24 saat sonra)
+insert into public.maclar (id, rakip, tarih, on_onay) values ('11111111-0000-4000-8000-0000000000aa', 'Ön Onay FK', now() + interval '1 hour', true);
+insert into public.goller (id, mac_id, oyuncu, dakika) values ('22222222-0000-4000-8000-0000000000aa', '11111111-0000-4000-8000-0000000000aa', 'Ali Örnek', 10);
+insert into public.maclar (id, rakip, tarih, on_onay) values ('11111111-0000-4000-8000-0000000000ab', 'Uzak Maç FK', now() + interval '3 day', true);
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000c3', false);
+set role authenticated;
+select test.esit('ön onay (014): pencere içindeki maça yorum onay bekler', test.satir($q$insert into public.yorumlar (mac_id, metin) values ('11111111-0000-4000-8000-0000000000aa', 'Haydi Çorum!')$q$)::text, '1');
+select test.esit('ön onay (014): pencere içindeki maça yorum onay bekler (sonuç)', (select onay_bekliyor::text from public.yorumlar where metin = 'Haydi Çorum!'), 'true');
+select test.esit('ön onay (014): o maçın golüne yorum da onay bekler', test.satir($q$insert into public.yorumlar (gol_id, metin) values ('22222222-0000-4000-8000-0000000000aa', 'Gol gol gol!')$q$)::text, '1');
+select test.esit('ön onay (014): o maçın golüne yorum da onay bekler (sonuç)', (select onay_bekliyor::text from public.yorumlar where metin = 'Gol gol gol!'), 'true');
+select test.esit('ön onay (014): pencere dışındaki maça yorum hemen yayında', test.satir($q$insert into public.yorumlar (mac_id, metin) values ('11111111-0000-4000-8000-0000000000ab', 'Üç gün kaldı')$q$)::text, '1');
+select test.esit('ön onay (014): pencere dışındaki maça yorum hemen yayında (sonuç)', (select onay_bekliyor::text from public.yorumlar where metin = 'Üç gün kaldı'), 'false');
+select test.esit('ön onay (014): yazan kendi bekleyen yorumunu görür', (select count(*) from public.yorumlar where metin in ('Haydi Çorum!', 'Gol gol gol!'))::text, '2');
+select test.esit('ön onay (014): taraftar maçın ön onay ayarını değiştiremez (0 satır)',
+  test.satir($q$update public.maclar set on_onay = false where id = '11111111-0000-4000-8000-0000000000aa'$q$)::text, '0');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-0000000000c2', false);
+set role authenticated;
+select test.esit('ön onay (014): başka taraftar bekleyen yorumu görmez', (select count(*) from public.yorumlar where metin in ('Haydi Çorum!', 'Gol gol gol!'))::text, '0');
+select test.esit('ön onay (014): bekleyen yorum şikâyet edilemez (görünmez, 0 satır)',
+  test.satir($q$insert into public.yorum_sikayetleri (yorum_id) select id from public.yorumlar where kullanici_id = 'bbbbbbbb-0000-4000-8000-0000000000c3' and onay_bekliyor limit 1$q$)::text, '0');
+reset role;
+delete from public.maclar where id in ('11111111-0000-4000-8000-0000000000aa', '11111111-0000-4000-8000-0000000000ab');
+delete from public.yorum_kelimeleri;
+
+-- yasaklı sektör onayı sunucuda (denetçi 2)
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.hata_bekle('sektör (014): onaysız reklam yayına alınamaz (API ile de)',
+  $q$insert into public.reklamlar (firma_adi, gorsel_url, kisa_metin, alan, baslangic, bitis, durum, sektor_onayi) values ('Bahis X', 'https://abcd.supabase.co/storage/v1/object/public/reklam-gorselleri/x.webp', 'Kupon', 'ana_akis', now() - interval '1 day', now() + interval '1 day', 'yayinda', false)$q$, 'yasaklı sektör');
+select test.esit('sektör (014): onaylı reklam yayına alınır, onay zamanı sunucuda yazılır', test.satir($q$insert into public.reklamlar (id, firma_adi, gorsel_url, kisa_metin, alan, baslangic, bitis, durum, sektor_onayi, sektor_onay_zamani) values ('77777777-0000-4000-8000-000000000001', 'Kale Oto', 'https://abcd.supabase.co/storage/v1/object/public/reklam-gorselleri/x.webp', 'Ekspertizli araçlar', 'ana_akis', now() - interval '1 day', now() + interval '1 day', 'yayinda', true, '2000-01-01')$q$)::text, '1');
+select test.esit('sektör (014): onaylı reklam yayına alınır, onay zamanı sunucuda yazılır (sonuç)', (select (sektor_onay_zamani > now() - interval '1 minute')::text from public.reklamlar where id = '77777777-0000-4000-8000-000000000001'), 'true');
+select test.esit('sektör (014): öncelik değişince onay kalır', test.satir($q$update public.reklamlar set oncelik = 5 where id = '77777777-0000-4000-8000-000000000001'$q$)::text, '1');
+select test.esit('sektör (014): öncelik değişince onay kalır (sonuç)', (select sektor_onayi::text from public.reklamlar where id = '77777777-0000-4000-8000-000000000001'), 'true');
+select test.hata_bekle('sektör (014): yayındaki reklamın bağlantısı değişince yeniden onay istenir',
+  $q$update public.reklamlar set baglanti_url = 'https://bahis-ornek.com' where id = '77777777-0000-4000-8000-000000000001'$q$, 'yeniden');
+select test.hata_bekle('sektör (014): metin değişince de', $q$update public.reklamlar set kisa_metin = 'Yeni metin' where id = '77777777-0000-4000-8000-000000000001'$q$, 'yasaklı sektör');
+select test.hata_bekle('sektör (014): görsel değişince de', $q$update public.reklamlar set gorsel_url = 'https://abcd.supabase.co/storage/v1/object/public/reklam-gorselleri/y.webp' where id = '77777777-0000-4000-8000-000000000001'$q$, 'yasaklı sektör');
+select test.hata_bekle('sektör (014): firma değişince de', $q$update public.reklamlar set firma_adi = 'Başka Firma' where id = '77777777-0000-4000-8000-000000000001'$q$, 'yasaklı sektör');
+select test.esit('sektör (014): duraklatarak değiştirilirse onay sıfırlanır', test.satir($q$update public.reklamlar set kisa_metin = 'Yeni metin', durum = 'duraklatildi' where id = '77777777-0000-4000-8000-000000000001'$q$)::text, '1');
+select test.esit('sektör (014): duraklatarak değiştirilirse onay sıfırlanır (sonuç)', (select sektor_onayi::text || ':' || coalesce(sektor_onay_zamani::text, 'yok') from public.reklamlar where id = '77777777-0000-4000-8000-000000000001'), 'false:yok');
+select test.hata_bekle('sektör (014): onay sıfırken yeniden yayına alınamaz', $q$update public.reklamlar set durum = 'yayinda' where id = '77777777-0000-4000-8000-000000000001'$q$, 'yasaklı sektör');
+select test.esit('sektör (014): yeniden onaylayınca yayına alınır', test.satir($q$update public.reklamlar set durum = 'yayinda', sektor_onayi = true where id = '77777777-0000-4000-8000-000000000001'$q$)::text, '1');
+select test.esit('sektör (014): içerikle birlikte açıkça yeniden onay (onay zamanı değişir) kabul edilir',
+  test.satir($q$update public.reklamlar set kisa_metin = 'Takas ve kredi', sektor_onay_zamani = now() - interval '5 day' where id = '77777777-0000-4000-8000-000000000001'$q$)::text, '1');
+select test.esit('sektör (014): yeniden onaylayınca yayına alınır (sonuç)', (select sektor_onayi::text || ':' || (sektor_onay_zamani > now() - interval '1 minute')::text from public.reklamlar where id = '77777777-0000-4000-8000-000000000001'), 'true:true');
+select test.esit('firma anahtarı (014): Türkçe küçük harf, ı/i ve boşluk farkı yok',
+  public.firma_anahtari('  NARÇIL   Cafe ') || '|' || public.firma_anahtari('Narçil cafe') || '|' || public.firma_anahtari(E'narcil\tCAFE'), 'narcil cafe|narcil cafe|narcil cafe');
+delete from public.reklamlar where id = '77777777-0000-4000-8000-000000000001';
+
+-- haber: kaynak, düzeltme, kapak alt metni (başkan 3)
+select test.hata_bekle('haber (014): kaynak bağlantısı yalnız https',
+  $q$insert into public.haberler (baslik, kaynak, kaynak_url) values ('Transfer', 'Kulüp', 'http://ornek.com/x')$q$, 'haberler_kaynak_url');
+select test.hata_bekle('haber (014): düzeltme notu en çok 500 karakter',
+  $q$insert into public.haberler (baslik, duzeltme_notu) values ('Uzun düzeltme', repeat('x', 501))$q$, 'haberler_duzeltme_notu');
+select test.esit('haber (014): kaynak ve düzeltme notu; düzeltme tarihi sunucuda', test.satir($q$insert into public.haberler (id, baslik, kaynak, kaynak_url, duzeltme_notu, kapak_alt, yayinda) values ('33333333-0000-4000-8000-0000000000aa', 'Kadro açıklandı', ' Kulüp açıklaması ', 'https://corumfk.com.tr/kadro', 'Forvetin adı düzeltildi.', 'Skor tabelası: 2-1', true)$q$)::text, '1');
+select test.esit('haber (014): kaynak ve düzeltme notu; düzeltme tarihi sunucuda (sonuç)', (select kaynak || ':' || (duzeltme_tarihi is not null)::text from public.haberler where id = '33333333-0000-4000-8000-0000000000aa'), 'Kulüp açıklaması:true');
+reset role;
+create temp table duzeltme_once as select duzeltme_tarihi as t from public.haberler where id = '33333333-0000-4000-8000-0000000000aa';
+select pg_sleep(0.01);
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.esit('haber (014): başka alan değişince düzeltme tarihi aynı kalır', test.satir($q$update public.haberler set ozet = 'Özet' where id = '33333333-0000-4000-8000-0000000000aa'$q$)::text, '1');
+reset role;
+select test.dogru('haber (014): başka alan değişince düzeltme tarihi aynı kalır (sonuç)',
+  (select h.duzeltme_tarihi = d.t from public.haberler h, duzeltme_once d where h.id = '33333333-0000-4000-8000-0000000000aa'));
+select test.esit('haber (014): düzeltme notu değişince tarih yenilenir',
+  test.satir($q$update public.haberler set duzeltme_notu = 'İkinci düzeltme.' where id = '33333333-0000-4000-8000-0000000000aa'$q$)::text, '1');
+select test.dogru('haber (014): düzeltme notu değişince tarih yenilenir (sonuç)',
+  (select h.duzeltme_tarihi > d.t from public.haberler h, duzeltme_once d where h.id = '33333333-0000-4000-8000-0000000000aa'));
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', false);
+set role authenticated;
+delete from public.haberler where id = '33333333-0000-4000-8000-0000000000aa';
+
+-- gol: video kaynağı, mp4 yalnız depodan, altyazı (başkan 6, erişilebilirlik 4)
+select test.hata_bekle('gol (014): videolu golde video kaynağı zorunlu',
+  $q$insert into public.goller (mac_id, oyuncu, dakika, video_url) values ('11111111-0000-4000-8000-000000000001', 'Ali Örnek', 50, 'https://www.youtube.com/watch?v=aqz-KE-bpKQ')$q$, 'kaynağını');
+select test.hata_bekle('gol (014): başka sitedeki .mp4 reddedilir',
+  $q$insert into public.goller (mac_id, oyuncu, dakika, video_url, video_kaynak) values ('11111111-0000-4000-8000-000000000001', 'Ali Örnek', 51, 'https://baska-site.com/gol.mp4', 'Bilinmiyor')$q$, 'goller_video_deposu');
+select test.esit('gol (014): sitenin deposundaki .mp4 + Türkçe altyazı (.vtt) kabul edilir',
+  test.satir($q$insert into public.goller (mac_id, oyuncu, dakika, video_url, video_kaynak, altyazi_url) values ('11111111-0000-4000-8000-000000000001', 'Ali Örnek', 52, 'https://abcd.supabase.co/storage/v1/object/public/gol-videolari/2026/gol.mp4', 'Kulübün kendi çekimi', 'https://abcd.supabase.co/storage/v1/object/public/gol-videolari/2026/gol.vtt')$q$)::text, '1');
+select test.hata_bekle('gol (014): altyazı başka siteden olamaz',
+  $q$insert into public.goller (mac_id, oyuncu, dakika, video_url, video_kaynak, altyazi_url) values ('11111111-0000-4000-8000-000000000001', 'Ali Örnek', 53, 'https://abcd.supabase.co/storage/v1/object/public/gol-videolari/g.mp4', 'Kulüp', 'https://baska-site.com/a.vtt')$q$, 'goller_altyazi');
+select test.hata_bekle('gol (014): YouTube videosuna altyazı dosyası eklenmez',
+  $q$insert into public.goller (mac_id, oyuncu, dakika, video_url, video_kaynak, altyazi_url) values ('11111111-0000-4000-8000-000000000001', 'Ali Örnek', 54, 'https://youtu.be/aqz-KE-bpKQ', 'Kulüp', 'https://abcd.supabase.co/storage/v1/object/public/gol-videolari/a.vtt')$q$, 'Altyazı yalnız');
+delete from public.goller where dakika in (52);
+select test.hata_bekle('maç (014): maç notu en çok 280 karakter',
+  $q$update public.maclar set mac_notu = repeat('x', 281) where id = '11111111-0000-4000-8000-000000000003'$q$, 'maclar_mac_notu');
+reset role;
+select test.esit('seed (014): maç notu ve haber kaynağı', (select count(*) from public.maclar where mac_notu is not null)::text || '/' || (select count(*) from public.haberler where kaynak is not null)::text, '1/1');
+select test.dogru('depo (014): gol-videolari kovası herkese açık, mp4 + vtt, 50 MB',
+  (select public and file_size_limit = 52428800 and allowed_mime_types = array['video/mp4', 'text/vtt'] from storage.buckets where id = 'gol-videolari'));
+
+-- sakatlık: kaynak bağlantısı, kaynak tarihi, açıklama yalnız yöneticiye (denetçi 14, başkan 7)
+select set_config('request.jwt.claim.sub', '', false);
+set role anon;
+select test.hata_bekle('sakatlık (014): ziyaretçi açıklama sütununu okuyamaz', $q$select aciklama from public.sakatliklar$q$, 'permission denied');
+select test.hata_bekle('sakatlık (014): ziyaretçi select * ile de okuyamaz', $q$select * from public.sakatliklar$q$, 'permission denied');
+select test.dogru('sakatlık (014): ziyaretçi herkese açık sütunları okur (yalnız yayındakiler)',
+  (select count(*) from (select id, oyuncu_id, durum, kaynak, kaynak_url, kaynak_tarihi, beklenen_donus, guncellendi from public.sakatliklar where yayinda) x)
+  = (select count(*) from public.sakatliklar) and (select count(*) from public.sakatliklar) >= 2);
+select test.hata_bekle('sakatlık (014): ziyaretçi yönetici listesini çağıramaz', $q$select * from public.sakatliklar_yonetim()$q$, 'permission denied');
+reset role;
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.hata_bekle('sakatlık (014): üye de açıklamayı okuyamaz', $q$select aciklama from public.sakatliklar$q$, 'permission denied');
+select test.hata_bekle('sakatlık (014): üye yönetici listesini alamaz', $q$select * from public.sakatliklar_yonetim()$q$, 'yalnızca yöneticiler');
+reset role;
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', false);
+set role authenticated;
+select test.dogru('sakatlık (014): yönetici açıklamayı sakatliklar_yonetim() ile okur',
+  (select count(*) >= 3 and bool_or(aciklama is not null) and bool_and(oyuncu_ad is not null) from public.sakatliklar_yonetim()));
+select test.hata_bekle('sakatlık (014): Sakat kaydında kaynak bağlantısı zorunlu',
+  $q$insert into public.sakatliklar (oyuncu_id, durum, kaynak) values ('55555555-0000-4000-8000-000000000005', 'sakat', 'Kulüp açıklaması')$q$, 'sakatliklar_kaynak_url_zorunlu');
+select test.hata_bekle('sakatlık (014): Durumu belirsiz kaydında da',
+  $q$insert into public.sakatliklar (oyuncu_id, durum, kaynak) values ('55555555-0000-4000-8000-000000000005', 'belirsiz', 'Kulüp açıklaması')$q$, 'sakatliklar_kaynak_url_zorunlu');
+select test.esit('sakatlık (014): Cezalı kaydı bağlantısız da olur; kaynak tarihi yazılır',
+  test.satir($q$insert into public.sakatliklar (oyuncu_id, durum, kaynak, kaynak_tarihi) values ('55555555-0000-4000-8000-000000000005', 'cezali', 'TFF', current_date)$q$)::text, '1');
+reset role;
+delete from public.sakatliklar where kaynak = 'TFF' and durum = 'cezali';
+
+-- son sürüm denetimi (denetçi 10): yeniden tanımlanan fonksiyonların en yenisi kurulu
+select test.dogru('son sürüm (014): 014 gövdeleri kurulu (reklam_olay_kaydet, aktif_reklamlar, reklam_raporu, kullanici_adi_ayrilmis, yorum_guncelleme_kontrol, sikayet_kontrol)',
+  (select bool_and(pg_get_functiondef(p.oid) ~ 'sürüm 014') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname in ('reklam_olay_kaydet', 'aktif_reklamlar', 'reklam_raporu', 'kullanici_adi_ayrilmis', 'yorum_guncelleme_kontrol', 'sikayet_kontrol'))
+  and (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'reklam_olay_kaydet') = 1);
+select test.dogru('son sürüm (013): profil_koruma engelli korumalı, yorum_ekleme_kontrol engelli_mi() çağırıyor, yeni_kullanici ayrılmış adı denetliyor',
+  pg_get_functiondef('public.profil_koruma()'::regprocedure) ~ 'engelli'
+  and pg_get_functiondef('public.yorum_ekleme_kontrol()'::regprocedure) ~ 'engelli_mi'
+  and pg_get_functiondef('public.yeni_kullanici()'::regprocedure) ~ 'kullanici_adi_ayrilmis');
+select test.dogru('yetki (014): yeni tablolarda RLS açık, anon/authenticated yazamaz; iç fonksiyonlar herkese kapalı',
+  (select bool_and(relrowsecurity) from pg_class where oid in ('public.yorum_kelimeleri'::regclass, 'public.reklam_yerlesimleri'::regclass, 'public.reklam_sekme_sayaclari'::regclass, 'public.reklam_gunluk'::regclass, 'public.reklam_gunluk_toplanan'::regclass))
+  and not has_table_privilege('anon', 'public.reklam_gunluk', 'SELECT')
+  and not has_table_privilege('authenticated', 'public.reklam_sekme_sayaclari', 'SELECT')
+  and not has_table_privilege('authenticated', 'public.reklam_yerlesimleri', 'INSERT')
+  and not has_function_privilege('anon', 'public.reklam_bakim(integer)', 'EXECUTE')
+  and not has_function_privilege('authenticated', 'public.reklam_gunluk_topla(date)', 'EXECUTE')
+  and not has_function_privilege('authenticated', 'public.reklam_rapor_verisi(date, date)', 'EXECUTE')
+  and not has_function_privilege('authenticated', 'public.yorum_onay_gerekli(text, uuid, uuid)', 'EXECUTE'));

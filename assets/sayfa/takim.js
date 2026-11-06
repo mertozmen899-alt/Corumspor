@@ -119,7 +119,7 @@ function fiksturCiz(data) {
 async function yukle() {
   const [oy, sa, ma] = await Promise.all([
     supabase.from('oyuncular').select('id, ad, forma_no, mevki, foto_url, sira').eq('aktif', true).order('sira', { ascending: true }).limit(80),
-    supabase.from('sakatliklar').select('id, oyuncu_id, durum, aciklama, kaynak, kaynak_url, beklenen_donus, guncellendi, oyuncular(ad, mevki)').eq('yayinda', true).order('guncellendi', { ascending: false }).limit(60),
+    supabase.from('sakatliklar').select('id, oyuncu_id, durum, kaynak, kaynak_url, kaynak_tarihi, beklenen_donus, guncellendi, oyuncular(ad, mevki)').eq('yayinda', true).order('guncellendi', { ascending: false }).limit(60),
     supabase.from('maclar').select('id, rakip, tarih, stadyum, ic_saha, organizasyon, corum_skor, rakip_skor, durum').order('tarih', { ascending: false }).limit(300),
   ]);
   const eski = sonVeri('takim');

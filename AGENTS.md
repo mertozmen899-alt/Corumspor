@@ -9,7 +9,7 @@ Bu dosya bu depoda çalışan yapay zekâ ajanları ve geliştiriciler içindir.
 - `supabase-js` **sitenin kendisinden** (KVKK: CDN'e istek yok), sabit sürüm + SRI: `assets/vendor/supabase-js-2.45.4/supabase.js` (npm `@supabase/supabase-js@2.45.4` paketindeki `dist/umd/supabase.js` ile bayt bayt aynı; yanında `591.supabase.js` parçası ve `LICENSE.txt`). Her HTML'de `<script defer src="assets/vendor/supabase-js-2.45.4/supabase.js" integrity="sha384-…">`. Sürüm değişirse: npm tarball'ından al, integrity'yi yenile (`openssl dgst -sha384 -binary dosya | openssl base64 -A`), klasör adını ve testteki SRI'yi güncelle.
 - Tek ayar dosyası: `assets/ayar.js` (SUPABASE_URL, SUPABASE_ANON_KEY, SITE_ADI, TAKIM_ADI, AMBLEM_DOSYASI, SAHIP_ADI, ILETISIM_EPOSTA; son ikisi künye ve gizlilik sayfasında `data-ayar` ile yazılır).
 - Tek supabase istemcisi: `assets/istemci.js` (`import { supabase } from './istemci.js'`). Reklam modülü de bunu kullanır.
-- Migration'lar: `supabase/migrations/NNN_ad.sql`, sırayla: `001_temel_sema` → `002_depolama` → `010_reklamlar` → `011_denetim_duzeltmeleri` → `012_denetim_2` → `013_tasarim`. Örnek veri: `supabase/seed.sql`. Uygulanmış dosyalar (001/002/010/011/012/013) yeniden yazılmaz: değişiklik = yeni migration. 013 yeniden çalıştırılabilir; testler 010/012'yi yeniden uygular, bu yüzden 013 onların fonksiyonlarının dönüş tipini değiştirmez (yalnız `aktif_reklam`'ı drop/create eder ve 012'den sonra uygulanır).
+- Migration'lar: `supabase/migrations/NNN_ad.sql`, sırayla: `001_temel_sema` → `002_depolama` → `010_reklamlar` → `011_denetim_duzeltmeleri` → `012_denetim_2` → `013_tasarim` → `014_inceleme_2`. Örnek veri: `supabase/seed.sql`. Uygulanmış dosyalar (001/002/010/011/012/013/014) yeniden yazılmaz: değişiklik = yeni migration. 013 yeniden çalıştırılabilir; testler 010/012'yi yeniden uygular, bu yüzden 013 onların fonksiyonlarının dönüş tipini değiştirmez (yalnız `aktif_reklam`'ı drop/create eder ve 012'den sonra uygulanır). 014 de yeniden çalıştırılabilir; yeniden tanımladığı fonksiyonların gövdesinde `sürüm 014` işareti var ve test (20_rls_testleri.sql, reklam/sql.test.mjs) en son sürümün kurulu olduğunu denetler.
 - Saf kurallar (JS = SQL aynası): `assets/kurallar.js` (kullanıcı adı ayrılmış mı, haber kapağı adresi, yorum sınırları, `sezonAdi` Temmuz–Haziran, `SAKATLIK_DURUMLARI`, `sakatlikHatalari`) ↔ `012_denetim_2.sql` + `013_tasarim.sql`; ortak örnekler `testler/kurallar-ornekleri.json`. Reklam kuralları: `assets/reklam/reklam-mantik.js` ↔ `010`/`012`.
 - Görsel yükleme: `assets/gorsel-kucult.js` (yüklemeden önce canvas ile küçült + WebP). Haber/gol kapağı ve oyuncu fotoğrafı: `<uuid>-1600/-800/-480.webp` üç kopya (`kapakKaynagi()` `-1600.webp`'den srcset kurar); reklam: 1200 kutu + `-k.webp` küçük kopya (480 / kare 192).
 - Yayın: `node araclar/yayin-hazirla.js` → `yayin/` (yalnız HTML + `assets/` + `_headers` + `robots.txt` + `.nojekyll` + `sw.js`; geliştirici klasörü girerse durur; gerçek SUPABASE_URL varsa sayfalara `preconnect` ekler: kaynak HTML'de yok, tek ayar kuralı). Paylaşım görseli: `node araclar/og-olustur.js` → `assets/img/og-1200x630.png`.
@@ -166,17 +166,39 @@ Yuvalar boştur; kendi dolgusu, kenarlığı, min-height'ı yoktur. Reklam yoksa
 - Kart her zaman normal akışta (position static, z-index yok, açılır pencere yok): videonun ya da yorumların üstüne binemez.
 - Gösterim: kartın ≥%50'si ≥1 sn görünürse, sayfa ziyareti başına reklam başına 1. Tıklama: yeni sekme, `rel="sponsored noopener"`, kayıt beklemeden; aynı **sekmede** (sessionStorage `reklam-sekme-kimligi`, rastgele, yalnız tıklama için) aynı reklama 30 dk içinde tekrar sayılmaz; sayfa ziyareti başına en fazla 5 tıklama.
 - Reklam görseli yalnız `https://<proje>.supabase.co/storage/v1/object/public/reklam-gorselleri/...` (JS `gorselAdresiGecerli` = SQL `reklam_gorsel_gecerli`). Bağlantı: https, wa.me, whatsapp://send (JS `baglantiGecerli` = SQL `reklam_baglanti_gecerli`). İkisini birlikte değiştirin, örnekleri `testler/reklam/baglanti-ornekleri.json`'a ekleyin.
-- Sınırlar (firma 80, metin 160, öncelik 0-100, 5 tıklama, 30 dk; 012: reklam başına dakikada 120 gösterim / 30 tıklama) hem `reklam-mantik.js` `SINIRLAR`'da hem SQL'de (test karşılaştırır).
+- Sınırlar (firma 80, metin 160, öncelik 0-100, 5 tıklama, 30 dk; 014: reklam başına dakikada 30 gösterim / 6 tıklama / 60 yerleşim, sekmede saatte 20 gösterim / 10 tıklama, akışta 3 firma) hem `reklam-mantik.js` `SINIRLAR`'da hem SQL'de (test karşılaştırır).
 - Ayrıntı ve kararlar: `docs/REKLAM.md`.
 
 ## Bilinen sınırlar / sonraki işler
 - Kullanıcı adını değiştirme ve hesabı silme arayüzü yok (RLS izin veriyor).
 - axe-core bu ortamda kurulu değil: erişilebilirlik testleri (tasarim-testleri.js) kuralları tek tek ölçer; otomatik axe taraması (T-01) yok.
-- Yasaklı sektör onayı istemcide zorunlu; sunucu yalnız `sektor_onayi`'nı saklar (yayına alma kontrolü panelde).
+- Yasaklı sektör onayı 014'ten beri sunucuda da zorunlu (`reklamlar_sektor`); listenin içeriği (bahis, alkol, tütün…) yine yöneticinin kontrolüdür.
 - Kapak görseli olmayan YouTube golünde kapak olarak gri yer tutucu çıkar (i.ytimg.com bilerek kullanılmaz).
-- Gol videosu dosya yükleme yok; sadece YouTube ya da https .mp4 adresi.
+- Gol videosu: YouTube ya da panelden `gol-videolari` kovasına yüklenen .mp4 (+ Türkçe .vtt altyazı); başka sitedeki .mp4 kabul edilmez (014). Sahte veride G3'ün `ornek.test` .mp4 adresi eski kayıt gibi kalır (yalnız yeni yazımlar denetlenir).
 - Canlı maçta skor anlık güncellenmez (Supabase Realtime eklenebilir).
 - Yüklenip kullanılmayan reklam görselleri depoda kalır (temizlik işi yok).
 - Sahte modda (`?sahte=1`) elle açılan tarayıcıda reklam görselleri (örnek Narçil reklamı dahil) görünmez (adresleri `sahte.supabase.co`; yalnız testte sunulur).
-- Kötü niyetli biri her istekte yeni ziyaret kimliği üreterek gösterim şişirebilir (IP tutulmadığı için). 012: reklam başına dakikada 120 gösterim / 30 tıklama sınırı ve rapordaki "Sınıra takılan dakika" bunu sınırlar ve görünür kılar, tam önlemez (sayılar yaklaşık; `docs/REKLAM.md`). Daha sıkısı için IP saklamayan bir Edge Function hız sınırı eklenebilir (`docs/FIKIRLER.md` bölüm 4).
+- Kötü niyetli biri her istekte yeni ziyaret kimliği üreterek gösterim şişirebilir (IP tutulmadığı için). 014: reklam başına dakikada 30 gösterim / 6 tıklama, sekme başına saatlik sınır, yalnız gösterilen reklama olay ve rapordaki "Şüpheli trafik (sayılmadı, dk)" bunu sınırlar ve görünür kılar, tam önlemez (sayılar yaklaşık). Daha sıkısı için IP saklamayan Cloudflare Pages Function hız sınırı (`docs/REKLAM.md` 00. bölüm "Sonraki adım").
 - `assets/istemci.js` sahte modda `../testler/sahte-supabase.js`'i yükler; `testler/` yayına çıkmadığı için bu yalnız yerelde (localhost) çalışır.
+
+## 014 — 2. tur inceleme (sunucu): ek sözleşme
+- **Yeni sütunlar** (FRONT bunları null-safe okur): `haberler.kaynak` (≤120), `kaynak_url` (https), `duzeltme_notu` (3-500), `duzeltme_tarihi`
+  (sunucu yazar), `kapak_alt` (≤200); `goller.video_kaynak` (3-120; videolu golde zorunlu, tetikleyici `gol_video_kontrol`), `altyazi_url`
+  (yalnız `gol-videolari` kovasında `.vtt`, yalnız depodaki `.mp4` videoya); `goller.video_url` yeni yazımlarda YouTube ya da `gol-videolari`
+  kovasındaki `.mp4` (`gol_video_gecerli` = kurallar.js `golVideoGecerli`); `maclar.mac_notu` (2-280), `maclar.on_onay`;
+  `sakatliklar.kaynak_tarihi` (date), `kaynak_url` Sakat/`belirsiz`'de zorunlu (anahtar `belirsiz` değişmedi, etiketi "Durumu belirsiz").
+- **`sakatliklar.aciklama` yalnız yöneticiye:** anon/authenticated sütun yetkisi yok (`select *` ya da `aciklama` → 42501, sahte istemci de
+  aynı). Herkese açık sütunlar: `id, oyuncu_id, durum, kaynak, kaynak_url, kaynak_tarihi, beklenen_donus, guncellendi, yayinda, created_at`.
+  Yönetici listesi `rpc('sakatliklar_yonetim')` (+ `oyuncu_ad`).
+- **Yorum moderasyonu:** `yorumlar.onay_bekliyor` (bool), `gizleme_nedeni` ('yonetici' | 'sikayet'), `moderasyon_zamani`. Herkes yalnız
+  `not gizli and not onay_bekliyor` görür; yazan kendi bekleyen yorumunu görür (`yorumlar.js` "Onay bekliyor" rozeti). Onay bekleme:
+  `yorum_kelimeleri` (yalnız yönetici; kelimeyle başlayan sözcük, `yorum_katla` = kurallar.js `yorumKatla`/`kelimeEslesir`) ya da
+  `maclar.on_onay` penceresi (maçtan 2 saat önce → 24 saat sonra; maç ve gol yorumları). Farklı 3 hesaptan şikâyet → kendiliğinden gizli
+  (`sikayet_otomatik_gizle`; yöneticinin son kararından sonraki şikâyetler sayılır). Yasaklı hesap yorumunu düzenleyemez, şikâyet edemez.
+- **Reklam:** `reklam_olay_kaydet(p_reklam_id, p_tur, p_sayfa_ziyaret_id, p_alan, p_mac_id, p_sekme_id, p_eylem)` — `p_tur` 'gosterim' |
+  'tiklama' | 'yerlesim', `p_eylem` 'web' | 'whatsapp' | 'ara'; sınırlar `SINIRLAR` (30 gösterim / 6 tıklama / 60 yerleşim dakikada; sekmede
+  saatte 20 gösterim / 10 tıklama; yalnız gösterilen reklam). `reklam_raporu` ek sütunları ve `reklam_gunluk_raporu`, `reklam_bakim()`
+  (90 gün; pg_cron varsa her gece), `reklamlar.firma_anahtar` (= `firmaAnahtari`), sektör onayı sunucuda (`sektor_onay_zamani`).
+  Ayrıntı: `docs/REKLAM.md` 00. bölüm.
+- **Sahte veri:** yönetici adı `tribun_editor` (`kirmizi_simsek` lakabı ve "kirmizisimsek" artık ayrılmış ad). Narçil metninde/görselinde adres yok.
+- Panel (`yonetim-reklamlar.js`) ve uygulama aynı `h()`'yi (`assets/ortak.js`) kullanır.

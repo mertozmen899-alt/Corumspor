@@ -95,9 +95,13 @@
 .ry-onizlemeler { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
 .ry-cerceve { margin: 0; border: 1px solid var(--ry-kenar); background: var(--ry-zemin); border-radius: 14px; overflow: hidden; max-width: 100%; }
 .ry-cerceve figcaption { font-size: 12px; font-weight: 600; color: var(--ry-soluk); padding: 6px 12px; border-bottom: 1px solid var(--ry-kenar); background: var(--ry-kutu); }
-.ry-cerceve-masaustu { width: 600px; }
-.ry-cerceve-telefon { width: 360px; border-radius: 26px; border-width: 6px; }
-.ry-onizleme-icerik { padding: 12px; }
+.ry-cerceve-masaustu { width: 602px; }
+.ry-cerceve-telefon { width: 372px; border-radius: 26px; border-width: 6px; }
+/* 014 (reklamveren 7): kart gerçek genişlikte (600 / 360 px) çizilir; çerçeve dar ise yonetim-reklamlar.js transform: scale uygular */
+.ry-olcek-kap { overflow: hidden; }
+.ry-onizleme-icerik { padding: 12px; transform-origin: 0 0; }
+.ry-olcek { font-weight: 400; }
+.ry-cerceve[data-kesik] figcaption::after { content: " · metin kesiliyor"; color: var(--ry-uyari); }
 .ry-sahne { display: flex; flex-direction: column; gap: 0; }
 .ry-sahte-haber { display: flex; gap: 10px; align-items: center; padding: 10px; background: var(--ry-kutu); border-radius: 10px; margin: 4px 0; font-weight: 600; font-size: 14px; }
 .ry-sahte-resim { width: 56px; height: 40px; border-radius: 6px; background: var(--ry-kenar); flex: none; }
@@ -110,3 +114,28 @@
 .ry-rapor-tablo tfoot th, .ry-rapor-tablo tfoot td { font-weight: 700; border-bottom: 0; }
 /* Rapor: reklamın dakika sınırına takıldığı dakika (0'dan büyükse dikkat) */
 .ry-supheli { color: var(--ry-uyari); font-weight: 700; }
+
+/* 014: alana göre metin önerisi, telefonda kesilebilecek kısım, bağlantısız reklamda adres uyarısı, "alan dolu" uyarısı */
+.ry-yardim.asim { color: var(--ry-uyari); font-weight: 600; }
+.ry-kesim { margin: 2px 0 0; font-size: 12px; color: var(--ry-soluk); overflow-wrap: anywhere; }
+.ry-kesim[hidden] { display: none; }
+.ry-kesik { background: color-mix(in srgb, var(--ry-uyari) 22%, transparent); color: inherit; text-decoration: line-through; }
+.ry-uyari-satir { margin: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--ry-uyari); color: var(--ry-uyari); font-size: 13px; font-weight: 600; }
+.ry-uyari-satir[hidden] { display: none; }
+.ry-onizleme-bilgi.ry-dolu { color: var(--ry-uyari); }
+.ry-sure { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Rapor: gün gün, maç günü, özet sayfası (yazdırılabilir) */
+.ry-gunluk-tablo caption, .ry-tablo-baslik { text-align: left; font-weight: 700; padding: 10px 12px 0; }
+#ry-rapor-gunluk { margin-top: 12px; }
+#ry-rapor-gunluk[hidden] { display: none; }
+.ry-rozet-mac { margin-left: 8px; color: var(--ry-mavi); }
+.ry-ozet { margin-top: 16px; background: var(--ry-kutu); border: 1px solid var(--ry-kenar); border-radius: 12px; padding: 16px; }
+.ry-ozet-ust { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+.ry-ozet-gorsel { width: 120px; height: auto; border-radius: 6px; flex: none; }
+.ry-ozet-tanim { padding-left: 18px; font-size: 13px; }
+@media print {
+  html.ry-yazdir body * { visibility: hidden !important; }
+  html.ry-yazdir .ry-ozet, html.ry-yazdir .ry-ozet * { visibility: visible !important; }
+  html.ry-yazdir .ry-ozet { position: absolute; inset: 0 auto auto 0; width: 100%; border: 0; color: #000; background: #fff; }
+  html.ry-yazdir .ry-ozet-dugmeler { display: none; }
+}

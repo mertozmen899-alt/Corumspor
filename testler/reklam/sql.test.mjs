@@ -93,18 +93,18 @@ function reklamEkle(o = {}, ops = admin) {
   const r = {
     firma_adi: 'Test Firma', gorsel_url: 'https://x.supabase.co/storage/v1/object/public/reklam-gorselleri/a.png',
     kisa_metin: 'Kısa metin', baglanti_url: 'https://narcil.net', alan: 'ana_akis', mac_id: null,
-    baslangic: "now() - interval '1 day'", bitis: "now() + interval '1 day'", durum: 'yayinda', oncelik: 0, ...o,
+    baslangic: "now() - interval '1 day'", bitis: "now() + interval '1 day'", durum: 'yayinda', oncelik: 0, sektor_onayi: true, ...o,
   };
   const ifade = (k, v) => (['baslangic', 'bitis'].includes(k) && typeof v === 'string' && /now\(\)/.test(v) ? v : lit(v));
   const sutunlar = Object.keys(r);
   return q(`insert into public.reklamlar (${sutunlar.join(',')}) values (${sutunlar.map((k) => ifade(k, r[k])).join(',')}) returning id`, ops);
 }
 const aktif = (alan, mac = null, ops = anon) => q(`select coalesce((select firma_adi from public.aktif_reklam(${lit(alan)}, ${lit(mac)})), '-')`, ops);
-const olay = (id, tur, ziyaret, alan = 'ana_akis', mac = null, ops = anon, sekme = null) =>
-  q(`select public.reklam_olay_kaydet(${lit(id)}, ${lit(tur)}, ${lit(ziyaret)}, ${lit(alan)}, ${lit(mac)}, ${lit(sekme)})`, ops);
+const olay = (id, tur, ziyaret, alan = 'ana_akis', mac = null, ops = anon, sekme = null, eylem = null) =>
+  q(`select public.reklam_olay_kaydet(${lit(id)}, ${lit(tur)}, ${lit(ziyaret)}, ${lit(alan)}, ${lit(mac)}, ${lit(sekme)}, ${lit(eylem)})`, ops);
 const GORSEL = 'https://abc.supabase.co/storage/v1/object/public/reklam-gorselleri/2026/11/x.png';
 let ISADMIN_TANIMI = ''; // 001'deki asıl is_admin() (bir testte değiştirilip geri yüklenir)
-const temizle = () => q('delete from public.reklam_olaylari; delete from public.reklamlar;');
+const temizle = () => q('delete from public.reklam_olaylari; delete from public.reklam_yerlesimleri; delete from public.reklam_sekme_sayaclari; delete from public.reklam_gunluk; delete from public.reklam_gunluk_toplanan; delete from public.reklamlar;');
 const uuid = () => crypto.randomUUID();
 
 before(() => {
@@ -142,8 +142,8 @@ after(() => {
   rmSync(kume.dizin, { recursive: true, force: true });
 });
 
-test('gerçek 001 şeması: profiles/is_admin/maclar uygulamanınki, taklit değil; migration sırası 001 → 002 → 010 → 011 → 012 → 013', () => {
-  assert.deepEqual(MIGRATIONLAR.map((d) => path.basename(d)), ['001_temel_sema.sql', '002_depolama.sql', '010_reklamlar.sql', '011_denetim_duzeltmeleri.sql', '012_denetim_2.sql', '013_tasarim.sql']);
+test('gerçek 001 şeması: profiles/is_admin/maclar uygulamanınki, taklit değil; migration sırası 001 → 002 → 010 → 011 → 012 → 013 → 014', () => {
+  assert.deepEqual(MIGRATIONLAR.map((d) => path.basename(d)), ['001_temel_sema.sql', '002_depolama.sql', '010_reklamlar.sql', '011_denetim_duzeltmeleri.sql', '012_denetim_2.sql', '013_tasarim.sql', '014_inceleme_2.sql']);
   assert.equal(q("select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name in ('kullanici_adi', 'role')"), '2');
   assert.equal(q("select data_type from information_schema.columns where table_schema = 'public' and table_name = 'maclar' and column_name = 'id'"), 'uuid');
   assert.equal(q(`select role from public.profiles where id = ${lit(UYE)}`), 'taraftar', 'kayıtta metadata rolü yok sayılır');
@@ -207,8 +207,8 @@ test('ziyaretçi ve sıradan üye reklam ekleyemez, değiştiremez, silemez', ()
   temizle();
   const id = reklamEkle({ firma_adi: 'Korunan' });
   for (const ops of [anon, uye]) {
-    assert.match(hata(`insert into public.reklamlar (firma_adi, gorsel_url, kisa_metin, alan, baslangic, bitis, durum)
-      values ('Sahte', ${lit(GORSEL)}, 'x', 'ana_akis', now(), now() + interval '1 day', 'yayinda')`, ops), /row-level security/);
+    assert.match(hata(`insert into public.reklamlar (firma_adi, gorsel_url, kisa_metin, alan, baslangic, bitis, durum, sektor_onayi)
+      values ('Sahte', ${lit(GORSEL)}, 'x', 'ana_akis', now(), now() + interval '1 day', 'yayinda', true)`, ops), /row-level security/);
     q(`update public.reklamlar set firma_adi = 'Ele geçirildi', oncelik = 100 where id = ${lit(id)}`, ops);
     q(`delete from public.reklamlar where id = ${lit(id)}`, ops);
     assert.match(hata('truncate public.reklamlar cascade', ops), /permission denied/);
@@ -233,7 +233,7 @@ test('yönetici ekler, okur, günceller, siler; olusturan ve yayina_alinma sunuc
     values ('Yeni', ${lit(GORSEL)}, 'metin', 'ana_akis', now(), now() + interval '1 day', 'taslak', '2000-01-01', ${lit(UYE)}) returning id`, admin);
   assert.equal(q(`select coalesce(yayina_alinma::text, 'bos') || '|' || olusturan from public.reklamlar where id = ${lit(id)}`, admin), `bos|${ADMIN}`);
   assert.equal(q('select count(*) from public.reklamlar', admin), '1');
-  q(`update public.reklamlar set durum = 'yayinda', kisa_metin = 'güncel' where id = ${lit(id)}`, admin);
+  q(`update public.reklamlar set durum = 'yayinda', kisa_metin = 'güncel', sektor_onayi = true where id = ${lit(id)}`, admin);
   const ilk = q(`select yayina_alinma from public.reklamlar where id = ${lit(id)}`, admin);
   assert.notEqual(ilk, '');
   // yayındayken başka alan değişince yayina_alinma korunur, istemcinin yazdığı değer yok sayılır
@@ -302,32 +302,39 @@ test('gösterim aynı sayfa ziyaretinde bir kez sayılır', () => {
   assert.equal(q(`select count(*) from public.reklam_olaylari where reklam_id = ${lit(id)} and tur = 'gosterim'`), '2');
   // olay tablosunda kişisel veri sütunu yok
   assert.equal(q("select string_agg(column_name, ',' order by ordinal_position) from information_schema.columns where table_schema='public' and table_name='reklam_olaylari'"),
-    'id,reklam_id,tur,sayfa_ziyaret_id,alan,mac_id,created_at,sekme_id');
+    'id,reklam_id,tur,sayfa_ziyaret_id,alan,mac_id,created_at,sekme_id,eylem');
 });
 
 test('tıklama: aynı reklama aynı ziyarette 30 dk içinde tekrar tıklama sayılmaz, ziyaret başına en fazla 5 tıklama', () => {
   temizle();
-  const idler = [1, 2, 3, 4, 5, 6].map((n) => reklamEkle({ firma_adi: 'F' + n, oncelik: n }));
+  // 014: yalnız o an GÖSTERİLEN reklama olay yazılır: akışta 3 farklı firma + haber sonu + iki maçın sponsoru = 6 gösterilen reklam
+  const idler = [
+    reklamEkle({ firma_adi: 'F1', oncelik: 3 }), reklamEkle({ firma_adi: 'F2', oncelik: 2 }), reklamEkle({ firma_adi: 'F3', oncelik: 1 }),
+    reklamEkle({ firma_adi: 'F4', alan: 'haber_sonu' }),
+    reklamEkle({ firma_adi: 'F5', alan: 'mac_sponsoru', mac_id: MAC1 }), reklamEkle({ firma_adi: 'F6', alan: 'mac_sponsoru', mac_id: MAC2 }),
+  ];
+  const yer = [['ana_akis', null], ['ana_akis', null], ['ana_akis', null], ['haber_sonu', null], ['mac_sponsoru', MAC1], ['mac_sponsoru', MAC2]];
+  const tik = (i, z) => olay(idler[i], 'tiklama', z, yer[i][0], yer[i][1]);
   const z = uuid();
-  assert.equal(olay(idler[0], 'tiklama', z), 'kaydedildi');
-  assert.equal(olay(idler[0], 'tiklama', z), 'tekrar');
+  assert.equal(tik(0, z), 'kaydedildi');
+  assert.equal(tik(0, z), 'tekrar');
   // 29 dakika önce tıklanmış gibi yap: hâlâ tekrar
   q(`update public.reklam_olaylari set created_at = now() - interval '29 minutes' where sayfa_ziyaret_id = ${lit(z)}`);
-  assert.equal(olay(idler[0], 'tiklama', z), 'tekrar');
+  assert.equal(tik(0, z), 'tekrar');
   // 31 dakika geçti: yeni tıklama sayılır
   q(`update public.reklam_olaylari set created_at = now() - interval '31 minutes' where sayfa_ziyaret_id = ${lit(z)}`);
-  assert.equal(olay(idler[0], 'tiklama', z), 'kaydedildi');
+  assert.equal(tik(0, z), 'kaydedildi');
   assert.equal(q(`select count(*) from public.reklam_olaylari where sayfa_ziyaret_id = ${lit(z)} and reklam_id = ${lit(idler[0])}`), '2');
   // başka ziyaret aynı reklamı hemen sayabilir
-  assert.equal(olay(idler[0], 'tiklama', uuid()), 'kaydedildi');
+  assert.equal(tik(0, uuid()), 'kaydedildi');
   // ziyaret başına sınır: z'de 2 tıklama var, 3 farklı reklam daha = 5, altıncı reddedilir
-  for (const id of idler.slice(1, 4)) assert.equal(olay(id, 'tiklama', z), 'kaydedildi');
-  assert.equal(olay(idler[4], 'tiklama', z), 'sinir');
-  assert.equal(olay(idler[5], 'tiklama', z), 'sinir');
+  for (const i of [1, 2, 3]) assert.equal(tik(i, z), 'kaydedildi');
+  assert.equal(tik(4, z), 'sinir');
+  assert.equal(tik(5, z), 'sinir');
   assert.equal(q(`select count(*) from public.reklam_olaylari where sayfa_ziyaret_id = ${lit(z)} and tur = 'tiklama'`), '5');
-  assert.equal(olay(idler[5], 'tiklama', uuid()), 'kaydedildi');
+  assert.equal(tik(5, uuid()), 'kaydedildi');
   // gösterim tıklama sınırına takılmaz
-  assert.equal(olay(idler[5], 'gosterim', z), 'kaydedildi');
+  assert.equal(olay(idler[5], 'gosterim', z, 'mac_sponsoru', MAC2), 'kaydedildi');
 });
 
 test('tıklama tekrarı sekme kimliğiyle: aynı sekmede başka sayfada 30 dk içinde sayılmaz; gösterim sekmeye bakmaz', () => {
@@ -387,6 +394,17 @@ test('yayında olmayan reklam için olay reddedilir; alan/maç tutmazsa reddedil
   }
   const canli = reklamEkle({ firma_adi: 'C' });
   assert.match(hata(`select public.reklam_olay_kaydet(${lit(canli)}, 'gosterim', gen_random_uuid(), 'haber_sonu', null)`, anon), /bu alanda/);
+  // 014: sırada bekleyen (gösterilmeyen) reklama olay yazılmaz: haber sonunda kaybeden, akışta 4. firma
+  const hs1 = reklamEkle({ firma_adi: 'HS Büyük', alan: 'haber_sonu', oncelik: 9 });
+  const hs2 = reklamEkle({ firma_adi: 'HS Küçük', alan: 'haber_sonu', oncelik: 1 });
+  assert.equal(olay(hs1, 'gosterim', uuid(), 'haber_sonu'), 'kaydedildi');
+  assert.match(hata(`select public.reklam_olay_kaydet(${lit(hs2)}, 'gosterim', gen_random_uuid(), 'haber_sonu', null)`, anon), /sırada bekliyor/);
+  for (const [f, o] of [['A2', 8], ['A3', 7]]) reklamEkle({ firma_adi: f, oncelik: o });
+  const dorduncu = reklamEkle({ firma_adi: 'A4 Sırada', oncelik: 0 });
+  q(`update public.reklamlar set oncelik = 9 where id = ${lit(canli)}`, admin);
+  assert.match(hata(`select public.reklam_olay_kaydet(${lit(dorduncu)}, 'tiklama', gen_random_uuid(), 'ana_akis', null, null, 'web')`, anon), /sırada bekliyor/);
+  q(`delete from public.reklamlar where id in (${lit(hs1)}, ${lit(hs2)}, ${lit(dorduncu)}) or firma_adi in ('A2', 'A3')`, admin);
+  q('delete from public.reklam_olaylari');
   assert.match(hata(`select public.reklam_olay_kaydet(${lit(canli)}, 'begeni', gen_random_uuid(), 'ana_akis', null)`, anon), /olay türü/);
   assert.match(hata(`select public.reklam_olay_kaydet(${lit(canli)}, 'gosterim', null, 'ana_akis', null)`, anon), /Eksik/);
   const mac = reklamEkle({ firma_adi: 'M', alan: 'mac_sponsoru', mac_id: MAC1 });
@@ -531,16 +549,16 @@ test('maç silinince ona özel sponsorluk da silinir, genel sponsor kalır', () 
 // ---------------------------------------------------------------------------- 012: dakika sınırı (sayı şişirmeye karşı)
 const istanbulBugun = () => q("select (now() at time zone 'Europe/Istanbul')::date");
 
-test('dakika sınırı (012): bir reklama dakikada en fazla 120 gösterim; fazlası "sinir", saklanmaz, dakika işaretlenir', () => {
+test('dakika sınırı (014): bir reklama dakikada en fazla 30 gösterim; fazlası "sinir", saklanmaz, dakika işaretlenir', () => {
   temizle();
   q('delete from public.reklam_sinir_dakikalari');
   const id = reklamEkle({ firma_adi: 'Şişirilen' });
   const diger = reklamEkle({ firma_adi: 'Komşu', alan: 'haber_sonu' });
-  // Tek işlemde 125 farklı "ziyaret" (her istekte yeni rastgele kimlik: IP tutulmadığı için ayırt edilemeyen saldırı)
+  // Tek işlemde 35 farklı "ziyaret" (her istekte yeni rastgele kimlik: IP tutulmadığı için ayırt edilemeyen saldırı)
   const sonuc = q(`select string_agg(s, ',') from (select s, count(*) from (select public.reklam_olay_kaydet(${lit(id)}, 'gosterim', gen_random_uuid(), 'ana_akis', null) s
-    from generate_series(1, 125)) x group by s order by s) y(s0, n) cross join lateral (select s0 || '=' || n) z(s)`, anon);
-  assert.equal(sonuc, 'kaydedildi=120,sinir=5');
-  assert.equal(q(`select count(*) from public.reklam_olaylari where reklam_id = ${lit(id)}`), '120', 'fazlası saklanmaz');
+    from generate_series(1, 35)) x group by s order by s) y(s0, n) cross join lateral (select s0 || '=' || n) z(s)`, anon);
+  assert.equal(sonuc, 'kaydedildi=30,sinir=5');
+  assert.equal(q(`select count(*) from public.reklam_olaylari where reklam_id = ${lit(id)}`), '30', 'fazlası saklanmaz');
   assert.equal(q(`select tur || ':' || reddedilen from public.reklam_sinir_dakikalari where reklam_id = ${lit(id)}`), 'gosterim:5');
   // Başka reklamın sınırı ayrı sayılır
   assert.equal(olay(diger, 'gosterim', uuid(), 'haber_sonu'), 'kaydedildi');
@@ -553,14 +571,14 @@ test('dakika sınırı (012): bir reklama dakikada en fazla 120 gösterim; fazla
   assert.equal(olay(id, 'gosterim', uuid()), 'kaydedildi');
 });
 
-test('dakika sınırı (012): bir reklama dakikada en fazla 30 tıklama; ziyaret başına 5 kuralı da sürer', () => {
+test('dakika sınırı (014): bir reklama dakikada en fazla 6 tıklama; ziyaret başına 5 kuralı da sürer', () => {
   temizle();
   q('delete from public.reklam_sinir_dakikalari');
   const id = reklamEkle({ firma_adi: 'Tıklanan' });
   const sonuc = q(`select count(*) filter (where s = 'kaydedildi') || '/' || count(*) filter (where s = 'sinir')
-    from (select public.reklam_olay_kaydet(${lit(id)}, 'tiklama', gen_random_uuid(), 'ana_akis', null, gen_random_uuid()) s from generate_series(1, 34)) x`, anon);
-  assert.equal(sonuc, '30/4');
-  assert.equal(q(`select count(*) from public.reklam_olaylari where reklam_id = ${lit(id)} and tur = 'tiklama'`), '30');
+    from (select public.reklam_olay_kaydet(${lit(id)}, 'tiklama', gen_random_uuid(), 'ana_akis', null, gen_random_uuid()) s from generate_series(1, 10)) x`, anon);
+  assert.equal(sonuc, '6/4');
+  assert.equal(q(`select count(*) from public.reklam_olaylari where reklam_id = ${lit(id)} and tur = 'tiklama'`), '6');
   assert.equal(q(`select tur || ':' || reddedilen from public.reklam_sinir_dakikalari where reklam_id = ${lit(id)}`), 'tiklama:4');
   // gösterim sınırı tıklamadan ayrı
   assert.equal(olay(id, 'gosterim', uuid()), 'kaydedildi');
@@ -571,14 +589,14 @@ test('rapor (012): "supheli_dakika" = aralıkta sınıra takılan dakika sayıs�
   q('delete from public.reklam_sinir_dakikalari');
   const a = reklamEkle({ firma_adi: 'Saldırıya Uğrayan' });
   const b = reklamEkle({ firma_adi: 'Sakin', alan: 'haber_sonu' });
-  q(`select public.reklam_olay_kaydet(${lit(a)}, 'gosterim', gen_random_uuid(), 'ana_akis', null) from generate_series(1, 122)`, anon);
-  q(`select public.reklam_olay_kaydet(${lit(a)}, 'tiklama', gen_random_uuid(), 'ana_akis', null) from generate_series(1, 31)`, anon);
+  q(`select public.reklam_olay_kaydet(${lit(a)}, 'gosterim', gen_random_uuid(), 'ana_akis', null) from generate_series(1, 32)`, anon);
+  q(`select public.reklam_olay_kaydet(${lit(a)}, 'tiklama', gen_random_uuid(), 'ana_akis', null) from generate_series(1, 7)`, anon);
   assert.equal(olay(b, 'gosterim', uuid(), 'haber_sonu'), 'kaydedildi');
   // aynı dakikada gösterim + tıklama sınırı = 1 dakika; önceki günden bir dakika daha (aralık dışı kalmalı)
   q(`insert into public.reklam_sinir_dakikalari (reklam_id, dakika, tur, reddedilen) values (${lit(a)}, date_trunc('minute', now()) - interval '3 day', 'gosterim', 9)`);
   const gun = istanbulBugun();
   const rapor = q(`select firma_adi || ';' || gosterim || ';' || tiklama || ';' || supheli_dakika from public.reklam_raporu(${lit(gun)}, ${lit(gun)})`, admin).split('\n');
-  assert.ok(rapor.includes('Saldırıya Uğrayan;120;30;1'), rapor.join(' / '));
+  assert.ok(rapor.includes('Saldırıya Uğrayan;30;6;1'), rapor.join(' / '));
   assert.ok(rapor.includes('Sakin;1;0;0'), rapor.join(' / '));
   const genis = q(`select supheli_dakika from public.reklam_raporu((${lit(gun)}::date - 5), ${lit(gun)}) where firma_adi = 'Saldırıya Uğrayan'`, admin);
   assert.equal(genis, '2', 'beş günlük aralıkta iki ayrı dakika');
@@ -593,11 +611,15 @@ test('rapor (012): "supheli_dakika" = aralıkta sınıra takılan dakika sayıs�
 
 test('dakika sınırları SQL ile JS (reklam-mantik.js SINIRLAR) aynı', async () => {
   const RM = await import(new URL('../../assets/reklam/reklam-mantik.js', import.meta.url).href);
-  const govde = q("select prosrc from pg_proc where oid = 'public.reklam_olay_kaydet(uuid, text, uuid, text, text, uuid)'::regprocedure");
+  const govde = q("select prosrc from pg_proc where oid = 'public.reklam_olay_kaydet(uuid, text, uuid, text, text, uuid, text)'::regprocedure");
   const sabit = (ad) => Number((new RegExp(ad + ' constant int := (\\d+)').exec(govde) || [])[1]);
   assert.equal(sabit('c_gosterim_dakika_siniri'), RM.SINIRLAR.gosterimDakikaSiniri);
   assert.equal(sabit('c_tiklama_dakika_siniri'), RM.SINIRLAR.tiklamaDakikaSiniri);
   assert.equal(sabit('c_tiklama_siniri'), RM.SINIRLAR.ziyaretTiklamaSiniri);
+  assert.equal(sabit('c_yerlesim_dakika_siniri'), RM.SINIRLAR.yerlesimDakikaSiniri);
+  assert.equal(sabit('c_sekme_saat_gosterim'), RM.SINIRLAR.sekmeSaatGosterimSiniri);
+  assert.equal(sabit('c_sekme_saat_tiklama'), RM.SINIRLAR.sekmeSaatTiklamaSiniri);
+  assert.match(q("select prosrc from pg_proc where oid = 'public.reklam_su_an_gosterilen(uuid, text, text)'::regprocedure"), new RegExp(`aktif_reklamlar\\(p_alan, ${RM.SINIRLAR.akisYuvaSayisi}\\)`));
 });
 
 // ---------------------------------------------------------------------------- 012: uygulama kuralları (kullanıcı adı, kapak) SQL = JS
@@ -612,6 +634,27 @@ test('uygulama kuralları SQL ile JS (assets/kurallar.js) aynı sonucu verir (or
     assert.equal(q(`select public.haber_kapak_gecerli(${lit(url)})`), gecerli ? 't' : 'f', 'SQL: ' + url);
     assert.equal(K.kapakAdresiGecerli(url), gecerli, 'JS: ' + url);
   }
+  // 014: gol videosu / altyazı adresi, metin katlama, yorum kelime listesi
+  for (const [url, gecerli] of ORN.gol_video) {
+    assert.equal(q(`select public.gol_video_gecerli(${lit(url)})`), gecerli ? 't' : 'f', 'SQL: ' + url);
+    assert.equal(K.golVideoGecerli(url), gecerli, 'JS: ' + url);
+  }
+  for (const [url, gecerli] of ORN.altyazi) {
+    assert.equal(q(`select public.gol_altyazi_gecerli(${lit(url)})`), gecerli ? 't' : 'f', 'SQL: ' + url);
+    assert.equal(K.altyaziAdresiGecerli(url), gecerli, 'JS: ' + url);
+  }
+  for (const [girdi, beklenen] of ORN.metin_katla) {
+    assert.equal(q(`select public.metin_katla(${lit(girdi)})`), beklenen, 'SQL: ' + girdi);
+    assert.equal(K.metinKatla(girdi), beklenen, 'JS: ' + girdi);
+  }
+  for (const [metin, liste, bekler] of ORN.yorum_kelime) {
+    q('delete from public.yorum_kelimeleri');
+    for (const k of liste) q(`insert into public.yorum_kelimeleri (kelime) values (${lit(k)})`);
+    assert.equal(q(`select public.yorum_onay_gerekli(${lit(metin)}, null, null)`), bekler ? 't' : 'f', 'SQL: ' + metin);
+    assert.equal(K.kelimeEslesir(metin, liste), bekler, 'JS: ' + metin);
+    assert.equal(q(`select public.yorum_katla(${lit(metin)})`), K.yorumKatla(metin), 'katla: ' + metin);
+  }
+  q('delete from public.yorum_kelimeleri');
   // yorum sınırları: SQL tetikleyicilerindeki sabitler = YORUM_SINIRLARI
   const ekle = q("select prosrc from pg_proc where oid = 'public.yorum_ekleme_kontrol()'::regprocedure");
   const duz = q("select prosrc from pg_proc where oid = 'public.yorum_duzenleme_hakki()'::regprocedure");
@@ -637,7 +680,7 @@ test('013: yöneticinin gösterim/tıklaması sayılmaz (reklam_olay_kaydet "yon
   assert.equal(q(`select count(*) from public.reklam_olaylari where reklam_id = ${lit(id)}`), '2');
   // geçersiz istek yönetici için de hata (önce doğrulama)
   assert.match(hata(`select public.reklam_olay_kaydet(${lit(id)}, 'gosterim', gen_random_uuid(), 'haber_sonu', null)`, admin), /bu alanda/);
-  const govde = q("select prosrc from pg_proc where oid = 'public.reklam_olay_kaydet(uuid, text, uuid, text, text, uuid)'::regprocedure");
+  const govde = q("select prosrc from pg_proc where oid = 'public.reklam_olay_kaydet(uuid, text, uuid, text, text, uuid, text)'::regprocedure");
   assert.match(govde, /if public\.is_admin\(\) then\s+return 'yonetici';/);
 });
 
@@ -657,10 +700,167 @@ test('013: aktif_reklamlar akışta aynı firmayı bir kez verir (farklı firma 
 test('013: reklam yeni alanları (düğme yazısı 2-24, "Ara" +90…, görsel metni ≤200, küçük görsel depodan) SQL kısıtları', () => {
   temizle();
   const id = reklamEkle({ firma_adi: 'Alanlı' });
-  q(`update public.reklamlar set dugme_metni = 'Menüyü gör', telefon = '+903642131919', gorsel_metni = 'Kahve', gorsel_kucuk_url = ${lit(GORSEL.replace('.png', '-k.webp'))}, sektor_onayi = true where id = ${lit(id)}`, admin);
+  // 014: telefon/görsel değişince yasaklı sektör onayı yeniden istenir (sektor_onay_zamani değişince = yeniden onay)
+  q(`update public.reklamlar set dugme_metni = 'Menüyü gör', telefon = '+903642131919', gorsel_metni = 'Kahve', gorsel_kucuk_url = ${lit(GORSEL.replace('.png', '-k.webp'))}, sektor_onayi = true, sektor_onay_zamani = '2000-01-01' where id = ${lit(id)}`, admin);
   assert.equal(q(`select dugme_metni || '|' || telefon from public.aktif_reklam('ana_akis')`, anon), 'Menüyü gör|+903642131919');
   assert.match(hata(`update public.reklamlar set dugme_metni = 'x' where id = ${lit(id)}`, admin), /reklamlar_dugme_metni/);
-  assert.match(hata(`update public.reklamlar set telefon = 'tel:123' where id = ${lit(id)}`, admin), /reklamlar_telefon/);
+  assert.match(hata(`update public.reklamlar set telefon = 'tel:123', sektor_onay_zamani = '2001-01-01' where id = ${lit(id)}`, admin), /reklamlar_telefon/);
   assert.match(hata(`update public.reklamlar set gorsel_metni = repeat('x', 201) where id = ${lit(id)}`, admin), /reklamlar_gorsel_metni/);
-  assert.match(hata(`update public.reklamlar set gorsel_kucuk_url = 'https://baska.com/x.png' where id = ${lit(id)}`, admin), /reklamlar_gorsel_kucuk/);
+  assert.match(hata(`update public.reklamlar set gorsel_kucuk_url = 'https://baska.com/x.png', sektor_onay_zamani = '2001-01-01' where id = ${lit(id)}`, admin), /reklamlar_gorsel_kucuk/);
+});
+
+// ---------------------------------------------------------------------------- 014: 2. tur inceleme
+test('014: tıklama eylemi (web / whatsapp / ara) ayrı sayılır; tekrar kuralı reklam + eylem bazında', () => {
+  temizle();
+  const id = reklamEkle({ firma_adi: 'Kale Oto' });
+  const [z, sekme] = [uuid(), uuid()];
+  assert.equal(olay(id, 'tiklama', z, 'ana_akis', null, anon, sekme, 'whatsapp'), 'kaydedildi');
+  assert.equal(olay(id, 'tiklama', z, 'ana_akis', null, anon, sekme, 'ara'), 'kaydedildi', 'WhatsApp\'tan sonra "Ara" da sayılır');
+  assert.equal(olay(id, 'tiklama', uuid(), 'ana_akis', null, anon, sekme, 'whatsapp'), 'tekrar', 'aynı sekmede aynı düğme 30 dk içinde sayılmaz');
+  assert.equal(olay(id, 'tiklama', z, 'ana_akis', null, anon, sekme, 'web'), 'kaydedildi');
+  assert.equal(q(`select string_agg(eylem, ',' order by eylem) from public.reklam_olaylari where reklam_id = ${lit(id)}`), 'ara,web,whatsapp');
+  assert.match(hata(`select public.reklam_olay_kaydet(${lit(id)}, 'tiklama', gen_random_uuid(), 'ana_akis', null, null, 'sms')`, anon), /eylemi/);
+  // gösterimde eylem yok sayılır
+  assert.equal(olay(id, 'gosterim', z, 'ana_akis', null, anon, sekme, 'web'), 'kaydedildi');
+  assert.equal(q(`select count(*) from public.reklam_olaylari where reklam_id = ${lit(id)} and tur = 'gosterim' and eylem is null`), '1');
+  const gun = istanbulBugun();
+  assert.equal(q(`select tiklama || ';' || tiklama_web || ';' || tiklama_whatsapp || ';' || tiklama_ara from public.reklam_raporu(${lit(gun)}, ${lit(gun)})`, admin), '3;1;1;1');
+});
+
+test('014: sekme başına saatlik sınır (gösterim reklam başına 20, tıklama toplam 10); fazlası şüpheli dakika', () => {
+  temizle();
+  q('delete from public.reklam_sinir_dakikalari');
+  const sekme = uuid();
+  const a = reklamEkle({ firma_adi: 'A', oncelik: 3 });
+  const sonuc = q(`select string_agg(s, ',') from (select s, count(*) from (select public.reklam_olay_kaydet(${lit(a)}, 'gosterim', gen_random_uuid(), 'ana_akis', null, ${lit(sekme)}) s
+    from generate_series(1, 22)) x group by s order by s) y(s0, n) cross join lateral (select s0 || '=' || n) z(s)`, anon);
+  assert.equal(sonuc, 'kaydedildi=20,sinir=2');
+  assert.equal(q(`select tur || ':' || reddedilen from public.reklam_sinir_dakikalari where reklam_id = ${lit(a)}`), 'gosterim:2');
+  assert.equal(olay(a, 'gosterim', uuid(), 'ana_akis', null, anon, uuid()), 'kaydedildi', 'başka sekme sayılır');
+  // tıklama: 4 gösterilen reklam × 3 düğme = 12 farklı tıklama, aynı sekmeden; 10'dan sonrası sınır
+  const b = reklamEkle({ firma_adi: 'B', oncelik: 2 });
+  const c = reklamEkle({ firma_adi: 'C', oncelik: 1 });
+  const h = reklamEkle({ firma_adi: 'H', alan: 'haber_sonu' });
+  const s2 = uuid();
+  const sonuclar = [];
+  for (const [id, alan] of [[a, 'ana_akis'], [b, 'ana_akis'], [c, 'ana_akis'], [h, 'haber_sonu']]) {
+    for (const e of ['web', 'whatsapp', 'ara']) sonuclar.push(olay(id, 'tiklama', uuid(), alan, null, anon, s2, e));
+  }
+  assert.equal(sonuclar.filter((x) => x === 'kaydedildi').length, 10, sonuclar.join(','));
+  assert.equal(sonuclar.filter((x) => x === 'sinir').length, 2);
+  assert.equal(q("select count(*) from public.reklam_sinir_dakikalari where tur = 'tiklama'"), '1');
+  // sekme sayaçları olaylara bağlanmaz ve kimse okuyamaz
+  assert.match(hata('select * from public.reklam_sekme_sayaclari', anon), /permission denied/);
+  assert.match(hata('select * from public.reklam_sekme_sayaclari', admin), /permission denied/);
+  assert.equal(q(`select count(*) from public.reklam_olaylari where tur = 'gosterim' and sekme_id is not null`), '0', 'gösterimde sekme kimliği saklanmaz');
+});
+
+test('014: yerleşim (görünürlük paydası): sayfa ziyareti başına bir; rapor görünürlük oranı; yönetici sayılmaz', () => {
+  temizle();
+  const id = reklamEkle({ firma_adi: 'Görünen' });
+  const [z1, z2, z3] = [uuid(), uuid(), uuid()];
+  for (const z of [z1, z2, z3]) assert.equal(olay(id, 'yerlesim', z), 'kaydedildi');
+  assert.equal(olay(id, 'yerlesim', z1), 'tekrar');
+  assert.equal(olay(id, 'yerlesim', uuid(), 'ana_akis', null, admin), 'yonetici');
+  assert.equal(olay(id, 'gosterim', z1), 'kaydedildi');
+  assert.equal(olay(id, 'gosterim', z2), 'kaydedildi');
+  const gun = istanbulBugun();
+  assert.equal(q(`select yerlesim || ';' || gosterim || ';' || gorunurluk_orani from public.reklam_raporu(${lit(gun)}, ${lit(gun)})`, admin), '3;2;66.67');
+  assert.match(hata('select count(*) from public.reklam_yerlesimleri', anon), /permission denied/);
+  assert.equal(q('select count(*) from public.reklam_yerlesimleri', uye), '0');
+  assert.match(hata(`insert into public.reklam_yerlesimleri (reklam_id, sayfa_ziyaret_id, alan) values (${lit(id)}, gen_random_uuid(), 'ana_akis')`, anon), /permission denied|row-level/);
+  assert.equal(q("select string_agg(column_name, ',' order by ordinal_position) from information_schema.columns where table_schema='public' and table_name='reklam_yerlesimleri'"),
+    'id,reklam_id,sayfa_ziyaret_id,alan,mac_id,created_at', 'kişisel veri sütunu yok');
+});
+
+test('014: günlük toplam + 90 gün saklama: bakım eski günleri toplar ve ham olayı siler, rapor çift saymaz', () => {
+  temizle();
+  q('delete from public.reklam_sinir_dakikalari');
+  const id = reklamEkle({ firma_adi: 'Eski Müşteri', baslangic: "now() - interval '200 day'", bitis: "now() + interval '1 day'" });
+  // 100 gün önce (TSİ öğlen) 4 gösterim + 1 web tıklaması, 2 gün önce 3 gösterim + 2 yerleşim, bugün 1 gösterim
+  q(`insert into public.reklam_olaylari (reklam_id, tur, sayfa_ziyaret_id, alan, created_at, eylem)
+       select ${lit(id)}::uuid, 'gosterim'::public.reklam_olay_turu, gen_random_uuid(), 'ana_akis'::public.reklam_alani, ((now() at time zone 'Europe/Istanbul')::date - 100 + time '12:00') at time zone 'Europe/Istanbul', null::text from generate_series(1, 4)
+       union all select ${lit(id)}::uuid, 'tiklama'::public.reklam_olay_turu, gen_random_uuid(), 'ana_akis', ((now() at time zone 'Europe/Istanbul')::date - 100 + time '12:05') at time zone 'Europe/Istanbul', 'web'
+       union all select ${lit(id)}::uuid, 'gosterim'::public.reklam_olay_turu, gen_random_uuid(), 'ana_akis'::public.reklam_alani, ((now() at time zone 'Europe/Istanbul')::date - 2 + time '12:00') at time zone 'Europe/Istanbul', null from generate_series(1, 3);
+     insert into public.reklam_olaylari (reklam_id, tur, sayfa_ziyaret_id, alan, created_at, sekme_id)
+       values (${lit(id)}, 'tiklama', gen_random_uuid(), 'ana_akis', now() - interval '2 day', gen_random_uuid());
+     insert into public.reklam_yerlesimleri (reklam_id, sayfa_ziyaret_id, alan, created_at)
+       select ${lit(id)}::uuid, gen_random_uuid(), 'ana_akis', ((now() at time zone 'Europe/Istanbul')::date - 2 + time '12:00') at time zone 'Europe/Istanbul' from generate_series(1, 2);`);
+  assert.equal(olay(id, 'gosterim', uuid()), 'kaydedildi');
+  const gun = istanbulBugun();
+  const rapor = (gunOnce, son = gunOnce) => q(`select gosterim || ';' || tiklama || ';' || tiklama_web || ';' || yerlesim from public.reklam_raporu((${lit(gun)}::date - ${gunOnce}), (${lit(gun)}::date - ${son}))`, admin);
+  const once = [rapor(100), rapor(2), rapor(0), rapor(120, 0)];
+  assert.deepEqual(once, ['4;1;1;0', '3;1;0;2', '1;0;0;0', '8;2;1;2']);
+  // bakım yalnız sahibine (postgres / pg_cron): ziyaretçi ve yönetici çağıramaz
+  assert.match(hata('select public.reklam_bakim()', anon), /permission denied/);
+  assert.match(hata('select public.reklam_bakim()', admin), /permission denied/);
+  assert.match(hata('select public.reklam_bakim(3)'), /en az 7 gün/);
+  assert.match(q('select public.reklam_bakim()'), /toplanan gün: 2, silinen olay: 5, silinen yerleşim: 0/);
+  assert.equal(q(`select count(*) from public.reklam_olaylari where reklam_id = ${lit(id)}`), '5', '100 günlük ham olaylar silindi, son günler duruyor');
+  assert.equal(q(`select count(*) from public.reklam_olaylari where sekme_id is not null`), '0', '1 günden eski tıklamada sekme kimliği boşaltıldı');
+  assert.deepEqual([rapor(100), rapor(2), rapor(0), rapor(120, 0)], once, 'rapor toplamdan okur, çift saymaz');
+  assert.equal(q(`select tur || ':' || eylem || ':' || sayi from public.reklam_gunluk where gun = ${lit(gun)}::date - 100 order by tur`), 'gosterim::4\ntiklama:web:1');
+  // ikinci bakım: toplanacak yeni gün yok, aynı sonuç
+  assert.match(q('select public.reklam_bakim()'), /toplanan gün: 0, silinen olay: 0/);
+  assert.equal(rapor(120, 0), '8;2;1;2');
+  assert.match(hata('select count(*) from public.reklam_gunluk', anon), /permission denied/);
+  assert.equal(q('select count(*) from public.reklam_gunluk', uye), '0');
+  assert.notEqual(q('select count(*) from public.reklam_gunluk', admin), '0');
+});
+
+test('014: günlük rapor (TSİ günü, maç günü işaretli) ve rapor dönemi yayınla kesişen kısım', () => {
+  temizle();
+  const gun = istanbulBugun();
+  const id = reklamEkle({ firma_adi: 'Haftalık' });
+  q(`update public.reklamlar set baslangic = (${lit(gun)}::date - 3)::timestamp at time zone 'Europe/Istanbul', bitis = (${lit(gun)}::date + 4)::timestamp at time zone 'Europe/Istanbul' where id = ${lit(id)}`, admin);
+  const mac = q(`insert into public.maclar (rakip, tarih) values ('Gün Testi', ((${lit(gun)}::date - 1) + time '19:00') at time zone 'Europe/Istanbul') returning id`);
+  q(`insert into public.reklam_olaylari (reklam_id, tur, sayfa_ziyaret_id, alan, created_at)
+       select ${lit(id)}::uuid, 'gosterim'::public.reklam_olay_turu, gen_random_uuid(), 'ana_akis'::public.reklam_alani, ((${lit(gun)}::date - 1) + time '20:00') at time zone 'Europe/Istanbul' from generate_series(1, 5)
+       union all select ${lit(id)}::uuid, 'gosterim'::public.reklam_olay_turu, gen_random_uuid(), 'ana_akis'::public.reklam_alani, ((${lit(gun)}::date - 2) + time '23:30') at time zone 'Europe/Istanbul' from generate_series(1, 2)`);
+  const satir = q(`select gun || ';' || mac_gunu || ';' || gosterim from public.reklam_gunluk_raporu((${lit(gun)}::date - 30), ${lit(gun)})`, admin).split('\n');
+  assert.deepEqual(satir.map((s) => s.split(';').slice(1).join(';')), ['false;2', 'true;5']);
+  // dönem: istenen ay yerine yayınla kesişen günler; yayın günü ve günlük ortalama
+  const r = q(`select donem_baslangic || ';' || donem_bitis || ';' || yayin_gun || ';' || gunluk_ortalama_gosterim from public.reklam_raporu((${lit(gun)}::date - 30), (${lit(gun)}::date + 30))`, admin);
+  const [db, ds, g, ort] = r.split(';');
+  assert.equal(q(`select (${lit(db)}::date = ${lit(gun)}::date - 3)::text || (${lit(ds)}::date = ${lit(gun)}::date + 3)::text`), 'truetrue');
+  assert.equal(g, '7');
+  assert.equal(ort, '1.0');
+  assert.match(hata(`select * from public.reklam_gunluk_raporu(current_date, current_date)`, uye), /yalnızca yöneticiler/);
+  assert.match(hata(`select * from public.reklam_gunluk_raporu(current_date, current_date)`, anon), /permission denied/);
+  q(`delete from public.maclar where id = ${lit(mac)}`);
+});
+
+test('014: ortak firma anahtarı: SQL = JS, akışta "NARÇIL CAFE" ve "Narçil Cafe" tek firma, rapor aynı anahtarı verir', async () => {
+  const RM = await import(new URL('../../assets/reklam/reklam-mantik.js', import.meta.url).href);
+  for (const [girdi, beklenen] of ORNEK.firma_anahtari) {
+    assert.equal(q(`select public.firma_anahtari(${lit(girdi)})`), beklenen, 'SQL: ' + girdi);
+    assert.equal(RM.firmaAnahtari(girdi), beklenen, 'JS: ' + girdi);
+  }
+  temizle();
+  reklamEkle({ firma_adi: 'Narçil Cafe', oncelik: 5 });
+  reklamEkle({ firma_adi: 'NARÇIL CAFE', oncelik: 4, alan: 'haber_sonu' });
+  reklamEkle({ firma_adi: 'NARÇIL  cafe', oncelik: 3 });
+  assert.equal(q(`select count(*) from public.aktif_reklamlar('ana_akis', 5)`, anon), '1');
+  const gun = istanbulBugun();
+  assert.equal(q(`select count(distinct firma_anahtar) from public.reklam_raporu(${lit(gun)}, ${lit(gun)})`, admin), '1');
+});
+
+test('014: yasaklı sektör onayı sunucuda: onaysız yayın yok, içerik değişince onay sıfırlanır', () => {
+  temizle();
+  assert.match(hata(`insert into public.reklamlar (firma_adi, gorsel_url, kisa_metin, alan, baslangic, bitis, durum, sektor_onayi)
+    values ('Bahis X', ${lit(GORSEL)}, 'x', 'ana_akis', now(), now() + interval '1 day', 'yayinda', false)`, admin), /yasaklı sektör/);
+  const id = reklamEkle({ firma_adi: 'Onaylı' });
+  assert.match(hata(`update public.reklamlar set baglanti_url = 'https://baska.com' where id = ${lit(id)}`, admin), /yeniden/);
+  q(`update public.reklamlar set baglanti_url = 'https://baska.com', sektor_onay_zamani = now() - interval '1 hour' where id = ${lit(id)}`, admin);
+  assert.equal(q(`select sektor_onayi from public.reklamlar where id = ${lit(id)}`), 't');
+  assert.match(q("select pg_get_constraintdef(oid) from pg_constraint where conname = 'reklamlar_yayin_sektor'"), /sektor_onayi/);
+});
+
+test('014: 010-013 yeniden çalıştırılıp 014 ardından çalışınca son sürüm kurulu kalır (tek reklam_olay_kaydet)', () => {
+  reklamMigrationYenidenUygula();
+  assert.equal(q("select count(*) from pg_proc where proname = 'reklam_olay_kaydet' and pronamespace = 'public'::regnamespace"), '1');
+  for (const ad of ['reklam_olay_kaydet', 'aktif_reklamlar', 'reklam_raporu', 'kullanici_adi_ayrilmis', 'yorum_guncelleme_kontrol', 'sikayet_kontrol']) {
+    assert.match(q(`select pg_get_functiondef(p.oid) from pg_proc p where p.proname = ${lit(ad)} and p.pronamespace = 'public'::regnamespace`), /sürüm 014/, ad);
+  }
+  assert.match(hata('select * from public.sakatliklar', anon), /permission denied/, 'aciklama sütun yetkisi yeniden kapandı');
 });

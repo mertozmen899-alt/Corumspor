@@ -293,7 +293,7 @@ async function tarayiciTestleri() {
     await p.fill('#g-sifre', 'sifre1234');
     await Promise.all([p.waitForURL(/yonetim\.html/), p.click('#g-gonder')]);
     await p.waitForSelector('#panel:not([hidden])');
-    kontrol(c('yönetim: yönetici paneli görüyor, üstte yönetici adı'), await p.isVisible('#panel') && /kirmizi_simsek/.test(await metin(p, '#oturum-alani')));
+    kontrol(c('yönetim: yönetici paneli görüyor, üstte yönetici adı'), await p.isVisible('#panel') && /tribun_editor/.test(await metin(p, '#oturum-alani')));
     const sekmeler = await p.$$eval('[role=tab][data-sekme]', (l) => l.map((x) => x.textContent));
     kontrol(c('yönetim (013): 7 sekme (Kadro, Sakatlıklar ve Reklamlar dahil)'), JSON.stringify(sekmeler) === JSON.stringify(['Haberler', 'Maçlar', 'Goller', 'Kadro', 'Sakatlıklar', 'Yorumlar', 'Reklamlar']), JSON.stringify(sekmeler));
     await p.waitForSelector('#haber-listesi li');
@@ -343,6 +343,7 @@ async function tarayiciTestleri() {
     await p.waitForFunction(() => /YouTube/.test(document.querySelector('#panel-mesaj').textContent));
     kontrol(c('yönetim: geçersiz video adresi reddedildi'), /Video bağlantısı/.test(await metin(p, '#panel-mesaj')));
     await p.fill('#g-video', 'https://youtu.be/aqz-KE-bpKQ');
+    await p.fill('#g-video-kaynak', 'Kulübün resmî YouTube kanalı'); // 014: videolu golde kaynak zorunlu
     await p.click('#g-kaydet');
     await p.waitForFunction(() => /Gol eklendi/.test(document.querySelector('#panel-mesaj').textContent));
     kontrol(c('yönetim: gol eklendi'), /Panel Golcü/.test(await metin(p, '#gol-listesi')));
@@ -481,7 +482,7 @@ async function tarayiciTestleri() {
       kontrol(`statik: ${ad} CSP'de 'unsafe-inline' / 'unsafe-eval' yok`, csp && !/unsafe-inline|unsafe-eval/.test(csp), csp);
       kontrol(`statik: ${ad} script-src yalnız 'self' (supabase-js de sitenin kendisinden; jsDelivr yok)`, JSON.stringify(yonerge('script-src')) === JSON.stringify(["'self'"]), yonerge('script-src').join(' '));
       kontrol(`statik: ${ad} hiçbir yerde jsDelivr adresi yok`, !/jsdelivr\.(net|com)/i.test(s), ad);
-      const sb = /<script defer src="([^"]+)" integrity="([^"]+)"><\/script>/.exec(s) || [];
+      const sb = /<script defer(?: fetchpriority="high")? src="([^"]+)" integrity="([^"]+)"><\/script>/.exec(s) || [];
       kontrol(`statik: ${ad} supabase-js <script defer> yerel dosyadan, SRI ile`, sb[1] === SUPABASE_JS && sb[2] === SRI, sb[0] || '(etiket yok)');
       kontrol(`statik: ${ad} img-src yalnız 'self' + Supabase deposu + data:/blob: (her https adresi değil)`,
         JSON.stringify(yonerge('img-src')) === JSON.stringify(["'self'", 'https://*.supabase.co', 'data:', 'blob:']), yonerge('img-src').join(' '));
@@ -632,7 +633,8 @@ async function tarayiciTestleri() {
     await git(p, 'mac.html?id=' + M1);
     await p.waitForSelector('#yorum-listesi .yorum');
     const y = await p.$$eval('#yorum-listesi .yorum .yorum-metni', (l) => l.map((x) => x.textContent));
-    kontrol('çok yorum: en yeni yorum (231.) listede, eskiden yeniye sıralı', y[y.length - 1] === 'Toplu yorum 230' && y.length <= 200 && y.indexOf('Toplu yorum 229') === y.length - 2, `${y.length} yorum, son: ${y[y.length - 1]}`);
+    // 014 (taraftar 9): varsayılan "En yeni" üstte; "En eski" seçimi eskiden yeniye çevirir
+    kontrol('çok yorum: en yeni yorum (231.) listede, en yeni üstte', y[0] === 'Toplu yorum 230' && y.length <= 200 && y[1] === 'Toplu yorum 229', `${y.length} yorum, ilk: ${y[0]}`);
     kontrol('çok yorum: "son 200 yorum" notu görünüyor', /son 200 yorum/i.test(await metin(p, '.yorumlar')), await metin(p, '.yorumlar'));
     kontrol('maç başlığı: ekran okuyucu için takım adları ve skor boşlukla ayrılıyor', (await metin(p, '#mac-basi h1')) === 'Çorum FK 2 - 1 Örnekköy Spor', await metin(p, '#mac-basi h1'));
     await git(p, 'takim.html#fikstur');

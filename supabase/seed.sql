@@ -22,14 +22,15 @@ insert into public.maclar (id, rakip, tarih, stadyum, ic_saha, organizasyon, cor
 on conflict (id) do nothing;
 
 -- Goller (sadece Çorum golleri). Videolar: açık lisanslı "Big Buck Bunny" örnekleri.
-insert into public.goller (id, mac_id, oyuncu, dakika, ek_dakika, penalti, video_url, aciklama) values
+-- 014: videolu golde video kaynağı zorunlu; .mp4 yalnız sitenin deposundan (gol-videolari kovası, panelden yüklenir)
+insert into public.goller (id, mac_id, oyuncu, dakika, ek_dakika, penalti, video_url, video_kaynak, aciklama) values
   ('22222222-0000-4000-8000-000000000001', '11111111-0000-4000-8000-000000000001',
-   'Ali Örnek', 23, null, false, 'https://www.youtube.com/watch?v=aqz-KE-bpKQ', 'Ceza sahası dışından sert vuruş (örnek).'),
+   'Ali Örnek', 23, null, false, 'https://www.youtube.com/watch?v=aqz-KE-bpKQ', 'Blender Foundation, CC BY 3.0 (örnek video)',
+   'Ceza sahası dışından sert vuruş (örnek).'),
   ('22222222-0000-4000-8000-000000000002', '11111111-0000-4000-8000-000000000001',
-   'Mehmet Deneme', 90, 2, true, null, 'Uzatmada penaltı (örnek).'),
+   'Mehmet Deneme', 90, 2, true, null, null, 'Uzatmada penaltı (örnek).'),
   ('22222222-0000-4000-8000-000000000003', '11111111-0000-4000-8000-000000000002',
-   'Ali Örnek', 67, null, false,
-   'https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4', 'Kafa golü (örnek).')
+   'Ali Örnek', 67, null, false, null, null, 'Kafa golü (örnek).')
 on conflict (id) do nothing;
 
 -- Haberler: 3 yayında, 1 taslak (taslak herkese görünmez)
@@ -58,9 +59,10 @@ on conflict (id) do nothing;
 
 -- 013: manşet (ana sayfanın açılış görseli), gol kapakları ve süreleri
 update public.haberler set manset = true where id = '33333333-0000-4000-8000-000000000003' and not manset;
-update public.goller set kapak_url = 'assets/img/gol-kapak-ornek.svg', sure_sn = 42
+-- (kapaklar sitede gerçekten bulunan örnek görseller; sql-testleri.js seed'deki her assets/ yolunun var olduğunu denetler)
+update public.goller set kapak_url = 'assets/img/ornek-kapak-1.svg', sure_sn = 42
   where id = '22222222-0000-4000-8000-000000000001' and kapak_url is null;
-update public.goller set kapak_url = 'assets/img/gol-kapak-ornek.svg', sure_sn = 38
+update public.goller set kapak_url = 'assets/img/ornek-kapak-2.svg', sure_sn = 38
   where id = '22222222-0000-4000-8000-000000000003' and kapak_url is null;
 
 -- 013: kadro (uydurma oyuncular; gerçek kadro kulübün açıkladığı listeden panelle girilir, fotoğraf yalnız izinle)
@@ -76,15 +78,22 @@ insert into public.oyuncular (id, ad, forma_no, mevki, sira) values
 on conflict (id) do nothing;
 
 -- 013: sakatlık güncellemeleri. YALNIZ kulübün resmî açıklamasındaki bilgi, kaynak zorunlu (KVKK m.6: sağlık verisi)
-insert into public.sakatliklar (id, oyuncu_id, durum, aciklama, kaynak, kaynak_url, beklenen_donus, yayinda) values
+-- 014: Sakat / Durumu belirsiz kaydında kaynak bağlantısı zorunlu; aciklama yalnız yöneticinin iç notu (sitede görünmez, tanı yazılmaz)
+insert into public.sakatliklar (id, oyuncu_id, durum, aciklama, kaynak, kaynak_url, kaynak_tarihi, beklenen_donus, yayinda) values
   ('66666666-0000-4000-8000-000000000001', '55555555-0000-4000-8000-000000000003', 'sakat',
-   'Sağ arka adale; bireysel çalışıyor (örnek).', 'Kulüp açıklaması (örnek)', 'https://ornek.test/aciklama/1',
-   (now() at time zone 'Europe/Istanbul')::date + 14, true),
+   'İç not: kulüp açıklaması 1. paragraf (örnek).', 'Kulüp açıklaması (örnek)', 'https://ornek.test/aciklama/1',
+   (now() at time zone 'Europe/Istanbul')::date - 1, (now() at time zone 'Europe/Istanbul')::date + 14, true),
   ('66666666-0000-4000-8000-000000000002', '55555555-0000-4000-8000-000000000008', 'cezali',
-   'Sarı kart cezalısı; bir maç yok (örnek).', 'TFF disiplin kurulu (örnek)', null, null, true),
+   'İç not: sarı kart cezası (örnek).', 'TFF disiplin kurulu (örnek)', null, (now() at time zone 'Europe/Istanbul')::date - 2, null, true),
   ('66666666-0000-4000-8000-000000000003', '55555555-0000-4000-8000-000000000004', 'belirsiz',
-   'Taslak: yayınlanmadı, ziyaretçi görmez (örnek).', 'Kulüp açıklaması (örnek)', null, null, false)
+   'Taslak: yayınlanmadı, ziyaretçi görmez (örnek).', 'Kulüp açıklaması (örnek)', 'https://ornek.test/aciklama/3', null, null, false)
 on conflict (id) do nothing;
+
+-- 014: haber kaynağı, maç notu (bilet / yayın / kapı saati)
+update public.haberler set kaynak = 'Kulüp açıklaması (örnek)', kaynak_url = 'https://ornek.test/biletler'
+  where id = '33333333-0000-4000-8000-000000000003' and kaynak is null;
+update public.maclar set mac_notu = 'Biletler kulübün resmî satış noktalarında. Kapılar maçtan 2 saat önce açılır (örnek).'
+  where id = '11111111-0000-4000-8000-000000000003' and mac_notu is null;
 
 -- =====================================================================
 -- İLK YÖNETİCİYİ ATAMAK

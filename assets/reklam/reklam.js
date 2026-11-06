@@ -11,15 +11,19 @@
 //
 // Kurallar: reklam yoksa kapsayıcı boş ve gizli kalır (boş kutu yok). Açılır pencere, kaplama, sabit konum yok.
 // Yalnız kartın düğmesi bağlantıdır; yöneticinin bakışları sayılmaz (istemcide is_admin, sunucuda reklam_olay_kaydet).
-// Gösterim: kartın en az %50'si en az 1 sn görünür kalınca, sayfa ziyareti başına reklam başına bir kez.
-// Tıklama: bağlantı normal açılır (yeni sekme), kayıt arka planda gider, gezinmeyi bekletmez.
-// Tıklama tekrarı (30 dk) sekme kimliğiyle bakılır: aynı sekmede başka sayfaya geçilse de aynı reklama tekrar tıklama sayılmaz.
+// Gösterim: kartın en az %50'si en az 1 sn görünür kalınca, sayfa ziyareti başına reklam başına bir kez. Görünür alan,
+// yapışkan üst çubuk ve sabit alt menünün altında kalan kısım DEĞİLDİR (014: IntersectionObserver rootMargin, ortulenKenarlar).
+// Yerleşim (014): kart sayfaya konunca bir kez ("sayfa açılışı"): görünürlük oranının paydası.
+// Tıklama: bağlantı normal açılır (yeni sekme), kayıt arka planda gider, gezinmeyi bekletmez. Hangi düğme (web / whatsapp / ara)
+// ayrı kaydedilir; tekrar kuralı (30 dk) sekme kimliğiyle ve düğme bazında bakılır.
+// Sekme kimliği (sessionStorage, rastgele) 014'ten beri gösterimde de gönderilir: sunucu yalnız sekme başına saatlik sınır için
+// en çok 2 saat bir sayaçta tutar, olaya yazmaz.
 
-import { baglantiGecerli, eylemYazisi, gorselAdresiGecerli, MAC_SPONSORU_NOTU, reklamEtiketi, sekmeKimligi, telAdresi, whatsappBaglantisiMi, yeniZiyaretKimligi } from './reklam-mantik.js';
+import { baglantiGecerli, eylemYazisi, gorselAdresiGecerli, MAC_SPONSORU_NOTU, reklamEtiketi, sekmeKimligi, SINIRLAR, telAdresi, tiklamaEylemi, whatsappBaglantisiMi, yeniZiyaretKimligi } from './reklam-mantik.js';
 
 /** Bu sayfa yüklemesinin ziyaret kimliği. Sadece bellekte (localStorage/çerez YOK), sayfa yenilenince değişir. */
 export const SAYFA_ZIYARET_ID = yeniZiyaretKimligi();
-/** Bu sekmenin rastgele kimliği (sessionStorage; sekme kapanınca silinir). SADECE tıklama tekrarı için gönderilir. */
+/** Bu sekmenin rastgele kimliği (sessionStorage; sekme kapanınca silinir). Tıklama tekrarı ve sekme başına sınır için gönderilir. */
 export const SEKME_ID = sekmeKimligi();
 
 const GORUNURLUK_ORANI = 0.5;
@@ -27,6 +31,7 @@ const GORUNURLUK_SURESI_MS = 1000;
 
 let varsayilanIstemci = null;
 const sayilanGosterimler = new Set(); // reklam id'leri (bu sayfa ziyaretinde)
+const yerlesimler = new Set();        // yerleşimi gönderilen reklam id'leri (bu sayfa ziyaretinde)
 
 /** Tüm yerleşimlerin kullanacağı supabase-js istemcisini ayarlar. */
 export function reklamIstemciAyarla(istemci) { varsayilanIstemci = istemci; }
@@ -53,14 +58,17 @@ function el(etiket, sinif, metin) {
  * Reklam kartının HTML öğesini oluşturur (yönetim önizlemesi de bunu kullanır).
  * Veriler textContent ile yazılır (HTML enjeksiyonu yok); bağlantı geçersizse bağlantısız kart çıkar.
  * Erişilebilirlik: etiket ("Sponsor"/"Reklam"/"Maçın sponsoru") kartın İLK öğesi ve gerçek metin (süs nokta aria-hidden);
- * kart aside, adı "Etiket: Firma"; YALNIZ düğme(ler) bağlantıdır (kartın tamamı değil: kaydırırken yanlış dokunuş açmaz);
+ * kart haber sonunda ve maçta aside; akışta (liste öğesinin içinde) aside DEĞİL, div role="group" (014: tamamlayıcı yer işareti
+ * en üst düzeyde olmalı); adı "Etiket: Firma"; YALNIZ düğme(ler) bağlantıdır (kartın tamamı değil: kaydırırken yanlış dokunuş açmaz);
  * bağlantı adı "Sponsor: Firma – Ayrıntılar (yeni sekmede açılır)"; görsel alt'ı = görseldeki yazı (yoksa süs, alt="").
  * @param {object} reklam aktif_reklam satırı
  * @param {{onizleme?: boolean}} ops onizleme: tıklama gezinmez, hiçbir sayım yapılmaz
  */
 export function reklamKartiOlustur(reklam, { onizleme = false } = {}) {
   const etiket = reklamEtiketi(reklam);
-  const kart = el('aside', `reklam-kart reklam-kart--${reklam.alan}`);
+  const akista = reklam.alan === 'ana_akis';
+  const kart = el(akista ? 'div' : 'aside', `reklam-kart reklam-kart--${reklam.alan}`);
+  if (akista) kart.setAttribute('role', 'group');
   kart.setAttribute('aria-label', `${etiket}: ${reklam.firma_adi}`);
   kart.dataset.reklamId = reklam.id || '';
   if (onizleme) kart.dataset.onizleme = '1';
@@ -70,6 +78,7 @@ export function reklamKartiOlustur(reklam, { onizleme = false } = {}) {
   nokta.setAttribute('aria-hidden', 'true');
   et.append(nokta, el('span', 'reklam-etiket-metin', etiket));
   kart.append(et);
+  // Maç alanında not, başlıkla AYNI boyda ve AYNI renkte (başkan 1; stil.css .reklam-alt-etiket = .reklam-etiket rengi)
   if (reklam.alan === 'mac_sponsoru') kart.append(el('p', 'reklam-alt-etiket', MAC_SPONSORU_NOTU));
 
   const url = reklam.baglanti_url && baglantiGecerli(reklam.baglanti_url) ? reklam.baglanti_url : null;
@@ -82,9 +91,9 @@ export function reklamKartiOlustur(reklam, { onizleme = false } = {}) {
     const kare = reklam.alan === 'mac_sponsoru';
     img.src = reklam.gorsel_url;
     if (reklam.gorsel_kucuk_url && gorselAdresiGecerli(reklam.gorsel_kucuk_url)) {
-      // Yuvasına göre boy: akışta ~112 px, maçta 64 px, haber sonunda tam genişlik
+      // Yuvasına göre boy: akışta ~144 px, maçta 64 px, haber sonunda tam genişlik
       img.srcset = `${reklam.gorsel_kucuk_url} ${kare ? 192 : 480}w, ${reklam.gorsel_url} ${kare ? 600 : 1200}w`;
-      img.sizes = kare ? '64px' : reklam.alan === 'ana_akis' ? '112px' : '(max-width: 600px) 100vw, 44vw';
+      img.sizes = kare ? '64px' : reklam.alan === 'ana_akis' ? '144px' : '(max-width: 600px) 100vw, 44vw';
     }
     img.alt = (reklam.gorsel_metni || '').trim();
     img.loading = 'lazy';
@@ -130,16 +139,40 @@ function kapsayiciyiBosalt(kapsayici) {
   kapsayici.classList.remove('reklam-yuva--dolu');
 }
 
-function olayGonder(istemci, reklam, tur, alan, macId) {
+function olayGonder(istemci, reklam, tur, alan, macId, eylem = null) {
   // Beklemeyiz (await yok): kayıt gezinmeyi ya da sayfayı bekletmez; hata sessizce yutulur.
   try {
     const p = istemci.rpc('reklam_olay_kaydet', {
       p_reklam_id: reklam.id, p_tur: tur, p_sayfa_ziyaret_id: SAYFA_ZIYARET_ID,
       p_alan: alan, p_mac_id: macId,
-      p_sekme_id: tur === 'tiklama' ? SEKME_ID : null, // gösterimde gönderilmez
+      p_sekme_id: SEKME_ID, // 014: sekme başına saatlik sınır (gösterimde olaya yazılmaz)
+      p_eylem: tur === 'tiklama' ? eylem : null,
     });
     if (p && typeof p.then === 'function') p.then(() => {}, () => {});
   } catch { /* yok say */ }
+}
+
+/**
+ * Görünür alanı örten yapışkan üst çubuk ve sabit alt menü (px). Önce sayfanın ölçtüğü CSS değişkenleri (--ust-gercek,
+ * --alt-menu-gercek; %200 yazıda gerçek boy), yoksa .ust ve .alt-nav öğelerinin o anki boyu (yalnız yapışkan/sabitse ve ekrandaysa).
+ */
+export function ortulenKenarlar(belge = document) {
+  const kok = belge.documentElement;
+  const degisken = (ad) => { const v = parseFloat(getComputedStyle(kok).getPropertyValue(ad)); return Number.isFinite(v) && v >= 0 ? v : null; };
+  const yukseklik = (secici, konumlar) => {
+    const e = belge.querySelector(secici);
+    if (!e || e.hidden) return 0;
+    const st = getComputedStyle(e);
+    if (!konumlar.includes(st.position) || st.display === 'none' || st.visibility === 'hidden') return 0;
+    const r = e.getBoundingClientRect();
+    if (r.height <= 0 || r.bottom <= 0 || r.top >= window.innerHeight) return 0;
+    return r.height;
+  };
+  const ust = degisken('--ust-gercek') ?? yukseklik('.ust', ['sticky', 'fixed']);
+  const alt = degisken('--alt-menu-gercek') ?? yukseklik('.alt-nav', ['fixed', 'sticky']);
+  // Görünür alanın yarısından fazlası örtülü sayılmasın (çok küçük ekran / büyük yazı)
+  const sinir = window.innerHeight * 0.5;
+  return { ust: Math.min(Math.round(ust), sinir), alt: Math.min(Math.round(alt), sinir) };
 }
 
 function gosterimiIzle(kart, sayGosterim) {
@@ -157,7 +190,7 @@ function gosterimiIzle(kart, sayGosterim) {
       gorunur = g.isIntersecting && g.intersectionRatio >= GORUNURLUK_ORANI;
       if (gorunur) baslat(); else durdur();
     }
-  }, { threshold: [0, GORUNURLUK_ORANI, 1] });
+  }, (() => { const k = ortulenKenarlar(); return { threshold: [0, GORUNURLUK_ORANI, 1], rootMargin: `-${k.ust}px 0px -${k.alt}px 0px` }; })());
   const sekme = () => (document.visibilityState === 'hidden' ? durdur() : baslat());
   document.addEventListener('visibilitychange', sekme);
   gozcu.observe(kart);
@@ -174,14 +207,15 @@ function yoneticiMi(istemci) {
   return yoneticiSozleri.get(istemci);
 }
 
-// Akış: farklı firmalardan en fazla 5 reklam tek sorguda (aktif_reklamlar); sayfa ziyareti boyunca bir kez istenir
+// Akış: farklı firmalardan en fazla 3 reklam tek sorguda (aktif_reklamlar); sayfa ziyareti boyunca bir kez istenir.
+// Sunucu yalnız bu 3'e olay yazar (014: sırada bekleyen reklam sayılmaz).
 const akisSozleri = new Map();
 function akisReklamlari(istemci, alan) {
   const anahtar = alan;
   if (!akisSozleri.has(anahtar)) {
     akisSozleri.set(anahtar, (async () => {
       try {
-        const { data, error } = await istemci.rpc('aktif_reklamlar', { p_alan: alan, p_adet: 5 });
+        const { data, error } = await istemci.rpc('aktif_reklamlar', { p_alan: alan, p_adet: SINIRLAR.akisYuvaSayisi });
         if (!error && Array.isArray(data)) return data;
       } catch { /* aşağıda tek reklama düş */ }
       try {
@@ -248,6 +282,8 @@ export async function reklamYerlestir(kapsayici, ops = {}) {
   if (kapsayici._reklamTur !== tur) return reklam;
 
   const temizleyiciler = [];
+  // 014: yerleşim (kart sayfada; görünürlük oranının paydası), sayfa ziyareti başına reklam başına bir
+  if (!yerlesimler.has(reklam.id)) { yerlesimler.add(reklam.id); olayGonder(istemci, reklam, 'yerlesim', alan, mac); }
   if (!sayilanGosterimler.has(reklam.id)) {
     temizleyiciler.push(gosterimiIzle(kart, () => {
       if (sayilanGosterimler.has(reklam.id)) return;
@@ -256,7 +292,8 @@ export async function reklamYerlestir(kapsayici, ops = {}) {
     }));
   }
   for (const baglanti of kart.querySelectorAll('a.reklam-eylem')) {
-    const tikla = (e) => { if (e.type === 'auxclick' && e.button !== 1) return; olayGonder(istemci, reklam, 'tiklama', alan, mac); };
+    const eylem = tiklamaEylemi(baglanti.getAttribute('href'));
+    const tikla = (e) => { if (e.type === 'auxclick' && e.button !== 1) return; olayGonder(istemci, reklam, 'tiklama', alan, mac, eylem); };
     baglanti.addEventListener('click', tikla);
     baglanti.addEventListener('auxclick', tikla);
     temizleyiciler.push(() => { baglanti.removeEventListener('click', tikla); baglanti.removeEventListener('auxclick', tikla); });

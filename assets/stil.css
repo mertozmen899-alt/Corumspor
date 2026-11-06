@@ -537,7 +537,7 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
 .reklam-kart { position: static; display: block; width: 100%; max-width: 100%; margin: 0; padding: 12px; background: var(--ilan-zemin); color: var(--metin); border: 1.5px dashed var(--ilan-kenar); border-radius: var(--r-kart); font-family: var(--font-govde); font-size: .9375rem; line-height: 1.45; contain: layout paint; overflow: hidden; }
 .reklam-etiket { display: flex; align-items: center; gap: 6px; margin: 0; font-size: var(--fs-etiket); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ilan-metin); line-height: 1.3; }
 .reklam-etiket .nokta { font-size: .7em; }
-.reklam-alt-etiket { margin: 2px 0 0; font-size: var(--fs-etiket); color: var(--metin-soluk); letter-spacing: .01em; }
+.reklam-alt-etiket { margin: 2px 0 0; font-size: var(--fs-etiket); color: var(--ilan-metin); line-height: 1.3; letter-spacing: .01em; } /* başkan 1: başlıkla aynı boy ve renk (tam kontrast) */
 .reklam-govde { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; color: inherit; }
 .reklam-gorsel-kutu { border-radius: var(--r-kucuk-gorsel); overflow: hidden; background: var(--yuzey-2); aspect-ratio: 1200 / 628; flex: none; }
 .reklam-gorsel { display: block; width: 100%; height: 100%; object-fit: cover; }

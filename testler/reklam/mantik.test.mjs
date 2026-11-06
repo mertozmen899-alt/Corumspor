@@ -187,7 +187,7 @@ test('013: "Ara" telefonu, düğme yazısı, görsel metni, sınır aşımı uya
 });
 
 test('form doğrulama: SQL tetikleyicisiyle aynı kurallar', () => {
-  const iyi = { firma_adi: 'Narçil Cafe', kisa_metin: "Espresso bazlı kahveler, Türk kahvesi, bitki çayları, taze sıkılmış meyve suları ve tatlılar. Menünün tamamı narcil.net'te.", gorsel_url: 'https://abc.supabase.co/storage/v1/object/public/reklam-gorselleri/2026/11/x.png', baglanti_url: 'https://narcil.net', alan: 'ana_akis', mac_id: null, baslangic: saat(-1), bitis: saat(5), oncelik: 10 };
+  const iyi = { firma_adi: 'Narçil Cafe', kisa_metin: "Espresso bazlı kahveler, Türk kahvesi, bitki çayları, taze meyve suları ve tatlılar. Çorum'da sizi bekliyoruz.", gorsel_url: 'https://abc.supabase.co/storage/v1/object/public/reklam-gorselleri/2026/11/x.png', baglanti_url: 'https://narcil.net', alan: 'ana_akis', mac_id: null, baslangic: saat(-1), bitis: saat(5), oncelik: 10 };
   assert.deepEqual(M.reklamDogrula(iyi, { simdi: SIMDI }), {});
   const h = (o, ops) => Object.keys(M.reklamDogrula({ ...iyi, ...o }, { simdi: SIMDI, ...ops }));
   assert.deepEqual(h({ firma_adi: '  ' }), ['firma_adi']);
@@ -222,38 +222,90 @@ test('tıklama oranı ve Türkçe sayı biçimi', () => {
 });
 
 test('CSV: UTF-8 BOM, noktalı virgül, CRLF, Türkçe oran, tırnak ve formül koruması', () => {
-  // 013: Maç ve Dönem sütunları (dosya adı değişse de dönem kaybolmaz; maç sponsoru satırında maçın adı)
+  // 013: Maç ve Dönem; 014: yayın başlangıç/bitiş/gün, sayfa açılışı, görünürlük, günlük ortalama, tıklama eylemleri,
+  // "Şüpheli trafik (sayılmadı, dk)" yalnız bir satırda bile 0'dan büyükse
   const csv = M.raporCsv([
-    { firma_adi: 'Narçil Cafe; Kahve', alan: 'ana_akis', gosterim: 1200, tiklama: 30, tiklama_orani: 2.5, supheli_dakika: 3 },
+    { firma_adi: 'Narçil Cafe; Kahve', alan: 'ana_akis', gosterim: 1200, tiklama: 30, tiklama_orani: 2.5, supheli_dakika: 3, yerlesim: 1600, gorunurluk_orani: 75,
+      tiklama_web: 20, tiklama_whatsapp: 6, tiklama_ara: 4, yayin_baslangic: '2026-11-06T09:00:00Z', yayin_bitis: '2026-11-13T21:00:00Z',
+      donem_baslangic: '2026-11-06', donem_bitis: '2026-11-14', yayin_gun: 9, gunluk_ortalama_gosterim: 133.3 },
     { firma_adi: '=HYPERLINK("x")', alan: 'mac_sponsoru', mac_id: 'm1', gosterim: 0, tiklama: 0, tiklama_orani: null },
     { firma_adi: 'Şükrü "Usta" Pide', alan: 'haber_sonu', gosterim: '3', tiklama: '1' },
     { firma_adi: 'Genel', alan: 'mac_sponsoru', mac_id: null, gosterim: 1, tiklama: 0 },
   ], { donem: '2026-11-01 – 2026-11-30', macAdi: (id) => (id === 'm1' ? '22 Ekim 2026 19:00 · Çorum FK – Örnekköy Spor' : '') });
   assert.equal(csv.charCodeAt(0), 0xfeff);
   const satirlar = csv.slice(1).split('\r\n');
-  assert.equal(satirlar[0], 'Firma;Alan;Maç;Dönem;Gösterim;Tıklama;Tıklama oranı (%);Sınıra takılan dakika');
-  assert.equal(satirlar[1], '"Narçil Cafe; Kahve";Ana sayfa akışı;;2026-11-01 – 2026-11-30;1200;30;2,50;3');
-  assert.equal(satirlar[2], `"'=HYPERLINK(""x"")";Maç sponsoru;22 Ekim 2026 19:00 · Çorum FK – Örnekköy Spor;2026-11-01 – 2026-11-30;0;0;;0`);
-  assert.equal(satirlar[3], '"Şükrü ""Usta"" Pide";Haber sonu;;2026-11-01 – 2026-11-30;3;1;33,33;0');
-  assert.equal(satirlar[4], 'Genel;Maç sponsoru;Tüm maçlar;2026-11-01 – 2026-11-30;1;0;0,00;0');
+  assert.equal(satirlar[0], 'Firma;Alan;Maç;Dönem;Yayın başlangıç;Yayın bitiş;Yayın günü;Sayfa açılışı;Gösterim;Görünürlük oranı (%);Günlük ortalama gösterim;Tıklama;Web tıklaması;WhatsApp tıklaması;Arama;Tıklama oranı (%);Şüpheli trafik (sayılmadı, dk)');
+  assert.equal(satirlar[1], '"Narçil Cafe; Kahve";Ana sayfa akışı;;2026-11-06 – 2026-11-14;6 Kasım 2026 12:00;14 Kasım 2026 00:00;9;1600;1200;75,00;133,3;30;20;6;4;2,50;3');
+  assert.equal(satirlar[2], `"'=HYPERLINK(""x"")";Maç sponsoru;22 Ekim 2026 19:00 · Çorum FK – Örnekköy Spor;2026-11-01 – 2026-11-30;;;;0;0;;;0;0;0;0;;0`);
+  assert.equal(satirlar[3], '"Şükrü ""Usta"" Pide";Haber sonu;;2026-11-01 – 2026-11-30;;;;0;3;;;1;0;0;0;33,33;0');
+  assert.equal(satirlar[4], 'Genel;Maç sponsoru;Tüm maçlar;2026-11-01 – 2026-11-30;;;;0;1;;;0;0;0;0;0,00;0');
   assert.equal(satirlar[5], '');
-  assert.equal(M.raporCsv([]), '\ufeffFirma;Alan;Maç;Dönem;Gösterim;Tıklama;Tıklama oranı (%);Sınıra takılan dakika\r\n');
+  // hiçbir satırda şüpheli trafik yoksa sütun hiç yok (reklam verene giden dosyada teknik sütun kalmaz)
+  assert.equal(M.raporCsv([]), '\ufeffFirma;Alan;Maç;Dönem;Yayın başlangıç;Yayın bitiş;Yayın günü;Sayfa açılışı;Gösterim;Görünürlük oranı (%);Günlük ortalama gösterim;Tıklama;Web tıklaması;WhatsApp tıklaması;Arama;Tıklama oranı (%)\r\n');
+  assert.ok(!/Şüpheli/.test(M.raporCsv([{ firma_adi: 'A', alan: 'ana_akis', gosterim: 1, tiklama: 0, supheli_dakika: 0 }])));
 });
 
-test('013: firma süzgeci (CSV yalnız bir firmanın satırları; büyük/küçük harf ve boşluk farkı gözetmez)', () => {
-  const l = [{ firma_adi: 'Narçil Cafe', alan: 'ana_akis' }, { firma_adi: 'Hitit Optik', alan: 'haber_sonu' }, { firma_adi: ' narçil cafe ', alan: 'mac_sponsoru' }];
+test('013/014: firma süzgeci ortak firma anahtarıyla (Türkçe küçük harf, ı/i, boşluk farkı yok)', () => {
+  const l = [{ firma_adi: 'Narçil Cafe', alan: 'ana_akis' }, { firma_adi: 'Hitit Optik', alan: 'haber_sonu' }, { firma_adi: ' NARÇIL  cafe ', alan: 'mac_sponsoru' }];
   assert.deepEqual(M.firmaSuz(l, 'Narçil Cafe').map((x) => x.alan), ['ana_akis', 'mac_sponsoru']);
   assert.deepEqual(M.firmaSuz(l, 'Hitit Optik').map((x) => x.firma_adi), ['Hitit Optik']);
   assert.equal(M.firmaSuz(l, '').length, 3);
   const csv = M.raporCsv(M.firmaSuz(l, 'Hitit Optik'));
   assert.ok(csv.includes('Hitit Optik') && !/Narçil/i.test(csv));
+  for (const [girdi, beklenen] of ORNEK.firma_anahtari) assert.equal(M.firmaAnahtari(girdi), beklenen, girdi);
 });
 
-test('dakika sınırları (012): reklam başına dakikada 120 gösterim / 30 tıklama, ziyaret başına 5 tıklama (SQL ile aynı)', () => {
-  assert.equal(M.SINIRLAR.gosterimDakikaSiniri, 120);
-  assert.equal(M.SINIRLAR.tiklamaDakikaSiniri, 30);
+test('dakika sınırları (014): reklam başına dakikada 30 gösterim / 6 tıklama, sekme başına saatte 20 gösterim / 10 tıklama, ziyaret başına 5 tıklama (SQL ile aynı)', () => {
+  assert.equal(M.SINIRLAR.gosterimDakikaSiniri, 30);
+  assert.equal(M.SINIRLAR.tiklamaDakikaSiniri, 6);
   assert.equal(M.SINIRLAR.ziyaretTiklamaSiniri, 5);
+  assert.equal(M.SINIRLAR.sekmeSaatGosterimSiniri, 20);
+  assert.equal(M.SINIRLAR.sekmeSaatTiklamaSiniri, 10);
+  assert.equal(M.SINIRLAR.akisYuvaSayisi, 3);
   assert.ok(Object.isFrozen(M.SINIRLAR));
+  assert.deepEqual(M.ALAN_METIN_ONERISI, { ana_akis: 110, mac_sponsoru: 110, haber_sonu: 160 });
+});
+
+test('014: akışta N. sponsor (aktif_reklamlar aynası) ve "bu alan dolu" uyarısı', () => {
+  const r = (id, firma, oncelik, o = {}) => ({ id, firma_adi: firma, alan: 'ana_akis', durum: 'yayinda', oncelik, baslangic: saat(-10), bitis: saat(100), yayina_alinma: saat(-10), created_at: saat(-10), ...o });
+  const l = [r('a', 'Kale Oto', 20), r('b', 'Narçil Cafe', 10), r('c', 'NARÇIL CAFE', 5), r('d', 'Hitit Optik', 3), r('e', 'Dördüncü', 1), r('f', 'Taslak', 99, { durum: 'taslak' })];
+  assert.deepEqual(M.akisReklamlari(l, 3, SIMDI).map((x) => x.id), ['a', 'b', 'd']);
+  assert.deepEqual(M.gosterimSirasi(l, l[1], SIMDI), { sira: 2 });
+  assert.equal(M.gosterimSirasi(l, l[2], SIMDI), null, 'aynı firmanın ikinci reklamı akışta yok');
+  assert.equal(M.gosterimSirasi(l, l[4], SIMDI), null, '4. firma akışta yok (3 yuva)');
+  // yeni reklam: 0 öncelikle hiç görünmez (akış 3 firmayla dolu), 4 öncelikle görünür; başka firma bitince görünür
+  const yeni = { id: 'y', firma_adi: 'Yeni Firma', alan: 'ana_akis', oncelik: 0, baslangic: saat(0), bitis: saat(48) };
+  const d = M.alanDolulugu(l, yeni, SIMDI);
+  assert.equal(d.gorunur, false);
+  assert.deepEqual(d.onde.map((x) => `${x.firma_adi}:${x.oncelik}`), ['Kale Oto:20', 'Narçil Cafe:10', 'Hitit Optik:3']);
+  assert.equal(M.alanDolulugu(l, { ...yeni, oncelik: 4 }, SIMDI).gorunur, true);
+  const biten = l.map((x) => (x.id === 'd' ? { ...x, bitis: saat(24) } : x));
+  assert.equal(M.alanDolulugu(l, { ...yeni, oncelik: 2 }, SIMDI).gorunur, false);
+  assert.equal(M.alanDolulugu(biten, { ...yeni, oncelik: 2 }, SIMDI).gorunur, true, 'Hitit bitince yer açılır (Dördüncü 1 öncelikte, yeni 2)');
+  // tek yuvalı alan: haber sonunda yüksek öncelikli varsa düşük olan hiç görünmez
+  const hs = [{ ...r('h', 'Büyük', 50), alan: 'haber_sonu' }];
+  const hd = M.alanDolulugu(hs, { ...yeni, alan: 'haber_sonu', oncelik: 10 }, SIMDI);
+  assert.deepEqual([hd.gorunur, hd.onde.map((x) => x.firma_adi).join()], [false, 'Büyük']);
+  assert.equal(M.alanDolulugu(hs, { ...yeni, alan: 'haber_sonu', oncelik: 50 }, SIMDI).gorunur, true, 'eşit öncelikte yeni yayına alınan kazanır');
+  // maç sponsoru: maça özel olan genel sponsoru geçer
+  const ms = [{ ...r('g', 'Genel', 90), alan: 'mac_sponsoru', mac_id: null }];
+  assert.equal(M.alanDolulugu(ms, { ...yeni, alan: 'mac_sponsoru', mac_id: 'm1', oncelik: 0 }, SIMDI).gorunur, true);
+  assert.equal(M.alanDolulugu(ms, { ...yeni, alan: 'mac_sponsoru', mac_id: null, oncelik: 0 }, SIMDI).gorunur, false);
+});
+
+test('014: bağlantısız reklamda metinde adres uyarısı, tıklama eylemi, en yoğun gün', () => {
+  assert.equal(M.metindeAdresVar("Menünün tamamı narcil.net'te."), true);
+  assert.equal(M.metindeAdresVar('www.ornek.com.tr adresinde'), true);
+  assert.equal(M.metindeAdresVar('https://a.co'), true);
+  assert.equal(M.metindeAdresVar("Espresso bazlı kahveler, Türk kahvesi. Çorum'da sizi bekliyoruz."), false);
+  assert.equal(M.metindeAdresVar('Saat 19.30, 2.el araçlar'), false);
+  assert.equal(M.tiklamaEylemi('tel:+903642131919'), 'ara');
+  assert.equal(M.tiklamaEylemi('https://wa.me/905321234567?text=x'), 'whatsapp');
+  assert.equal(M.tiklamaEylemi('whatsapp://send?phone=905321234567'), 'whatsapp');
+  assert.equal(M.tiklamaEylemi('https://kaleoto.com.tr/stok'), 'web');
+  assert.equal(M.tiklamaEylemi('javascript:alert(1)'), null);
+  assert.deepEqual(M.enYogunGun([{ gun: '2026-11-08', gosterim: 40 }, { gun: '2026-11-09', gosterim: 30 }, { gun: '2026-11-09', gosterim: 25 }]), { gun: '2026-11-09', gosterim: 55 });
+  assert.equal(M.enYogunGun([]), null);
 });
 
 test('sayfa ziyareti kimliği: uuid v4, randomUUID yoksa yedek yol', () => {
